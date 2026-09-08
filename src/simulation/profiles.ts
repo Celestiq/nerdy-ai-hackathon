@@ -11,7 +11,7 @@ export interface SimContext {
 export type LearnerProfile = (assignment: Assignment, ctx: SimContext) => EvidenceBundle;
 
 function randRange(rng: () => number, min: number, max: number): number {
-  return min + rng() * (max - min);
+  return Math.round(min + rng() * (max - min));
 }
 
 interface RespondOpts {
@@ -69,9 +69,11 @@ function respond(assignment: Assignment, ctx: SimContext, opts: RespondOpts): Ev
   };
 }
 
-/** Masters concepts at a normal rate. */
+/** Masters concepts at a normal rate. correctProb sits comfortably above
+ * the mastery threshold (0.85) so a competent learner reliably clears it
+ * within the wheel-spin window rather than stalling on Bernoulli noise. */
 export const competent: LearnerProfile = (a, ctx) =>
-  respond(a, ctx, { correctProb: 0.85, latencyMs: [1500, 4000], signatureWhenWrong: "UNCLASSIFIED" });
+  respond(a, ctx, { correctProb: 0.93, latencyMs: [1500, 4000], signatureWhenWrong: "UNCLASSIFIED" });
 
 /** Consistently produces one signature when wrong, succeeds elsewhere. */
 export function misconceptionHolder(signature: SignatureCode): LearnerProfile {
@@ -96,6 +98,6 @@ export const abandoner: LearnerProfile = (a, ctx) =>
  * profile itself just performs well; the decay is the projector's job.
  */
 export const decayer: LearnerProfile = (a, ctx) =>
-  respond(a, ctx, { correctProb: 0.9, latencyMs: [1500, 3500], signatureWhenWrong: "UNCLASSIFIED" });
+  respond(a, ctx, { correctProb: 0.93, latencyMs: [1500, 3500], signatureWhenWrong: "UNCLASSIFIED" });
 
 export const PROFILES = { competent, misconceptionHolder, wheelSpinner, rapidGuesser, abandoner, decayer };

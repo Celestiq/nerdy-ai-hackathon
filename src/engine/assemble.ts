@@ -33,7 +33,12 @@ export function assembleAssignment(
   if (games.length === 0) return undefined;
 
   const manifest = games[0];
-  const anchorItems = (anchors.get(manifest.game_id) ?? []).filter((a) => concepts.includes(a.concept_id) || true);
+  // Anchors are deliberately NOT filtered to the adaptively-chosen concepts:
+  // the whole point is a fixed common item set regardless of routing. See
+  // architecture.html #engine "The anchor set, and why adaptivity breaks
+  // cohort reporting".
+  const anchorItems = anchors.get(manifest.game_id) ?? [];
+  concepts = [...new Set([...concepts, ...anchorItems.map((a) => a.concept_id)])];
 
   const pool = itemBank.itemsForConcepts(manifest.game_id, concepts);
   const anchorIds = new Set(anchorItems.map((a) => a.item_id));

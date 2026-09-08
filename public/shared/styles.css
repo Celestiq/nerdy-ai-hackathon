@@ -1,0 +1,16 @@
+:root {
+  --paper: #F6F7F9;
+  --panel: #FFFFFF;
+  --ink: #16202E;
+  --soft: #5A6672;
+  --rule: #CBD4DE;
+  --rule-lite: #E4E9EF;
+  --signal: #C0246A;
+  --trace: #157C8E;
+  --amber: #9A7000;
+  --sans: "IBM Plex Sans", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); }
+button { font-family: inherit; cursor: pointer; }

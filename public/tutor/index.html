@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tutor view</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<style>
+  body { padding: 30px 22px 70px; }
+  .wrap { max-width: 920px; margin: 0 auto; }
+  header { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 22px; }
+  header h1 { font-size: 22px; margin: 0; }
+  header .meta { font-family: var(--mono); font-size: 12px; color: var(--soft); }
+  a.child-link { font-size: 13px; color: var(--soft); text-decoration: none; }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 760px) { .grid { grid-template-columns: 1fr; } }
+
+  .block { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px 18px 18px; }
+  .block.needs-human { border-color: var(--amber); border-width: 1.6px; grid-column: 1 / -1; }
+  .block.opening-move { border-color: var(--ink); border-width: 1.6px; grid-column: 1 / -1; }
+  .block h2 { font-size: 15px; margin: 0 0 10px; display: flex; align-items: center; gap: 8px; }
+  .badge { font-family: var(--mono); font-size: 11px; background: var(--rule-lite); color: var(--soft); padding: 2px 7px; border-radius: 10px; }
+  .badge.amber { background: #F7EBD6; color: var(--amber); }
+
+  .row { font-size: 14px; padding: 7px 0; border-bottom: 1px solid var(--rule-lite); }
+  .row:last-child { border-bottom: none; }
+  .row .sub { color: var(--soft); font-size: 12.5px; }
+  .cause { font-family: var(--mono); font-size: 11.5px; color: var(--signal); }
+
+  .empty { color: var(--soft); font-size: 13.5px; font-style: italic; }
+
+  .concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; margin-top: 4px; }
+  .concept-tile { border-radius: 6px; padding: 8px 9px; font-size: 12px; border: 1.5px solid var(--rule); }
+  .concept-tile .cid { font-family: var(--mono); font-size: 10.5px; color: var(--soft); display: block; margin-bottom: 3px; }
+  .concept-tile.unmeasured { border-style: dashed; color: var(--soft); background: transparent; }
+  .concept-tile.weak { background: #FBEAF1; border-color: var(--signal); }
+  .concept-tile.mastered { background: #E7F3F1; border-color: var(--trace); }
+  .concept-tile.mixed { background: var(--rule-lite); }
+  .legend { display: flex; gap: 14px; font-size: 11.5px; color: var(--soft); margin-top: 10px; flex-wrap: wrap; }
+  .legend span { display: inline-flex; align-items: center; gap: 5px; }
+  .swatch { width: 11px; height: 11px; border-radius: 3px; display: inline-block; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Tutor view</h1>
+      <div class="meta" id="meta"></div>
+    </div>
+    <a class="child-link" href="/child/" target="_blank">child view →</a>
+  </header>
+  <div id="app"></div>
+</div>
+<script type="module" src="./tutor.js"></script>
+</body>
+</html>

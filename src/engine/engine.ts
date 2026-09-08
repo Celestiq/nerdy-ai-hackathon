@@ -3,7 +3,7 @@ import type { GameRegistry, ItemBankRegistry, ItemBankEntry } from "../registry/
 import type { BeliefInternal } from "../store/types.js";
 import type { Assignment, DecisionLogEntrySchema } from "../contracts/schemas.js";
 import { AssignmentSchema } from "../contracts/schemas.js";
-import { candidateConcepts, isColdStart, rootConcepts } from "./candidates.js";
+import { candidateConcepts, isColdStart, isCovered, rootConcepts } from "./candidates.js";
 import { scoreCandidates } from "./scoring.js";
 import { applyHardConstraints, stuckEscalations } from "./constraints.js";
 import { assembleAssignment } from "./assemble.js";
@@ -40,10 +40,20 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   const cohortNeeds = input.cohortNeeds ?? new Set<string>();
 
   const coldStart = isColdStart(belief);
-  let candidates = candidateConcepts(graph, belief);
+  // A concept nothing can assess is never a real candidate -- score it out
+  // up front, every round, not just at cold start. Without this, an
+  // uncovered concept can out-score a covered one on uncertainty alone
+  // (nothing has ever measured it) and permanently stall selection with a
+  // coverage-gap result instead of serving the concept that's actually
+  // playable. See roadmap.html C5 "coverage report".
+  let candidates = candidateConcepts(graph, belief).filter((c) => isCovered(graph, registry, itemBank, c));
   if (coldStart) {
     const roots = new Set(rootConcepts(graph));
-    candidates = candidates.filter((c) => roots.has(c));
+    const coveredRoots = candidates.filter((c) => roots.has(c));
+    // Prefer roots a registered game can actually assess. If every root is
+    // presently a coverage gap, fall back to any covered frontier concept
+    // rather than dead-ending the child's very first session.
+    if (coveredRoots.length > 0) candidates = coveredRoots;
   }
 
   const decisionLog: DecisionLogEntry[] = [];

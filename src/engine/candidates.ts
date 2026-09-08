@@ -1,6 +1,7 @@
 import type { ConceptGraph } from "../graph/loader.js";
 import { frontier, type BeliefLookup } from "../graph/query.js";
 import type { BeliefInternal } from "../store/types.js";
+import type { GameRegistry, ItemBankRegistry } from "../registry/index.js";
 
 /** Concepts with no hard prerequisite at all -- the only safe start for a child with zero history. */
 export function rootConcepts(graph: ConceptGraph): string[] {
@@ -31,4 +32,18 @@ export function candidateConcepts(graph: ConceptGraph, belief: Map<string, Belie
  */
 export function isColdStart(belief: Map<string, BeliefInternal>): boolean {
   return belief.size === 0 || [...belief.values()].every((b) => b.observations_n === 0);
+}
+
+/**
+ * "Covered" means more than a manifest capability match -- it means a
+ * registered game's item bank actually holds authored content for this
+ * concept right now. A concept can be legitimately in the graph, matched
+ * by a manifest's declared representations/task types, and still have
+ * nothing to serve (roadmap.html C5 "uncovered-concepts report"). Treating
+ * capability-match alone as coverage lets the engine pick a concept with
+ * zero items and fail assembly outright, so this is the check candidate
+ * generation actually needs.
+ */
+export function isCovered(graph: ConceptGraph, registry: GameRegistry, itemBank: ItemBankRegistry, conceptId: string): boolean {
+  return registry.matchConcept(graph, conceptId).some((m) => itemBank.itemsForConcepts(m.game_id, [conceptId]).length > 0);
 }

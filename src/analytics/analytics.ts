@@ -105,7 +105,8 @@ export function buildTutorReport(graph: ConceptGraph, cohortId: string, members:
     .sort((a, b) => b.student_ids.length - a.student_ids.length);
 
   const coverage = buildCoverage(graph, members);
-  const opening_move = buildOpeningMove(clusters, retention);
+  const nameOf = new Map(members.map((m) => [m.student_id, m.name]));
+  const opening_move = buildOpeningMove(clusters, retention, nameOf);
 
   return {
     cohort_id: cohortId,
@@ -141,14 +142,15 @@ function buildCoverage(graph: ConceptGraph, members: CohortMember[]): ConceptCov
   return rows;
 }
 
-function buildOpeningMove(clusters: MisconceptionCluster[], retention: RetentionAlert[]): OpeningMove | null {
+function buildOpeningMove(clusters: MisconceptionCluster[], retention: RetentionAlert[], nameOf: Map<string, string>): OpeningMove | null {
   // Templated prose into a fixed slot -- see architecture.html #engine
   // "Where a language model is allowed": tutor-facing prose is fine here,
   // but the slot and the underlying finding are fixed by this function,
   // not by a model.
   if (clusters.length > 0) {
     const c = clusters[0];
-    const names = c.student_ids.length <= 3 ? c.student_ids.join(", ") : `${c.student_ids.length} children`;
+    const displayNames = c.student_ids.map((id) => nameOf.get(id) ?? id);
+    const names = displayNames.length <= 3 ? displayNames.join(", ") : `${displayNames.length} children`;
     return {
       text: `Put ${names}'s work on ${c.concept_id} side by side and ask the class to explain the difference -- the shared pattern is ${c.signature.toLowerCase().replace(/_/g, " ")}, tracing back to ${c.root_cause ?? "an earlier concept"}.`,
       based_on: `cluster:${c.concept_id}:${c.signature}`,

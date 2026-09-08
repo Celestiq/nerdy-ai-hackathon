@@ -130,6 +130,8 @@ export const SignatureRecordSchema = z
   })
   .strict();
 
+export type SignatureRecord = z.infer<typeof SignatureRecordSchema>;
+
 export const BeliefStateSchema = z
   .object({
     student_id: z.string().min(1),

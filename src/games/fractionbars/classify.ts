@@ -1,5 +1,5 @@
 import type { SignatureCode } from "../../contracts/signatures.js";
-import type { FractionbarsItem } from "./items.js";
+import type { FractionbarsItem, PartitionItem } from "./items.js";
 
 export interface ClassifyResult {
   verdict: "correct" | "incorrect";
@@ -26,4 +26,10 @@ export function classifyChoice(item: FractionbarsItem, choice: "a" | "b"): Class
     return { verdict: "incorrect", signature: "DENOMINATOR_BIAS", signature_confidence: 0.75 };
   }
   return { verdict: "incorrect", signature: "UNCLASSIFIED", signature_confidence: 0.3 };
+}
+
+export function classifyPartition(item: PartitionItem, choice: "a" | "b"): ClassifyResult {
+  return choice === item.correct
+    ? { verdict: "correct", signature: "UNCLASSIFIED", signature_confidence: 0 }
+    : { verdict: "incorrect", signature: "UNCLASSIFIED", signature_confidence: 0.4 };
 }

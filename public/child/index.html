@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Play</title>
+<link rel="stylesheet" href="../shared/styles.css">
+<style>
+  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
+  .wrap { width: 100%; max-width: 640px; padding: 24px 20px 60px; }
+
+  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 24px; }
+  .picker button {
+    padding: 22px 14px; font-size: 17px; font-weight: 600; border-radius: 10px;
+    border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
+  }
+  .picker button:hover { border-color: var(--signal); }
+
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .topbar .who { font-size: 13px; color: var(--soft); font-family: var(--mono); }
+
+  .stage {
+    background: var(--panel); border: 1px solid var(--rule-lite); border-radius: 14px;
+    padding: 30px 26px 26px; min-height: 320px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 26px;
+  }
+  .prompt { font-size: 44px; font-weight: 600; letter-spacing: -0.01em; }
+  .subprompt { font-size: 14px; color: var(--soft); margin-top: -14px; }
+
+  .line-area { width: 100%; touch-action: none; }
+  .line-area svg { width: 100%; height: 110px; display: block; }
+  .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
+  .line-tick { stroke: var(--rule); stroke-width: 2; }
+  .line-tick-label { font-family: var(--mono); font-size: 12px; fill: var(--soft); }
+  .line-marker { fill: var(--signal); }
+
+  .choice-row { display: flex; gap: 18px; width: 100%; justify-content: center; }
+  .choice-card {
+    flex: 1; max-width: 220px; border: 2px solid var(--rule); border-radius: 12px; padding: 18px;
+    background: var(--panel); display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .choice-card:hover { border-color: var(--signal); cursor: pointer; }
+  .bar-outer { width: 100%; height: 34px; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; display: flex; }
+  .bar-fill { background: var(--trace); height: 100%; }
+  .bar-empty { background: var(--rule-lite); height: 100%; }
+  .bar-label { font-family: var(--mono); font-size: 13px; color: var(--soft); }
+
+  .partition-shape { width: 100%; height: 60px; border: 1.5px solid var(--ink); border-radius: 4px; display: flex; }
+  .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; }
+  .partition-slice:last-child { border-right: none; }
+  .partition-slice.fill { background: var(--trace); }
+
+  .progress { display: flex; gap: 8px; margin-top: 22px; }
+  .dot { width: 26px; height: 7px; border-radius: 4px; background: var(--rule-lite); }
+  .dot.done { background: var(--ink); }
+  .progress-note { font-size: 12px; color: var(--soft); margin-top: 8px; }
+
+  .feedback-note { font-size: 14px; color: var(--soft); min-height: 20px; }
+
+  .end-card { text-align: center; padding: 20px 10px; }
+  .end-card h2 { font-size: 24px; margin: 0 0 10px; }
+  .end-card p { color: var(--soft); max-width: 44ch; margin: 0 auto 8px; }
+  .done-btn { margin-top: 20px; padding: 12px 28px; border-radius: 8px; border: none; background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; }
+
+  .empty-card { text-align: center; padding: 30px 10px; color: var(--soft); }
+
+  a.back { display: inline-block; margin-top: 26px; font-size: 13px; color: var(--soft); text-decoration: none; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div id="app"></div>
+  <a class="back" href="#" id="tutorLink" target="_blank">tutor view →</a>
+</div>
+<script type="module" src="./child.js"></script>
+</body>
+</html>

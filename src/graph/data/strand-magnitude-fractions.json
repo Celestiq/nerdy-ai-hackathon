@@ -1,7 +1,7 @@
 {
   "version": "2026.09.08",
   "nodes": [
-    { "concept_id": "N.COUNT", "label": "Count a sequence to 20", "strand": "NUMBER", "grade_band": [0, 1], "representations": ["NUMBER_LINE"], "task_types": ["ORDERING"], "mastery_threshold": 0.85, "decay_half_life_days": 45, "status": "stub" },
+    { "concept_id": "N.COUNT", "label": "Count a sequence to 20", "strand": "NUMBER", "grade_band": [0, 1], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 45, "status": "authored" },
     { "concept_id": "N.ORD", "label": "Order whole numbers", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["ORDERING", "COMPARISON"], "mastery_threshold": 0.85, "decay_half_life_days": 35, "status": "authored" },
     { "concept_id": "N.MAG", "label": "Whole number magnitude on a number line", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 30, "status": "authored" },
     { "concept_id": "N.PLACE", "label": "Place value: tens and ones", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 30, "status": "authored" },

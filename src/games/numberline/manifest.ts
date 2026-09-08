@@ -6,7 +6,7 @@ export const numberlineManifest: CapabilityManifest = {
     representations: ["NUMBER_LINE"],
     task_types: ["MAGNITUDE_PLACEMENT", "COMPARISON"],
   },
-  grade_band: [2, 5],
+  grade_band: [0, 5],
   duration_s: { min: 90, max: 300 },
   items_per_session: { min: 4, max: 10 },
   reading_required: false,
