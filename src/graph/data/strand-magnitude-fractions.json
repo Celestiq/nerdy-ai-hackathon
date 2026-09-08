@@ -1,0 +1,108 @@
+{
+  "version": "2026.09.08",
+  "nodes": [
+    { "concept_id": "N.COUNT", "label": "Count a sequence to 20", "strand": "NUMBER", "grade_band": [0, 1], "representations": ["NUMBER_LINE"], "task_types": ["ORDERING"], "mastery_threshold": 0.85, "decay_half_life_days": 45, "status": "stub" },
+    { "concept_id": "N.ORD", "label": "Order whole numbers", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["ORDERING", "COMPARISON"], "mastery_threshold": 0.85, "decay_half_life_days": 35, "status": "authored" },
+    { "concept_id": "N.MAG", "label": "Whole number magnitude on a number line", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 30, "status": "authored" },
+    { "concept_id": "N.PLACE", "label": "Place value: tens and ones", "strand": "NUMBER", "grade_band": [1, 2], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 30, "status": "authored" },
+    { "concept_id": "N.PLACE.HTH", "label": "Place value: hundreds", "strand": "NUMBER", "grade_band": [2, 3], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 28, "status": "authored" },
+
+    { "concept_id": "G.PART", "label": "Partition a whole into equal parts", "strand": "GEOMETRY", "grade_band": [1, 2], "representations": ["AREA_MODEL"], "task_types": ["PARTITION"], "mastery_threshold": 0.85, "decay_half_life_days": 30, "status": "authored" },
+    { "concept_id": "G.PART.UNEQUAL", "label": "Recognise unequal partitions as invalid", "strand": "GEOMETRY", "grade_band": [2, 3], "representations": ["AREA_MODEL"], "task_types": ["PARTITION"], "mastery_threshold": 0.85, "decay_half_life_days": 28, "status": "authored" },
+
+    { "concept_id": "F.NOTATE", "label": "Fraction notation: numerator and denominator meaning", "strand": "FRACTION", "grade_band": [3, 3], "representations": ["AREA_MODEL", "NUMBER_LINE"], "task_types": ["PARTITION"], "mastery_threshold": 0.85, "decay_half_life_days": 28, "status": "authored" },
+    { "concept_id": "F.MAG.UNIT", "label": "A unit fraction 1/n is one of n equal parts of a whole", "strand": "FRACTION", "grade_band": [3, 4], "representations": ["NUMBER_LINE", "AREA_MODEL"], "task_types": ["MAGNITUDE_PLACEMENT", "PARTITION"], "mastery_threshold": 0.85, "decay_half_life_days": 28, "status": "authored" },
+    { "concept_id": "F.MAG.NONUNIT", "label": "Non-unit fraction magnitude", "strand": "FRACTION", "grade_band": [3, 4], "representations": ["NUMBER_LINE", "AREA_MODEL"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 26, "status": "authored" },
+    { "concept_id": "F.EQV", "label": "Equivalent fractions", "strand": "FRACTION", "grade_band": [3, 4], "representations": ["AREA_MODEL", "NUMBER_LINE"], "task_types": ["EQUIVALENCE"], "mastery_threshold": 0.85, "decay_half_life_days": 26, "status": "authored" },
+    { "concept_id": "F.MAG.CMP", "label": "Compare fractions", "strand": "FRACTION", "grade_band": [4, 4], "representations": ["NUMBER_LINE", "AREA_MODEL"], "task_types": ["COMPARISON"], "mastery_threshold": 0.85, "decay_half_life_days": 24, "status": "authored" },
+    { "concept_id": "F.ADD.LIKE", "label": "Add fractions with like denominators", "strand": "FRACTION", "grade_band": [4, 4], "representations": ["AREA_MODEL"], "task_types": ["EQUIVALENCE"], "mastery_threshold": 0.85, "decay_half_life_days": 24, "status": "stub" },
+    { "concept_id": "F.MIXED", "label": "Mixed numbers and improper fractions", "strand": "FRACTION", "grade_band": [4, 5], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 24, "status": "stub" },
+
+    { "concept_id": "D.NOTATE", "label": "Decimal notation: tenths and hundredths place", "strand": "DECIMAL", "grade_band": [4, 4], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 24, "status": "authored" },
+    { "concept_id": "D.MAG", "label": "Decimal magnitude", "strand": "DECIMAL", "grade_band": [4, 5], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 24, "status": "authored" },
+    { "concept_id": "D.MAG.CMP", "label": "Compare decimals", "strand": "DECIMAL", "grade_band": [4, 5], "representations": ["NUMBER_LINE"], "task_types": ["COMPARISON"], "mastery_threshold": 0.85, "decay_half_life_days": 22, "status": "authored" },
+    { "concept_id": "D.F.CONV", "label": "Convert between fraction and decimal", "strand": "DECIMAL", "grade_band": [4, 5], "representations": ["NUMBER_LINE"], "task_types": ["EQUIVALENCE"], "mastery_threshold": 0.85, "decay_half_life_days": 22, "status": "stub" },
+    { "concept_id": "D.ROUND", "label": "Round decimals", "strand": "DECIMAL", "grade_band": [5, 5], "representations": ["NUMBER_LINE"], "task_types": ["MAGNITUDE_PLACEMENT"], "mastery_threshold": 0.85, "decay_half_life_days": 22, "status": "stub" },
+    { "concept_id": "F.D.MAG.CMP", "label": "Compare fraction and decimal magnitude", "strand": "DECIMAL", "grade_band": [5, 5], "representations": ["NUMBER_LINE"], "task_types": ["COMPARISON"], "mastery_threshold": 0.85, "decay_half_life_days": 20, "status": "stub" }
+  ],
+  "requires": [
+    { "from": "N.ORD", "to": "N.COUNT", "strength": "hard" },
+    { "from": "N.MAG", "to": "N.ORD", "strength": "hard" },
+    { "from": "N.PLACE", "to": "N.ORD", "strength": "hard" },
+    { "from": "N.PLACE.HTH", "to": "N.PLACE", "strength": "hard" },
+
+    { "from": "G.PART.UNEQUAL", "to": "G.PART", "strength": "hard" },
+    { "from": "F.NOTATE", "to": "G.PART", "strength": "hard" },
+
+    { "from": "F.MAG.UNIT", "to": "F.NOTATE", "strength": "hard" },
+    { "from": "F.MAG.UNIT", "to": "G.PART.UNEQUAL", "strength": "supporting" },
+    { "from": "F.MAG.NONUNIT", "to": "F.MAG.UNIT", "strength": "hard" },
+    { "from": "F.EQV", "to": "F.MAG.NONUNIT", "strength": "hard" },
+    { "from": "F.MAG.CMP", "to": "F.MAG.UNIT", "strength": "hard" },
+    { "from": "F.MAG.CMP", "to": "N.MAG", "strength": "supporting" },
+    { "from": "F.ADD.LIKE", "to": "F.MAG.NONUNIT", "strength": "hard" },
+    { "from": "F.MIXED", "to": "F.EQV", "strength": "hard" },
+    { "from": "F.MIXED", "to": "F.ADD.LIKE", "strength": "supporting" },
+
+    { "from": "D.NOTATE", "to": "N.PLACE.HTH", "strength": "hard" },
+    { "from": "D.MAG", "to": "D.NOTATE", "strength": "hard" },
+    { "from": "D.MAG", "to": "N.MAG", "strength": "supporting" },
+    { "from": "D.MAG.CMP", "to": "D.MAG", "strength": "hard" },
+    { "from": "D.F.CONV", "to": "D.MAG", "strength": "hard" },
+    { "from": "D.F.CONV", "to": "F.EQV", "strength": "hard" },
+    { "from": "D.ROUND", "to": "D.MAG", "strength": "hard" },
+    { "from": "F.D.MAG.CMP", "to": "D.MAG.CMP", "strength": "hard" },
+    { "from": "F.D.MAG.CMP", "to": "F.MAG.CMP", "strength": "hard" }
+  ],
+  "explains": [
+    {
+      "at": "F.MAG.CMP",
+      "signature": "WHOLE_NUMBER_BIAS",
+      "blames": "F.MAG.UNIT",
+      "weight": 0.8,
+      "provenance": "architecture.html #graph -- worked example: 1/8 placed right of 1/3"
+    },
+    {
+      "at": "F.MAG.NONUNIT",
+      "signature": "WHOLE_NUMBER_BIAS",
+      "blames": "F.MAG.UNIT",
+      "weight": 0.75,
+      "provenance": "content author: treating numerator/denominator as independent whole numbers before the unit-fraction concept is solid"
+    },
+    {
+      "at": "F.MAG.UNIT",
+      "signature": "LANDMARK_ONLY",
+      "blames": "G.PART.UNEQUAL",
+      "weight": 0.6,
+      "provenance": "content author: a child who can only anchor on 0/half/1 has not internalised arbitrary equal partitioning"
+    },
+    {
+      "at": "F.EQV",
+      "signature": "LANDMARK_ONLY",
+      "blames": "F.MAG.NONUNIT",
+      "weight": 0.5,
+      "provenance": "content author: equivalence judged only at landmark fractions suggests the underlying magnitude sense is thin"
+    },
+    {
+      "at": "D.MAG",
+      "signature": "LOG_COMPRESSION",
+      "blames": "N.PLACE.HTH",
+      "weight": 0.7,
+      "provenance": "content author: bunching larger magnitudes toward the left reflects weak place-value sense beyond the ones/tens range"
+    },
+    {
+      "at": "D.MAG.CMP",
+      "signature": "LONGER_IS_LARGER",
+      "blames": "D.NOTATE",
+      "weight": 0.85,
+      "provenance": "architecture.html #graph -- 0.125 read as larger than 0.5 because '125' > '5'"
+    },
+    {
+      "at": "F.MAG.CMP",
+      "signature": "DENOMINATOR_BIAS",
+      "blames": "F.MAG.UNIT",
+      "weight": 0.8,
+      "provenance": "content author: choosing the fraction with the larger denominator as larger is the inverse form of whole-number bias"
+    }
+  ]
+}
