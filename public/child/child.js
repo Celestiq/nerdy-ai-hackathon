@@ -9,6 +9,11 @@ const state = {
   observations: [],
   sessionId: null,
   sessionStartedAt: null,
+  // Guards against rapid/double tapping submitting the same item twice
+  // (or skipping the next one) before the async round trip to /respond
+  // completes and the next item renders. See roadmap.html C9 "Adversarial:
+  // Rapid tapping".
+  busy: false,
 };
 
 async function api(path, opts) {
@@ -62,6 +67,7 @@ async function startSession(student) {
   state.sessionId = `ses_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
   state.sessionStartedAt = new Date().toISOString();
   state.observations = [];
+  state.busy = false;
   state.index = 0;
 
   const ids = state.assignment.item_specs.map((s) => s.item_id).join(",");
@@ -91,6 +97,7 @@ function currentSpec() {
 }
 function currentItem() {
   const spec = currentSpec();
+  if (!spec) return undefined;
   return state.items.find((i) => i.item_id === spec.item_id);
 }
 
@@ -244,15 +251,25 @@ function renderPartition(item, startedAtMs) {
 }
 
 async function submitAndAdvance(payload) {
-  const observation = await api(`/games/${state.assignment.game_id}/respond`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ ...payload, attempts: 1 }),
-  });
-  state.observations.push(observation);
-  state.index += 1;
-  render(el("div", { class: "stage" }, [el("div", { class: "feedback-note" }, "Nice -- next one")]));
-  setTimeout(showItem, 420);
+  if (state.busy) return; // a tap is already in flight for this item -- ignore extra taps
+  state.busy = true;
+  try {
+    const observation = await api(`/games/${state.assignment.game_id}/respond`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ ...payload, attempts: 1 }),
+    });
+    state.observations.push(observation);
+    state.index += 1;
+    render(el("div", { class: "stage" }, [el("div", { class: "feedback-note" }, "Nice -- next one")]));
+    setTimeout(() => {
+      state.busy = false;
+      showItem();
+    }, 420);
+  } catch (err) {
+    state.busy = false;
+    throw err;
+  }
 }
 
 async function finishSession(completed) {
