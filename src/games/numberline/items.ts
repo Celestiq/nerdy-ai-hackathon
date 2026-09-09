@@ -187,6 +187,59 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.5,
     claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.1 }],
   },
+  // D.NOTATE ("decimal notation: tenths and hundredths place") -- unlike
+  // D.MAG's items below, which test raw magnitude estimation, these isolate
+  // place-value *reading* errors: treating the digit string after the
+  // decimal point as a whole number whose length drives perceived size
+  // (itm_dn_0_36, misread as "36" and placed too high), and losing track of
+  // which place a digit sits in once a leading zero is involved
+  // (itm_dn_0_04/itm_dn_0_09, misread as if the leading zero didn't count,
+  // off by exactly the factor of ten the place value determines). Both are
+  // notation-reading failures, not magnitude-estimation ones. itm_dn_0_4 has
+  // no claim: it's a plain magnitude anchor for the pair, not a
+  // misconception probe on its own (a short digit string being misread as
+  // "too small" isn't a coherent single-item signal -- that comparison only
+  // makes sense as a COMPARISON-task item, which D.NOTATE doesn't have yet).
+  {
+    item_id: "itm_dn_0_4",
+    concept_id: "D.NOTATE",
+    prompt: "0.4",
+    scale: [0, 1],
+    target: 0.4,
+    tolerance: 0.05,
+    difficulty: 0.5,
+    claims: [],
+  },
+  {
+    item_id: "itm_dn_0_36",
+    concept_id: "D.NOTATE",
+    prompt: "0.36",
+    scale: [0, 1],
+    target: 0.36,
+    tolerance: 0.05,
+    difficulty: 0.55,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.75, width: 0.15 }],
+  },
+  {
+    item_id: "itm_dn_0_04",
+    concept_id: "D.NOTATE",
+    prompt: "0.04",
+    scale: [0, 1],
+    target: 0.04,
+    tolerance: 0.03,
+    difficulty: 0.6,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.4, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dn_0_09",
+    concept_id: "D.NOTATE",
+    prompt: "0.09",
+    scale: [0, 1],
+    target: 0.09,
+    tolerance: 0.03,
+    difficulty: 0.65,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.9, width: 0.1 }],
+  },
   {
     item_id: "itm_dm_0_125",
     concept_id: "D.MAG",
