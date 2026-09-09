@@ -4,3 +4,10 @@ dist/
 .data/
 *.log
 .DS_Store
+
+# agentic swarm coordination (local-only, not part of the submission)
+.claude/agents/
+BACKLOG.md
+IDEAS.md
+JUDGE_RUBRIC.md
+SWARM.md

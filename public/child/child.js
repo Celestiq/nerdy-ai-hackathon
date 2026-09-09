@@ -3,6 +3,7 @@ document.getElementById("tutorLink").href = "/tutor/";
 
 const state = {
   student: null,
+  studentHue: 0,
   assignment: null,
   items: [],
   index: 0,
@@ -25,6 +26,7 @@ function el(tag, attrs = {}, children = []) {
   const node = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) {
     if (k === "class") node.className = v;
+    else if (k === "html") node.innerHTML = v;
     else if (k.startsWith("on")) node.addEventListener(k.slice(2), v);
     else node.setAttribute(k, v);
   }
@@ -40,23 +42,41 @@ function render(node) {
   app.appendChild(node);
 }
 
+// Hand-authored, stroke-based icons -- kept to the same shapes tutor.js
+// uses so the two surfaces read as one visual language.
+const ICONS = {
+  check: '<path d="M5 13l4 4L19 7"/>',
+  hourglass: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
+  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+};
+function icon(name, cls = "icon") {
+  return el("span", { class: cls, html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ""}</svg>` });
+}
+function initials(name) {
+  return name.replace(/\./g, "").trim().split(/\s+/).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? "").join("");
+}
+function avatar(name, hue, cls = "") {
+  return el("span", { class: `avatar ${cls}`, "data-hue": String(hue % 6) }, initials(name));
+}
+
 // -------------------- picker --------------------
 
 async function showPicker() {
   const directory = await api("/directory");
-  const buttons = directory.map((d) =>
-    el("button", { onclick: () => startSession(d) }, d.name),
+  const buttons = directory.map((d, i) =>
+    el("button", { onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
   );
   render(
     el("div", {}, [
-      el("h1", {}, "Who's playing?"),
+      el("div", { class: "picker-head" }, [el("h1", {}, "Who's playing?")]),
       el("div", { class: "picker" }, buttons),
     ]),
   );
 }
 
-async function startSession(student) {
+async function startSession(student, hue = 0) {
   state.student = student;
+  state.studentHue = hue;
   render(el("div", { class: "empty-card" }, "Loading..."));
   const result = await api(`/assignment/${student.student_id}`);
   if (!result.assignment) {
@@ -83,9 +103,10 @@ function showEmpty(result) {
       : "You're all caught up for now. Come back soon!";
   render(
     el("div", { class: "empty-card" }, [
+      el("div", { class: "icon-wrap" }, [icon("hourglass")]),
       el("h2", {}, "All done"),
       el("p", {}, msg),
-      el("button", { class: "done-btn", onclick: showPicker }, "Back"),
+      el("button", { class: "btn-primary", onclick: showPicker }, "Back"),
     ]),
   );
 }
@@ -103,13 +124,13 @@ function currentItem() {
 
 function progressDots() {
   const total = state.assignment.item_specs.length;
-  const dots = [];
+  const segs = [];
   for (let i = 0; i < total; i++) {
-    dots.push(el("div", { class: "dot" + (i < state.index ? " done" : "") }));
+    segs.push(el("div", { class: "seg" + (i < state.index ? " done" : "") }));
   }
-  return el("div", {}, [
-    el("div", { class: "progress" }, dots),
-    el("div", { class: "progress-note" }, `${total - state.index} to go -- not a score`),
+  return el("div", { class: "progress-wrap" }, [
+    el("div", { class: "progress-track" }, segs),
+    el("span", { class: "chip chip--neutral" }, `${total - state.index} to go — not a score`),
   ]);
 }
 
@@ -133,7 +154,7 @@ function showItem() {
   render(
     el("div", {}, [
       el("div", { class: "topbar" }, [
-        el("div", { class: "who" }, state.student.name),
+        el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
         el("div", {}),
       ]),
       el("div", { class: "stage" }, stage),
@@ -261,7 +282,11 @@ async function submitAndAdvance(payload) {
     });
     state.observations.push(observation);
     state.index += 1;
-    render(el("div", { class: "stage" }, [el("div", { class: "feedback-note" }, "Nice -- next one")]));
+    render(
+      el("div", { class: "stage" }, [
+        el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), "Nice — next one"]),
+      ]),
+    );
     setTimeout(() => {
       state.busy = false;
       showItem();
@@ -287,10 +312,11 @@ async function finishSession(completed) {
 
   render(
     el("div", { class: "end-card" }, [
+      el("div", { class: "icon-wrap" }, [icon("check")]),
       el("h2", {}, "What you built today"),
       el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
-      el("p", {}, "No score, no comparison to anyone else."),
-      el("button", { class: "done-btn", onclick: showPicker }, "Done"),
+      el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
+      el("button", { class: "btn-primary", onclick: showPicker }, "Done"),
     ]),
   );
 }

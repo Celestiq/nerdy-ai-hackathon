@@ -1,16 +1,166 @@
+/* ---------------------------------------------------------------------- */
+/* Design tokens -- one language shared by the tutor dashboard and the    */
+/* child play surface. Component classes below (avatar, chip, card, meter)*/
+/* are built only from these tokens so the two surfaces stay visually     */
+/* related even though their tone (data-dense vs. playful) differs.       */
+/* ---------------------------------------------------------------------- */
 :root {
-  --paper: #F6F7F9;
+  /* base */
+  --paper: #F4F6F8;
   --panel: #FFFFFF;
+  --panel-sunk: #F8F9FB;
   --ink: #16202E;
-  --soft: #5A6672;
-  --rule: #CBD4DE;
-  --rule-lite: #E4E9EF;
-  --signal: #C0246A;
-  --trace: #157C8E;
-  --amber: #9A7000;
-  --sans: "IBM Plex Sans", system-ui, sans-serif;
-  --mono: "IBM Plex Mono", ui-monospace, monospace;
+  --soft: #5B6672;
+  --faint: #8A93A0;
+  --rule: #D6DDE5;
+  --rule-lite: #E9EDF1;
+
+  /* brand accent -- used sparingly for primary actions / focus */
+  --brand: #2B4CD4;
+  --brand-ink: #1E3AAE;
+  --brand-bg: #E8EDFC;
+
+  /* semantic status colors -- the single legend the whole app follows.
+     mastered = teal, emerging = blue, weak/misconception = magenta,
+     stuck/needs-human = amber, decayed = purple, unmeasured = neutral. */
+  --status-mastered: #0E7C82;
+  --status-mastered-bg: #E1F2F0;
+  --status-emerging: #3B63D6;
+  --status-emerging-bg: #E9EEFC;
+  --status-weak: #C0246A;
+  --status-weak-bg: #FCEAF1;
+  --status-stuck: #9A6B00;
+  --status-stuck-bg: #FBEFD8;
+  --status-decayed: #7247C4;
+  --status-decayed-bg: #F0EAFB;
+  --status-unmeasured: #97A1AC;
+  --status-unmeasured-bg: #F1F3F5;
+
+  /* spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-7: 32px;
+  --sp-8: 40px;
+
+  /* radius + shadow scale */
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+  --shadow-md: 0 6px 20px rgba(20, 30, 45, 0.08);
+  --shadow-focus: 0 0 0 3px var(--brand-bg);
+
+  --sans: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
+
+  color-scheme: light;
 }
+
 * { box-sizing: border-box; }
-html, body { margin: 0; padding: 0; background: var(--paper); color: var(--ink); font-family: var(--sans); }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  -webkit-font-smoothing: antialiased;
+}
 button { font-family: inherit; cursor: pointer; }
+h1, h2, h3 { font-family: var(--sans); }
+
+/* ---------------------------------------------------------------------- */
+/* Primitives                                                              */
+/* ---------------------------------------------------------------------- */
+
+.card {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.pill-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--soft);
+  text-decoration: none;
+  padding: var(--sp-2) var(--sp-4);
+  border-radius: var(--r-pill);
+  border: 1px solid var(--rule);
+  background: var(--panel);
+  transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+}
+.pill-link:hover { border-color: var(--brand); color: var(--brand-ink); }
+.pill-link svg { width: 14px; height: 14px; }
+
+/* avatar -- deterministic color from a small fixed palette so the same
+   student always renders the same color across roster / lists / chips */
+.avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border-radius: 50%;
+  font-weight: 600;
+  color: #fff;
+  font-family: var(--sans);
+  letter-spacing: -0.02em;
+}
+.avatar[data-hue="0"] { background: #3B63D6; }
+.avatar[data-hue="1"] { background: #0E7C82; }
+.avatar[data-hue="2"] { background: #C0246A; }
+.avatar[data-hue="3"] { background: #B4650F; }
+.avatar[data-hue="4"] { background: #7247C4; }
+.avatar[data-hue="5"] { background: #2A8F4E; }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1;
+  padding: 4px 9px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
+.chip--mastered { background: var(--status-mastered-bg); color: var(--status-mastered); }
+.chip--emerging { background: var(--status-emerging-bg); color: var(--status-emerging); }
+.chip--weak { background: var(--status-weak-bg); color: var(--status-weak); }
+.chip--stuck { background: var(--status-stuck-bg); color: var(--status-stuck); }
+.chip--decayed { background: var(--status-decayed-bg); color: var(--status-decayed); }
+.chip--neutral { background: var(--rule-lite); color: var(--soft); }
+.chip .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+.icon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; flex-shrink: 0; }
+.icon-sm { width: 13px; height: 13px; }
+
+/* stacked mini meter -- reused for roster summaries and concept tiles */
+.stack-meter {
+  display: flex;
+  width: 100%;
+  height: 6px;
+  border-radius: var(--r-pill);
+  overflow: hidden;
+  background: var(--rule-lite);
+}
+.stack-meter > span { display: block; height: 100%; }
+.stack-meter .seg-mastered { background: var(--status-mastered); }
+.stack-meter .seg-emerging { background: var(--status-emerging); }
+.stack-meter .seg-weak { background: var(--status-weak); }
+.stack-meter .seg-stuck { background: var(--status-stuck); }
+.stack-meter .seg-decayed { background: var(--status-decayed); }
+
+/* decay / progress bar with a marker, used in retention visuals */
+.range-meter { position: relative; width: 100%; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); }
+.range-meter .fill { position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--status-decayed); opacity: 0.85; }
+.range-meter .marker { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--ink); }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

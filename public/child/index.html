@@ -4,27 +4,37 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Play</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../shared/styles.css">
 <style>
+  :root { --play: #E0592B; --play-bg: #FDECE3; --play-ink: #B8431C; }
   body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
-  .wrap { width: 100%; max-width: 640px; padding: 24px 20px 60px; }
+  .wrap { width: 100%; max-width: 640px; padding: 28px 20px 60px; }
 
-  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 24px; }
+  .picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 12px; }
+  .picker-head h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+
+  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
   .picker button {
-    padding: 22px 14px; font-size: 17px; font-weight: 600; border-radius: 10px;
+    display: flex; align-items: center; gap: 12px; text-align: left;
+    padding: 16px 16px; font-size: 16px; font-weight: 600; border-radius: var(--r-lg);
     border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
+    box-shadow: var(--shadow-sm); transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
   }
-  .picker button:hover { border-color: var(--signal); }
+  .picker button:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .picker .avatar { width: 38px; height: 38px; font-size: 15px; }
 
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
-  .topbar .who { font-size: 13px; color: var(--soft); font-family: var(--mono); }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
+  .topbar .who { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; }
+  .topbar .avatar { width: 30px; height: 30px; font-size: 12.5px; }
 
   .stage {
-    background: var(--panel); border: 1px solid var(--rule-lite); border-radius: 14px;
-    padding: 30px 26px 26px; min-height: 320px; display: flex; flex-direction: column;
+    background: var(--panel); border: 1px solid var(--rule-lite); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+    padding: 34px 26px 28px; min-height: 320px; display: flex; flex-direction: column;
     align-items: center; justify-content: center; gap: 26px;
   }
-  .prompt { font-size: 44px; font-weight: 600; letter-spacing: -0.01em; }
+  .prompt { font-size: 44px; font-weight: 700; letter-spacing: -0.01em; }
   .subprompt { font-size: 14px; color: var(--soft); margin-top: -14px; }
 
   .line-area { width: 100%; touch-action: none; }
@@ -32,45 +42,58 @@
   .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
   .line-tick { stroke: var(--rule); stroke-width: 2; }
   .line-tick-label { font-family: var(--mono); font-size: 12px; fill: var(--soft); }
-  .line-marker { fill: var(--signal); }
+  .line-marker { fill: var(--play); }
 
   .choice-row { display: flex; gap: 18px; width: 100%; justify-content: center; }
   .choice-card {
-    flex: 1; max-width: 220px; border: 2px solid var(--rule); border-radius: 12px; padding: 18px;
+    flex: 1; max-width: 220px; border: 2px solid var(--rule); border-radius: var(--r-lg); padding: 18px;
     background: var(--panel); display: flex; flex-direction: column; align-items: center; gap: 10px;
+    transition: border-color 120ms ease, box-shadow 120ms ease;
   }
-  .choice-card:hover { border-color: var(--signal); cursor: pointer; }
-  .bar-outer { width: 100%; height: 34px; border: 1.5px solid var(--ink); border-radius: 4px; overflow: hidden; display: flex; }
-  .bar-fill { background: var(--trace); height: 100%; }
+  .choice-card:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); }
+  .bar-outer { width: 100%; height: 34px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
+  .bar-fill { background: var(--status-mastered); height: 100%; }
   .bar-empty { background: var(--rule-lite); height: 100%; }
   .bar-label { font-family: var(--mono); font-size: 13px; color: var(--soft); }
 
-  .partition-shape { width: 100%; height: 60px; border: 1.5px solid var(--ink); border-radius: 4px; display: flex; }
+  .partition-shape { width: 100%; height: 60px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
   .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; }
   .partition-slice:last-child { border-right: none; }
-  .partition-slice.fill { background: var(--trace); }
+  .partition-slice.fill { background: var(--status-mastered); }
 
-  .progress { display: flex; gap: 8px; margin-top: 22px; }
-  .dot { width: 26px; height: 7px; border-radius: 4px; background: var(--rule-lite); }
-  .dot.done { background: var(--ink); }
-  .progress-note { font-size: 12px; color: var(--soft); margin-top: 8px; }
+  .progress-wrap { width: 100%; margin-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .progress-track { width: 100%; display: flex; gap: 6px; }
+  .progress-track .seg { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); transition: background-color 200ms ease; }
+  .progress-track .seg.done { background: var(--play); }
 
-  .feedback-note { font-size: 14px; color: var(--soft); min-height: 20px; }
+  @keyframes pop-in { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
 
-  .end-card { text-align: center; padding: 20px 10px; }
-  .end-card h2 { font-size: 24px; margin: 0 0 10px; }
-  .end-card p { color: var(--soft); max-width: 44ch; margin: 0 auto 8px; }
-  .done-btn { margin-top: 20px; padding: 12px 28px; border-radius: 8px; border: none; background: var(--ink); color: #fff; font-size: 15px; font-weight: 600; }
+  .feedback-note { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--play-ink); font-weight: 600; min-height: 20px; }
+  .feedback-note .icon-wrap { width: 30px; height: 30px; border-radius: 50%; background: var(--play-bg); color: var(--play); display: flex; align-items: center; justify-content: center; animation: pop-in 260ms cubic-bezier(.34, 1.56, .64, 1); }
 
-  .empty-card { text-align: center; padding: 30px 10px; color: var(--soft); }
+  .end-card { text-align: center; padding: 24px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in 260ms cubic-bezier(.34, 1.56, .64, 1); }
+  .end-card h2 { font-size: 22px; margin: 0; }
+  .end-card p { color: var(--soft); max-width: 44ch; margin: 0; }
+  .btn-primary { margin-top: 14px; padding: 13px 30px; border-radius: var(--r-pill); border: none; background: var(--play); color: #fff; font-size: 15px; font-weight: 600; box-shadow: var(--shadow-sm); }
+  .btn-primary:hover { background: var(--play-ink); }
 
-  a.back { display: inline-block; margin-top: 26px; font-size: 13px; color: var(--soft); text-decoration: none; }
+  .empty-card { text-align: center; padding: 34px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .empty-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--rule-lite); color: var(--soft); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
+  .empty-card h2 { margin: 0; font-size: 20px; }
+  .empty-card p { color: var(--soft); max-width: 40ch; margin: 0; }
+
+  .foot-link { margin-top: 26px; }
+  .icon { width: 16px; height: 16px; display: inline-block; }
 </style>
 </head>
 <body>
 <div class="wrap">
   <div id="app"></div>
-  <a class="back" href="#" id="tutorLink" target="_blank">tutor view →</a>
+  <a class="pill-link foot-link" href="#" id="tutorLink" target="_blank">
+    tutor view
+    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+  </a>
 </div>
 <script type="module" src="./child.js"></script>
 </body>
