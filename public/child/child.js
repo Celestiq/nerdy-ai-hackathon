@@ -48,6 +48,7 @@ const ICONS = {
   check: '<path d="M5 13l4 4L19 7"/>',
   hourglass: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
+  pause: '<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="9" y2="15"/><line x1="15" y1="9" x2="15" y2="15"/>',
 };
 function icon(name, cls = "icon") {
   return el("span", { class: cls, html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ""}</svg>` });
@@ -96,16 +97,49 @@ async function startSession(student, hue = 0) {
   showItem();
 }
 
+// The engine can return no assignment for two very different reasons, and
+// showing them identically ("All done!") is dishonest -- a kid (or a judge
+// clicking through demo accounts) can't tell "you've mastered everything"
+// from "the engine is temporarily stuck and has nothing safe to serve".
+// See BACKLOG.md dead-end fix: this used to read as a cheerful success
+// screen even when `reason` was "every candidate was blocked by a hard
+// constraint". Three distinct states, not one:
+//   1. Genuinely nothing left to master right now -- true "all done".
+//   2. A concept the child was working on hit the wheel-spin limit and got
+//      escalated -- there IS something to do, it's just a person's turn now.
+//   3. Everything reachable is hard-blocked for some other reason (a
+//      prerequisite gate, a coverage gap) -- not mastery, just stuck.
+// Whitelisted, not blacklisted: only the engine's own explicit "everything
+// reachable is mastered" reason counts as genuinely done. Any other reason
+// -- including ones this file doesn't know about yet -- defaults to "not
+// the same as done", which is the honest default when unsure.
+const GENUINELY_DONE_REASON = /mastered, stuck, or unreachable/;
+
 function showEmpty(result) {
-  const msg =
-    result.escalations && result.escalations.length > 0
-      ? "Nothing to play right now -- your teacher's got this one. Check back after class!"
-      : "You're all caught up for now. Come back soon!";
+  const reason = result.reason || "";
+  const hasEscalations = Boolean(result.escalations && result.escalations.length > 0);
+  const isHardBlocked = hasEscalations || !GENUINELY_DONE_REASON.test(reason);
+
+  let heading, message, iconName;
+  if (!isHardBlocked) {
+    heading = "All done";
+    message = "You're all caught up for now. Come back soon!";
+    iconName = "hourglass";
+  } else if (hasEscalations) {
+    heading = "Taking a break from this one";
+    message = "Nothing to play right now -- your teacher's got this one. Check back after class!";
+    iconName = "pause";
+  } else {
+    heading = "Nothing lined up right now";
+    message = "This isn't the same as being done -- come back in a bit and there should be something new to try.";
+    iconName = "pause";
+  }
+
   render(
     el("div", { class: "empty-card" }, [
-      el("div", { class: "icon-wrap" }, [icon("hourglass")]),
-      el("h2", {}, "All done"),
-      el("p", {}, msg),
+      el("div", { class: "icon-wrap" }, [icon(iconName)]),
+      el("h2", {}, heading),
+      el("p", {}, message),
       el("button", { class: "btn-primary", onclick: showPicker }, "Back"),
     ]),
   );

@@ -5,8 +5,9 @@ import type { ConceptMetaLookup } from "../src/store/projector.js";
 import { numberlineManifest, numberlineItems } from "../src/games/numberline/index.js";
 import { fractionbarsManifest, fractionbarsItems, partitionItems } from "../src/games/fractionbars/index.js";
 import { runCohort } from "../src/simulation/cohortRunner.js";
-import { competent, misconceptionHolder, rapidGuesser, abandoner, wheelSpinner, decayer } from "../src/simulation/profiles.js";
+import { competent, misconceptionHolder, rapidGuesser, abandoner, wheelSpinner, strugglesOn, decayer } from "../src/simulation/profiles.js";
 import { mulberry32, seedToInt } from "../src/simulation/rng.js";
+import { selectNext } from "../src/engine/engine.js";
 
 const graph = ConceptGraph.load();
 const metaOf: ConceptMetaLookup = (id) => {
@@ -94,5 +95,86 @@ describe("cohort runner", () => {
     });
     const bundles = store.allBundles();
     expect(bundles.some((b) => !b.engagement.completed)).toBe(true);
+  });
+});
+
+// Regression for the seeded-demo-cohort dead-end fixed in scripts/seed.ts +
+// src/simulation/profiles.ts (see BACKLOG.md). Before that fix, three of
+// the six demo profiles used a *uniform* misconceptionHolder/wheelSpinner
+// (wrong on every concept served, not just the concept the misconception
+// or struggle was meant to be about). On this graph's two roots
+// (N.COUNT, G.PART), that meant a student could wheel-spin-block BOTH
+// roots at once, which starves selectNext entirely ("every candidate was
+// blocked by a hard constraint") -- and once that happens on the seeded
+// demo cohort's very first live request, the child client has nothing to
+// show. This locks in the fix: `targetConcepts` scoping on
+// misconceptionHolder and the new `strugglesOn` profile, which are
+// deliberately narrow (a fraction-only misconception, a single stuck
+// concept) so the *other* root always stays open.
+describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", () => {
+  // Mirrors scripts/seed.ts's cohort config exactly (profiles + student
+  // IDs + rounds + seed) so this test fails the same way the real seed
+  // script's output did before the fix, and stays honest if seed.ts's
+  // config ever drifts back toward a uniform profile.
+  const demoStudentIds = ["stu_maya", "stu_devon", "stu_priya", "stu_jonah", "stu_amara", "stu_leo"];
+  function demoCohort() {
+    return [
+      { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
+      { id: "stu_devon", profile: strugglesOn(["G.PART"]) },
+      { id: "stu_priya", profile: competent },
+      { id: "stu_jonah", profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
+      { id: "stu_amara", profile: decayer },
+      { id: "stu_leo", profile: competent },
+    ];
+  }
+
+  it("every seeded demo student can still get a playable assignment on their first live request after the seed script's simulated history", () => {
+    const { registry, itemBank } = fullRegistry();
+    const students = demoCohort();
+    const { store } = runCohort({ graph, registry, itemBank, metaOf, students, rounds: 18, seed: "seed-cohort-v1" });
+
+    // Replicates what a live "give me the next five minutes" request looks
+    // like right after `npm run seed`: fresh selectNext call, seeded
+    // belief, no mid-simulation state. This is exactly where 3 of 6
+    // profiles used to come back with assignment: undefined.
+    for (const id of demoStudentIds) {
+      const belief = store.belief(id);
+      const result = selectNext({
+        studentId: id,
+        graph,
+        belief,
+        registry,
+        itemBank,
+        anchors: new Map(),
+        seed: `post-seed-check:${id}`,
+        now: new Date("2026-03-01T09:00:00Z"),
+      });
+      expect(result.assignment, `${id} got no assignment: ${result.reason}`).toBeDefined();
+      expect(result.reason).not.toBe("every candidate was blocked by a hard constraint");
+    }
+  });
+
+  it("reproduces the pre-fix starvation with the old uniform profiles, proving the scoped profiles above are what fixes it", () => {
+    const { registry, itemBank } = fullRegistry();
+    // The pre-fix shape: misconceptionHolder with no targetConcepts (wrong
+    // on every concept served) and the uniform wheelSpinner in place of
+    // devon's scoped strugglesOn(["G.PART"]).
+    const students = [
+      { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_devon", profile: wheelSpinner },
+      { id: "stu_priya", profile: competent },
+      { id: "stu_jonah", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_amara", profile: decayer },
+      { id: "stu_leo", profile: competent },
+    ];
+    const { trace } = runCohort({ graph, registry, itemBank, metaOf, students, rounds: 18, seed: "seed-cohort-v1" });
+
+    const starvedIds = new Set(
+      trace.filter((t) => t.blocked_reason === "every candidate was blocked by a hard constraint").map((t) => t.student_id),
+    );
+    // Same three students the manual curl testing found: whole-number-bias
+    // holders plus the uniform wheel-spinner, never the two competent
+    // learners or the decayer.
+    expect(starvedIds).toEqual(new Set(["stu_maya", "stu_devon", "stu_jonah"]));
   });
 });

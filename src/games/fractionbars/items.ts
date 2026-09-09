@@ -52,6 +52,27 @@ export const partitionItems: PartitionItem[] = [
   { item_id: "itm_gp_fourths", concept_id: "G.PART", difficulty: 0.3, parts: 4, correct: "a" },
   { item_id: "itm_gp_fifths", concept_id: "G.PART", difficulty: 0.4, parts: 5, correct: "b" },
   { item_id: "itm_gp_sixths", concept_id: "G.PART", difficulty: 0.45, parts: 6, correct: "a" },
+
+  // G.PART.UNEQUAL ("recognise unequal partitions as invalid") -- one hop
+  // off G.PART, same equal-vs-unequal-partition mechanic at a harder
+  // difficulty band than G.PART itself, since there is no distinct
+  // "unequal-detection" UI/mechanic built yet. Flagged for pedagogy review:
+  // this authenticates the same discrimination skill as G.PART rather than
+  // a materially different task, which is a reasonable minimal stand-in
+  // but not a permanent design.
+  { item_id: "itm_gpu_halves", concept_id: "G.PART.UNEQUAL", difficulty: 0.5, parts: 2, correct: "b" },
+  { item_id: "itm_gpu_thirds", concept_id: "G.PART.UNEQUAL", difficulty: 0.55, parts: 3, correct: "a" },
+  { item_id: "itm_gpu_fourths", concept_id: "G.PART.UNEQUAL", difficulty: 0.6, parts: 4, correct: "b" },
+
+  // F.NOTATE ("fraction notation: numerator/denominator meaning") -- also
+  // one hop off G.PART. Reuses the same PartitionItem shape/mechanic as
+  // G.PART/G.PART.UNEQUAL because task_types for F.NOTATE in the graph is
+  // PARTITION-only, and no numerator/denominator-labelling UI exists in
+  // either game yet. This is a stand-in, not a real notation-reading item
+  // -- flagged for pedagogy review, same caveat as G.PART.UNEQUAL above.
+  { item_id: "itm_fno_halves", concept_id: "F.NOTATE", difficulty: 0.55, parts: 2, correct: "a" },
+  { item_id: "itm_fno_thirds", concept_id: "F.NOTATE", difficulty: 0.6, parts: 3, correct: "b" },
+  { item_id: "itm_fno_fourths", concept_id: "F.NOTATE", difficulty: 0.65, parts: 4, correct: "a" },
 ];
 
 export function partitionItemsForConcept(conceptId: string): PartitionItem[] {

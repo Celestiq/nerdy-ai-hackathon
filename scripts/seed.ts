@@ -9,7 +9,7 @@
  */
 import { graph, registry, itemBank, store, metaOf, directory } from "../server/state.js";
 import { runCohort } from "../src/simulation/cohortRunner.js";
-import { competent, misconceptionHolder, wheelSpinner, decayer } from "../src/simulation/profiles.js";
+import { competent, misconceptionHolder, strugglesOn, decayer } from "../src/simulation/profiles.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { EvidenceBundle } from "../src/contracts/schemas.js";
 
@@ -22,10 +22,24 @@ const { trace, store: simStore } = runCohort({
   itemBank,
   metaOf,
   students: [
-    { id: maya, profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
-    { id: devon, profile: wheelSpinner },
+    // Whole-number bias only shows up once they're actually comparing
+    // fraction magnitudes (F.MAG.CMP/F.MAG.NONUNIT, the two concepts the
+    // graph's `explains` edges name for this signature) -- elsewhere they're
+    // competent, same as any other learner, so they progress through the
+    // roots and one-hop concepts instead of stalling on either before ever
+    // reaching a fraction. See BACKLOG.md dead-end fix: the old uniform
+    // 0.55 correctness on *everything served* wheel-spin-blocked both roots
+    // before mastery, regardless of the misconception being fraction-specific.
+    { id: maya, profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
+    // Genuinely never masters G.PART (demonstrates the wheel-spin/escalation
+    // path live in the tutor view) but is competent everywhere else, so
+    // N.COUNT and its whole downstream chain stay open. A uniform
+    // `wheelSpinner` here dead-ends the entire session once *both* roots
+    // wheel-spin-block, which is a real risk on a two-root graph -- see
+    // BACKLOG.md dead-end fix.
+    { id: devon, profile: strugglesOn(["G.PART"]) },
     { id: priya, profile: competent },
-    { id: jonah, profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+    { id: jonah, profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
     { id: amara, profile: decayer },
     { id: leo, profile: competent },
   ],
