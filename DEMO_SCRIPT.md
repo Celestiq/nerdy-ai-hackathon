@@ -8,27 +8,31 @@ parallel with other backlog work, not a recording session.
 Target runtime: **2:15–2:45** (hard cap 3:00). Every beat below was verified live against the app
 today (fresh `rm -rf .data && npm run seed` + `npm run dev`, HEAD `8167b37`) — see "Verified live"
 callouts. Re-verify anything with a "confirm near recording day" flag before the actual take,
-since belief state depends on real wall-clock time (recency decay) and the mastery-visual
-dependency below is still in progress.
+since belief state depends on real wall-clock time (recency decay).
 
-## 1. One blocking dependency — read this first
+**Update, 2026-09-09 freshness pass (HEAD `529fd0f`, app code at `689a527`):** the celebratory
+mastery-visual dependency flagged below as "in progress" has since landed, been committed, and
+been independently re-verified twice — once by `judge-rubric` reading the diff directly (see
+`BACKLOG.md`'s Cycle 5 "Latest judge gaps"), and again just now for this pass via a fresh
+`rm -rf .data && npm run seed`, a real `/api/evidence` POST that pushed `stu_priya`'s `G.PART`
+over the mastery threshold, and a `git`-confirmed read of `finishSession()`/the matching CSS. The
+star/pop/pulse visual described in §1 below is real, shipped, and safe to record as-is — no
+remaining dependency. Section 1 is kept below only as a description of what the celebratory visual
+actually looks like, not as a blocker.
 
-A Builder is concurrently landing a celebratory icon/animation for the child-facing mastery
-moment (`public/child/child.js`'s `finishSession()` + matching CSS in `public/child/index.html`
-— a star glyph with a pop/rotate-in and a warm pulse ring, replacing the plain checkmark only on
-the mastery path). **As of this writing it is uncommitted work-in-progress** (`git status` shows
-both files modified, no new commit yet). This script is written to end on that celebratory screen
-because it's the strongest emotional close available — but:
+## 1. The celebratory mastery visual — shipped, not a dependency
 
-- **Do not do the final recording pass until that change is committed and confirmed live**
-  (`git log` shows a new commit past `8167b37` touching `finishSession()`/`icon-wrap--mastery`,
-  and a fresh seed+dev round-trip shows the star/pulse, not the plain checkmark, on a mastery
-  transition).
-- If the deadline forces a choice between recording now vs. waiting: the multi-concept text fix
-  (`8167b37`) is already committed and safe to show either way — only the *icon/animation* on that
-  same screen is pending. Recording with the plain checkmark is acceptable as a fallback; do not
-  hold the whole video hostage to this one visual if time runs out. Note in the edit which version
-  was captured.
+The child-facing mastery moment (`public/child/child.js`'s `finishSession()` + matching CSS in
+`public/child/index.html`) gives the mastery case its own glyph and motion, distinct from a
+routine session end: a hand-authored star SVG (no icon-library dependency, same stroke style as
+the app's other icons) in place of the routine checkmark, at a larger 64px size, with a
+`pop-in-mastery` keyframe (an overshoot scale + rotate, punchier than the plain fade/scale used
+everywhere else) and a `mastery-pulse-ring` box-shadow pulse in the app's existing
+`--status-mastered` teal (no new hue introduced). The routine, nothing-new-happened session end is
+untouched — same plain checkmark, same plain `pop-in` fade. This shipped in `689a527` and is
+confirmed live for single-concept, multi-concept, and routine (non-mastery) end screens alike
+(`BACKLOG.md`, Cycle 5). Script the close (Beats 5-6 below) around this as the real screen a judge
+will see, not a hoped-for one.
 
 ## 2. Narrative arc (the "why hard / why this solves it" case)
 
@@ -145,8 +149,8 @@ Show Devon P.'s row: chip reading `G.PART · 3 sessions` (verified live wording 
 *Screen: child view, a live-played session that crosses the mastery threshold on (ideally) two
 concepts in the same submission* — see §5 below for exactly how to set this up reliably before
 recording. End on the session-end screen:
-- The celebratory star/pulse icon (once the pending visual lands — see §1), or the current plain
-  checkmark as a documented fallback.
+- The celebratory star/pulse icon — shipped and confirmed live (see §1); this is the real screen,
+  not a fallback.
 - Each mastered concept as its own clean line — "You've got it — Partition a whole into equal
   parts!" / "You've got it — A unit fraction 1/n is one of n equal parts of a whole!" (this exact
   two-concept rendering is the grammar fix shipped in `8167b37`; before that commit this text was
@@ -191,7 +195,8 @@ confidence and decay are wall-clock-based):
    assignment actually includes anchor items for both.
 4. Record the session live in the child UI, answering those served items correctly. The
    `/evidence` submission at session end should push both concepts over threshold in the same
-   response, producing the two-line mastery beat plus (once landed) the celebratory animation.
+   response, producing the two-line mastery beat plus the celebratory star/pulse animation (see
+   §1 — shipped, not pending).
 5. If it doesn't cross both in one take, that's fine — a single-concept mastery beat is still a
    legitimate, honest recording of the same feature. Don't force a two-concept take at the cost of
    an obviously staged-looking session.
@@ -222,12 +227,14 @@ confidence and decay are wall-clock-based):
   these used to be confusing dead ends. Don't manufacture one on camera by clicking ahead of the
   UI or picking a student mid-escalation expecting a specific screen — verify the exact screen a
   chosen student will hit via a fresh `GET /api/assignment/<id>` before recording, not by memory.
-- **The plain-checkmark mastery screen, if the celebratory visual has landed by recording day** —
-  don't accidentally capture the old version if the new one is already merged; always do a fresh
-  `rm -rf .data && npm run seed` immediately before recording and eyeball the actual commit
-  (`git log -1`) to confirm which version of `finishSession()` is live.
+- **The plain-checkmark mastery screen** — the celebratory star/pulse visual is merged (`689a527`)
+  and is the version that should always render on a mastery transition now. Still do a fresh
+  `rm -rf .data && npm run seed` immediately before recording (habit worth keeping regardless),
+  but there's no longer a version-uncertainty risk here — just don't record against a checkout
+  older than `689a527`.
 
-## 7. Verified-live log (today, 2026-09-09, HEAD `8167b37` + uncommitted mastery-visual WIP)
+## 7. Verified-live log (2026-09-09, HEAD `8167b37`; freshness pass same day, HEAD `529fd0f`/app
+code `689a527`)
 
 For traceability — every claim above was checked against the running app, not assumed from the
 README or `BACKLOG.md`:
@@ -244,7 +251,16 @@ README or `BACKLOG.md`:
   `` `${s.concept_id} · ${s.attempts_without_mastery} sessions` ``).
 - `GET /api/tutor/report/coh_demo`: `retention: []` on a fresh seed (empty — confirmed above as a
   "don't linger here" panel).
-- `git status`: `public/child/child.js` and `public/child/index.html` both show uncommitted
-  modifications adding a `star` icon, `.icon-wrap--mastery`, and `pop-in-mastery`/
-  `mastery-pulse-ring` keyframes — the celebratory mastery visual referenced in §1 is real,
-  in-progress, and not yet committed as of this writing.
+- `git status`: `public/child/child.js` and `public/child/index.html` both showed uncommitted
+  modifications at the time of the original pass, adding a `star` icon, `.icon-wrap--mastery`, and
+  `pop-in-mastery`/`mastery-pulse-ring` keyframes.
+- **Freshness-pass update (same day, HEAD `529fd0f`):** that work is now committed as `689a527`
+  and confirmed clean (`git status` reports nothing to commit, `git log` shows `689a527` in
+  history). Re-verified end-to-end for this pass: fresh `rm -rf .data && npm run seed` →
+  `npm run dev`, both `/child/` and `/tutor/` return `200`; a real `POST /api/evidence` (8 correct
+  observations pushing `stu_priya`'s `G.PART` over threshold) returned
+  `newlyMastered: [{"concept_id":"G.PART", ...}]`; and `public/child/child.js:382-385` /
+  `public/child/index.html:90-104` confirm `finishSession()` branches on `newlyMastered.length > 0`
+  to render `icon-wrap--mastery` + `icon("star")` with the `pop-in-mastery`/`mastery-pulse-ring`
+  CSS, while the non-mastery path is untouched. The celebratory visual described in §1 is real,
+  shipped, and ready to record against.
