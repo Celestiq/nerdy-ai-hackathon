@@ -108,9 +108,98 @@ for (const [student, offsetDays] of [
   }
 }
 
+// Hand-authored bootstrap bundle restoring a demo-critical guarantee: at
+// least one concept-student pair naturally reaches MASTERED on a fresh
+// seed, independent of cohortRunner's stochastic simulated history. This
+// area has broken three times this session purely from cohortRunner/
+// timing-constant changes (see BACKLOG.md Cycle 9) -- unlike
+// wholeNumberBiasSession above (which uses placeholder item ids, since it
+// only needs a signature-classified *incorrect* response), this one is
+// graded on p_mastery/p_decayed crossing the real 0.85 threshold, so it
+// must use real, already-authored N.COUNT items (src/games/numberline/
+// items.ts) with responses that genuinely match each item's target, not
+// placeholder ids. stu_devon/N.COUNT specifically: the exact pair Cycles
+// 7-8 already established and verified live, now decoupled from
+// cohortRunner's selection dynamics entirely so an unrelated future
+// content change (e.g. new items elsewhere in the bank) can't silently tip
+// it again -- the exact failure mode Cycle 9 hit.
+function masteryBootstrapSession(studentId: string, startedAt: string): EvidenceBundle {
+  const t0 = new Date(startedAt).getTime();
+  // Real N.COUNT items from src/games/numberline/items.ts, confirmed by
+  // reading that file directly (item_id, difficulty, target, tolerance
+  // copied verbatim -- not fabricated).
+  const items: Array<{ item_id: string; difficulty: number; target: number }> = [
+    { item_id: "itm_nc_7", difficulty: 0.2, target: 0.7 },
+    { item_id: "itm_nc_3", difficulty: 0.15, target: 0.3 },
+    { item_id: "itm_nc_5", difficulty: 0.18, target: 0.5 },
+    { item_id: "itm_nc_9", difficulty: 0.25, target: 0.9 },
+  ];
+  const mk = (item: (typeof items)[number], offsetMs: number) =>
+    buildObservation({
+      item_id: item.item_id,
+      concept_id: "N.COUNT",
+      difficulty: item.difficulty,
+      response: { kind: "position", value: item.target, target: item.target },
+      verdict: "correct",
+      signature: "UNCLASSIFIED",
+      signature_confidence: 0.95,
+      startedAtMs: t0 + offsetMs,
+      endedAtMs: t0 + offsetMs + 3000,
+      attempts: 1,
+    });
+
+  // Two full passes over the 4 real N.COUNT items (8 observations total):
+  // a single pass (4 obs) empirically left p_decayed at 0.885 against the
+  // 0.85 threshold -- real, but not "comfortably clear" per this item's
+  // spec, since it also has to absorb whatever N.COUNT evidence
+  // cohortRunner's stochastic simulation independently contributes for
+  // this student (belief is a full replay over every bundle, not just this
+  // one). A second pass pushes p_mastery, and therefore p_decayed, further
+  // above threshold -- verified empirically against the real printed
+  // output below, not assumed.
+  const rounds = [...items, ...items];
+
+  return {
+    session_id: `ses_seed_mastery_${studentId}`,
+    student_id: studentId,
+    assignment_id: `asg_seed_mastery_${studentId}`,
+    game_id: "numberline.place.v2",
+    started_at: startedAt,
+    ended_at: new Date(t0 + rounds.length * 4000).toISOString(),
+    observations: rounds.map((item, i) => mk(item, i * 4000)),
+    engagement: { completed: true, abandoned_at: null, idle_ms: 0 },
+  };
+}
+
+// Timed "yesterday" at seed time -- close to wall-clock "now", not anchored
+// to cohortRunner's internal REVIEW_MARGIN_DAYS/defaultStartDate window --
+// so p_decayed's tiny one-day decay factor keeps this comfortably clear of
+// the 0.85 threshold regardless of any future retuning of that constant.
+const yesterday = new Date();
+yesterday.setUTCDate(yesterday.getUTCDate() - 1);
+const masteryResult = store.ingest(masteryBootstrapSession(devon, yesterday.toISOString()));
+console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryResult);
+
 console.log("\nDone. Belief snapshots:");
+let sawMastered = false;
 for (const id of directory.map((d) => d.student_id)) {
   const belief = store.belief(id);
   const summary = [...belief.entries()].map(([c, b]) => `${c}:${b.status}`).join(", ");
   console.log(`  ${id.padEnd(12)} ${summary}`);
+  for (const b of belief.values()) {
+    if (b.status === "MASTERED") sawMastered = true;
+  }
+}
+
+// Regression guard: a fresh seed must always produce at least one naturally
+// MASTERED concept-student pair (the mastery-moment celebratory beat and
+// the Concept Constellation's "bloom" tier are both unreachable via the
+// documented `npm run seed && npm run dev` setup path otherwise). This is
+// the guard that should have caught Cycle 9's regression before commit --
+// see BACKLOG.md Cycle 9.
+if (!sawMastered) {
+  console.error(
+    "\nFAIL: no concept-student pair naturally reached MASTERED on this fresh seed -- see BACKLOG.md Cycle 9.",
+  );
+  process.exit(1);
 }
