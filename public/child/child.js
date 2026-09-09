@@ -65,18 +65,139 @@ function avatar(name, hue, cls = "") {
   return el("span", { class: `avatar ${cls}`, "data-hue": String(hue % 6) }, initials(name));
 }
 
+// Plain-English display names for the graph's strand codes -- words only,
+// never a count or ranking. Kept local to this file rather than imported
+// from tutor.js (a different surface with a different bundling story), but
+// intentionally the exact same strings tutor.js's STRAND_LABEL uses so the
+// two surfaces read as one vocabulary.
+const STRAND_LABEL = { NUMBER: "Whole numbers", GEOMETRY: "Geometry", FRACTION: "Fractions", DECIMAL: "Decimals" };
+
 // -------------------- picker --------------------
 
 async function showPicker() {
   const directory = await api("/directory");
-  const buttons = directory.map((d, i) =>
-    el("button", { onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
+  const rows = directory.map((d, i) =>
+    el("div", { class: "picker-row" }, [
+      el("button", { class: "picker-play", onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
+      el(
+        "button",
+        { class: "picker-map", onclick: () => showConstellation(d, i), "aria-label": `${d.name}'s star map` },
+        [icon("star")],
+      ),
+    ]),
   );
   render(
     el("div", {}, [
       el("div", { class: "picker-head" }, [el("h1", {}, "Who's playing?")]),
-      el("div", { class: "picker" }, buttons),
+      el("div", { class: "picker" }, rows),
     ]),
+  );
+}
+
+// -------------------- constellation (persistent, cross-session progress) --------------------
+
+// Wordless-by-design (IDEAS.md B1 "Concept Constellation"): a passive view a
+// child can visit between sessions, generated fresh from live belief state
+// -- not a client-side counter, not a level-select list. Reuses the exact
+// two-endpoint join public/tutor/tutor.js's load() already does (lines
+// ~132-147): GET /api/graph/concepts (label + strand per concept, already
+// grouped contiguously by strand in the graph data -- no separate
+// strand-order constant to keep in sync here) joined with
+// GET /api/belief/:studentId (only concepts this student has ever been
+// observed on -- a concept never attempted simply has no entry, which is
+// exactly the "unmeasured must look categorically different from weak"
+// distinction the architecture calls for).
+//
+// Zero numbers, zero ranking, zero cross-child comparison, by construction:
+// this function never reads p_mastery/p_decayed/confidence as anything but
+// an input to which CSS tier a star renders in (see starNode() below and
+// the .const-star--* rules in index.html), and every visible string here is
+// hand-authored words with no digits. No tap-to-launch-a-session
+// interactivity -- this is a passive view only (see BACKLOG.md).
+async function showConstellation(student, hue = 0) {
+  render(el("div", { class: "empty-card" }, "Loading..."));
+  const [concepts, belief] = await Promise.all([api("/graph/concepts"), api(`/belief/${student.student_id}`)]);
+  const beliefByConcept = new Map(belief.map((b) => [b.concept_id, b]));
+
+  const strandOrder = [];
+  const conceptsByStrand = new Map();
+  for (const c of concepts) {
+    if (!conceptsByStrand.has(c.strand)) {
+      conceptsByStrand.set(c.strand, []);
+      strandOrder.push(c.strand);
+    }
+    conceptsByStrand.get(c.strand).push(c);
+  }
+
+  // A running index across the *whole* map (not reset per strand) so the
+  // entrance animation below reads as one continuous cascade down the page
+  // -- a bit of load-time "juice" appropriate to a map you're meant to feel
+  // good looking at, not a flat instant grid. Purely decorative: it never
+  // gates or delays anything the child can act on (there's nothing to tap
+  // here -- see BACKLOG.md, this view is passive-only).
+  let starIndex = 0;
+  const sections = strandOrder.map((strand) =>
+    el("div", { class: "const-strand" }, [
+      el("h2", { class: "const-strand-title" }, STRAND_LABEL[strand] ?? strand),
+      el(
+        "div",
+        { class: "const-grid" },
+        conceptsByStrand.get(strand).map((c) => starNode(beliefByConcept.get(c.concept_id), starIndex++)),
+      ),
+    ]),
+  );
+
+  render(
+    el("div", {}, [
+      el("div", { class: "topbar" }, [
+        el("div", { class: "who" }, [avatar(student.name, hue), student.name]),
+        el("button", { class: "pill-link const-back", onclick: showPicker }, "Back"),
+      ]),
+      el("div", { class: "const-head" }, [
+        el("h1", {}, "Your star map"),
+        el("p", { class: "const-sub" }, "Stars grow the more comfortable you get -- no scores, just your own path."),
+      ]),
+      el("div", { class: "const-body" }, sections),
+    ]),
+  );
+}
+
+// Maps a belief entry (or its absence) to one of four visual tiers. Never
+// returns or renders p_mastery/p_decayed/confidence itself -- those numbers
+// only ever decide *which* tier this returns, per the hard no-numbers
+// constraint on this view.
+function starTier(belief) {
+  if (!belief) return "seed"; // never attempted -- a seed, not a failure
+  if (belief.status === "MASTERED") return "bloom";
+  if (belief.status === "DECAYED") return "fading"; // was mastered, now fading -- distinct from both seed and glow
+  return "glow"; // EMERGING or STUCK share one child-facing tier by design --
+  // see index.html: STUCK must not read as alarming/discouraging here, so it
+  // gets the same warm "in progress" treatment EMERGING does, not the tutor
+  // dashboard's amber "needs attention" color.
+}
+
+const STAR_TIER_LABEL = {
+  seed: "Not started yet",
+  glow: "In progress",
+  bloom: "Mastered",
+  fading: "Was mastered, fading -- worth a revisit",
+};
+
+function starNode(belief, index = 0) {
+  const tier = starTier(belief);
+  // Cascading entrance delay, capped so a student with many concepts still
+  // finishes twinkling in well under a second -- see .const-star's
+  // animation in index.html (reuses the house pop-in easing).
+  const delayMs = Math.min(index * 28, 480);
+  return el(
+    "div",
+    {
+      class: `const-star const-star--${tier}`,
+      style: `animation-delay: ${delayMs}ms`,
+      role: "img",
+      "aria-label": STAR_TIER_LABEL[tier],
+    },
+    [icon("star")],
   );
 }
 

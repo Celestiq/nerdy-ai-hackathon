@@ -16,14 +16,30 @@
   .picker-head h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
 
   .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .picker button {
-    display: flex; align-items: center; gap: 12px; text-align: left;
+  /* Each roster entry is a row of two buttons: the primary play action
+     (unchanged behavior/appearance from before this file's B1 constellation
+     work -- tapping it still starts a session exactly as before) plus a
+     small secondary icon-button that opens that student's star map instead.
+     Splitting into .picker-row/.picker-play/.picker-map (rather than
+     styling `.picker button` directly, as before) is what makes room for
+     the second button without changing the play button's own look. */
+  .picker-row { display: flex; gap: 8px; }
+  .picker-play {
+    flex: 1; display: flex; align-items: center; gap: 12px; text-align: left;
     padding: 16px 16px; font-size: 16px; font-weight: 600; border-radius: var(--r-lg);
     border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
     box-shadow: var(--shadow-sm); transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
   }
-  .picker button:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .picker .avatar { width: 38px; height: 38px; font-size: 15px; }
+  .picker-play:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .picker-row .avatar { width: 38px; height: 38px; font-size: 15px; }
+  .picker-map {
+    flex-shrink: 0; width: 48px; border-radius: var(--r-lg);
+    border: 1.5px solid var(--rule); background: var(--panel); color: var(--soft);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  }
+  .picker-map:hover { border-color: var(--status-mastered); color: var(--status-mastered); box-shadow: var(--shadow-md); }
+  .picker-map .icon { width: 18px; height: 18px; }
 
   .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
   .topbar .who { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; }
@@ -115,6 +131,70 @@
 
   .foot-link { margin-top: 26px; }
   .icon { width: 16px; height: 16px; display: inline-block; }
+
+  /* -------------------- constellation (BACKLOG.md B1) -------------------- */
+  /* Persistent, passive, cross-session progress view generated from live
+     belief state -- see showConstellation()/starNode() in child.js. Purely
+     additive: does not touch .icon-wrap, .pop-in(-mastery), or
+     .progress-track above. */
+
+  .const-back { margin-left: auto; }
+
+  .const-head { text-align: center; margin: 4px 0 26px; }
+  .const-head h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  .const-sub { color: var(--soft); font-size: 14px; margin: 0 auto; max-width: 46ch; }
+
+  .const-strand { margin-bottom: 28px; }
+  .const-strand-title {
+    font-size: 13px; font-weight: 600; color: var(--soft); margin: 0 0 12px;
+    text-transform: uppercase; letter-spacing: 0.06em;
+  }
+  .const-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+
+  .const-star {
+    width: 56px; height: 56px; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    border: 1.5px solid var(--rule);
+    transition: transform 150ms ease;
+    /* Twinkle-in on load, staggered per-star via an inline animation-delay
+       set in starNode() (child.js) -- reuses the exact bouncy easing the
+       rest of the child surface already uses for pop-in/pop-in-mastery, so
+       this reads as the same house motion language, not a new one.
+       `backwards` (not `forwards`/`both`) so the delay window renders as
+       genuinely invisible without permanently overriding each tier's own
+       resting transform (e.g. --bloom's scale(1.08)) once the animation
+       finishes. */
+    animation: pop-in 320ms cubic-bezier(.34, 1.56, .64, 1) backwards;
+  }
+  .const-star .icon { width: 26px; height: 26px; }
+
+  /* Never attempted -- a dim outline "seed", not a lesser/failed star. Per
+     the architecture's own "unmeasured must look categorically different
+     from weak" rule, this must not read as a worse version of --glow. */
+  .const-star--seed { border-style: dashed; border-color: var(--rule); color: var(--status-unmeasured); background: transparent; }
+  .const-star--seed .icon svg { fill: none; }
+
+  /* EMERGING and STUCK deliberately share one child-facing tier -- see
+     BACKLOG.md: STUCK must not get a discouraging/alarm-colored treatment,
+     so it gets the same warm "in progress" glow EMERGING does rather than
+     the tutor dashboard's amber "needs attention" color. */
+  .const-star--glow { border-style: solid; border-color: var(--status-emerging); color: var(--status-emerging); background: var(--status-emerging-bg); }
+  .const-star--glow .icon svg { fill: currentColor; fill-opacity: 0.45; }
+
+  .const-star--bloom {
+    border-style: solid; border-color: var(--status-mastered); color: var(--status-mastered); background: var(--status-mastered-bg);
+    box-shadow: 0 0 0 4px var(--status-mastered-bg), 0 4px 14px rgba(14, 124, 130, 0.28);
+    transform: scale(1.08);
+  }
+  .const-star--bloom .icon svg { fill: currentColor; }
+
+  /* Was mastered, now fading -- must read distinctly from both --seed
+     (never attempted) and --glow (in progress), per BACKLOG.md: "the state
+     most directly answering 'steady progression... visible over time,' so
+     it must not be visually collapsed into EMERGING." Softer purple fill at
+     reduced opacity signals decline from a full bloom, not a fresh start. */
+  .const-star--fading { border-style: solid; border-color: var(--status-decayed); color: var(--status-decayed); background: var(--status-decayed-bg); opacity: 0.62; }
+  .const-star--fading .icon svg { fill: currentColor; fill-opacity: 0.7; }
 </style>
 </head>
 <body>
