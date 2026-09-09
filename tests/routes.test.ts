@@ -67,13 +67,20 @@ function evidenceBundle(overrides: Partial<EvidenceBundle> & { student_id: strin
   };
 }
 
-async function postEvidence(bundle: EvidenceBundle): Promise<{ status: number; body: { accepted: boolean; duplicate: boolean; errors?: string[] } }> {
+interface EvidenceResponseBody {
+  accepted: boolean;
+  duplicate: boolean;
+  errors?: string[];
+  newlyMastered: { concept_id: string; label: string }[];
+}
+
+async function postEvidence(bundle: EvidenceBundle): Promise<{ status: number; body: EvidenceResponseBody }> {
   const res = await fetch(`${baseUrl}/evidence`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(bundle),
   });
-  return { status: res.status, body: (await res.json()) as { accepted: boolean; duplicate: boolean; errors?: string[] } };
+  return { status: res.status, body: (await res.json()) as EvidenceResponseBody };
 }
 
 interface SessionSummary {
@@ -321,5 +328,89 @@ describe("GET /api/sessions/:studentId/:sessionId", () => {
     // route reports an empty blame list rather than inventing one.
     expect(blame(graph, "F.MAG.UNIT", "WHOLE_NUMBER_BIAS")).toEqual([]);
     expect(observation.blamed_concepts).toEqual([]);
+  });
+});
+
+// BACKLOG.md B2 "Mastery Moment": POST /evidence diffs belief before vs.
+// after ingest and reports any concept that flipped to MASTERED in this
+// submission, by concept_id + human label, so the child surface can show a
+// one-time reward beat. This must be genuinely transition-triggered --
+// firing only on the session where the flip happens, never again on a
+// later session that just reconfirms already-MASTERED status.
+describe("POST /api/evidence: newlyMastered (BACKLOG.md B2 Mastery Moment)", () => {
+  it("is empty while a concept is still short of mastery, non-empty naming it on the submission that flips it, and empty again on a later submission that only reconfirms it", async () => {
+    const studentId = `stu_${rand()}`;
+    // evidenceBundle()'s default started_at/ended_at is a fixed past date
+    // (2026-01-01); belief() decays p_mastery toward 0.5 based on days
+    // since observation, so a fixed-in-the-past timestamp would read as
+    // heavily decayed by the time this test actually runs and never reach
+    // MASTERED. Use "now" so decay is a no-op and only p_mastery itself
+    // decides status, isolating what this test is actually about.
+    const now = new Date().toISOString();
+
+    // G.PART, mastery_threshold 0.85. Each correct G.PART observation
+    // (difficulty 0.2 -> weight 0.6) adds 0.6 to alpha off a Beta(1,1)
+    // prior. Five corrects: alpha=4, beta=1, p_mastery=0.8 -- still short.
+    const firstFive = evidenceBundle({
+      student_id: studentId,
+      session_id: `ses_${rand()}_1`,
+      started_at: now,
+      ended_at: now,
+      observations: Array.from({ length: 5 }, () => correctPartitionObservation()),
+    });
+    const afterFive = await postEvidence(firstFive);
+    expect(afterFive.status).toBe(200);
+    expect(afterFive.body.accepted).toBe(true);
+    expect(afterFive.body.newlyMastered).toEqual([]); // not mastered yet -- no beat
+
+    // Three more corrects: alpha=5.8, beta=1, p_mastery=0.853 -- crosses
+    // the 0.85 threshold. This submission is the transition.
+    const nextThree = evidenceBundle({
+      student_id: studentId,
+      session_id: `ses_${rand()}_2`,
+      started_at: now,
+      ended_at: now,
+      observations: Array.from({ length: 3 }, () => correctPartitionObservation()),
+    });
+    const afterEight = await postEvidence(nextThree);
+    expect(afterEight.status).toBe(200);
+    expect(afterEight.body.accepted).toBe(true);
+    expect(afterEight.body.newlyMastered).toEqual([{ concept_id: "G.PART", label: graph.node("G.PART")?.label }]);
+
+    // Sanity: G.PART really is MASTERED now, via the same /api/belief route
+    // the tutor view reads.
+    const beliefRes = await fetch(`${baseUrl}/belief/${studentId}`);
+    const belief = (await beliefRes.json()) as { concept_id: string; status: string }[];
+    expect(belief.find((b) => b.concept_id === "G.PART")?.status).toBe("MASTERED");
+
+    // A further submission for the same, already-mastered concept must NOT
+    // re-fire the beat -- this is the "transition, not a status display"
+    // requirement. Confirmed empirically here, not just asserted by design.
+    const oneMore = evidenceBundle({
+      student_id: studentId,
+      session_id: `ses_${rand()}_3`,
+      started_at: now,
+      ended_at: now,
+      observations: [correctPartitionObservation()],
+    });
+    const afterNine = await postEvidence(oneMore);
+    expect(afterNine.status).toBe(200);
+    expect(afterNine.body.accepted).toBe(true);
+    expect(afterNine.body.newlyMastered).toEqual([]);
+  });
+
+  it("stays empty for a bundle that doesn't change any concept's status", async () => {
+    const studentId = `stu_${rand()}`;
+    // A single wrong answer moves F.MAG.CMP from UNTESTED to EMERGING, not
+    // MASTERED -- no transition to MASTERED should be reported.
+    const bundle = evidenceBundle({
+      student_id: studentId,
+      session_id: `ses_${rand()}`,
+      observations: [wrongCompareObservation()],
+    });
+    const res = await postEvidence(bundle);
+    expect(res.status).toBe(200);
+    expect(res.body.accepted).toBe(true);
+    expect(res.body.newlyMastered).toEqual([]);
   });
 });

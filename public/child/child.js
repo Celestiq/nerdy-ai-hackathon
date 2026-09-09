@@ -331,6 +331,23 @@ async function submitAndAdvance(payload) {
   }
 }
 
+// Turns a list of { concept_id, label } into a plain-language beat naming
+// them by label -- never a count ("2 concepts mastered"), never a rate or
+// streak. See BACKLOG.md B2 "Mastery Moment": this only ever reflects a
+// same-session transition the server already diffed (newlyMastered on the
+// /evidence response), so it's a one-time reward tied to the belief model,
+// not a client-side counter or a display of standing status.
+function masteryBeatText(newlyMastered) {
+  const labels = newlyMastered.map((m) => m.label);
+  // Em dash (not a colon) to match the app's existing feedback voice
+  // ("Nice — next one") and because concept labels sometimes contain their
+  // own colon (e.g. "Fraction notation: numerator and denominator meaning"),
+  // which would otherwise read as a jarring double colon.
+  if (labels.length === 1) return `You've got it — ${labels[0]}!`;
+  if (labels.length === 2) return `You've got it — ${labels[0]} and ${labels[1]}!`;
+  return `You've got it — ${labels.slice(0, -1).join(", ")}, and ${labels[labels.length - 1]}!`;
+}
+
 async function finishSession(completed) {
   const bundle = {
     session_id: state.sessionId,
@@ -342,13 +359,15 @@ async function finishSession(completed) {
     observations: state.observations,
     engagement: { completed, abandoned_at: completed ? null : new Date().toISOString(), idle_ms: 0 },
   };
-  await api("/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bundle) });
+  const result = await api("/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bundle) });
+  const newlyMastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered : [];
 
   render(
     el("div", { class: "end-card" }, [
       el("div", { class: "icon-wrap" }, [icon("check")]),
       el("h2", {}, "What you built today"),
       el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
+      newlyMastered.length > 0 ? el("p", { class: "mastery-beat" }, masteryBeatText(newlyMastered)) : null,
       el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
       el("button", { class: "btn-primary", onclick: showPicker }, "Done"),
     ]),

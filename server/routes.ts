@@ -11,6 +11,7 @@ import { numberlineItems } from "../src/games/numberline/items.js";
 import { classifyPlacement } from "../src/games/numberline/classify.js";
 import { fractionbarsItems, partitionItems } from "../src/games/fractionbars/items.js";
 import { classifyChoice, classifyPartition } from "../src/games/fractionbars/classify.js";
+import type { BeliefInternal } from "../src/store/types.js";
 
 export const api = Router();
 
@@ -105,14 +106,37 @@ api.post("/games/:gameId/respond", (req, res) => {
   res.status(404).json({ error: `unknown game_id ${gameId}` });
 });
 
+// Diffs belief before/after one evidence submission so the child surface
+// can show a one-time "you've got it" beat exactly on the session where a
+// concept flips to MASTERED -- never on a session that merely confirms
+// already-mastered status. This lives here, not in src/store, because
+// "MASTERED is reward-worthy" is a pedagogical judgement about status, and
+// the store itself stays pedagogy-free (see LearnerStore's own doc
+// comment); same reasoning as why blame() is composed in enrichBelief()
+// below rather than folded into the store.
+function diffNewlyMastered(before: Map<string, BeliefInternal>, after: Map<string, BeliefInternal>): { concept_id: string; label: string }[] {
+  const out: { concept_id: string; label: string }[] = [];
+  for (const [conceptId, afterBelief] of after) {
+    if (afterBelief.status !== "MASTERED") continue;
+    if (before.get(conceptId)?.status === "MASTERED") continue; // already mastered before this submission -- not a new transition
+    out.push({ concept_id: conceptId, label: graph.node(conceptId)?.label ?? conceptId });
+  }
+  return out;
+}
+
 api.post("/evidence", (req, res) => {
   const parsed = EvidenceBundleSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ accepted: false, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
     return;
   }
+  // Belief is a pure projection over the append-only log (see
+  // src/store/store.ts), so "before" is just calling belief() prior to the
+  // log append -- no snapshot machinery needed.
+  const beliefBefore = store.belief(parsed.data.student_id);
   const result = store.ingest(parsed.data);
-  res.json(result);
+  const beliefAfter = store.belief(parsed.data.student_id);
+  res.json({ ...result, newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter) });
 });
 
 function enrichBelief(studentId: string): BeliefState[] {
