@@ -73,6 +73,35 @@
 
   .end-card { text-align: center; padding: 24px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in 260ms cubic-bezier(.34, 1.56, .64, 1); }
+
+  /* Distinct celebratory treatment for a mastery-beat session end only --
+     additive on top of .icon-wrap/pop-in above, which stays untouched so a
+     routine (no newlyMastered) session end renders pixel-identical to
+     before. Bigger overshoot pop plus a brief pulse ring, no new
+     copy/numbers/sound. See finishSession() in child.js.
+     Pulse color is the existing --status-mastered teal (same reward color
+     already used for the mastered chip/check/meter fill everywhere else),
+     not a new hue: an amber/gold pulse was tried first but rejected on
+     kid-ux review -- this app's shared token legend (styles.css) already
+     reserves amber for "stuck/needs-human", and a gold ring around a star
+     reads too much like a coin/trophy-collection token rather than a
+     personal aha moment. Reusing teal keeps one consistent "reward" color
+     across the whole app instead of introducing a second one. */
+  @keyframes pop-in-mastery {
+    0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
+    60% { opacity: 1; transform: scale(1.35) rotate(6deg); }
+    80% { transform: scale(0.92) rotate(-2deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+  @keyframes mastery-pulse-ring {
+    0% { box-shadow: 0 0 0 0 rgba(14, 124, 130, 0.45); }
+    70% { box-shadow: 0 0 0 16px rgba(14, 124, 130, 0); }
+    100% { box-shadow: 0 0 0 16px rgba(14, 124, 130, 0); }
+  }
+  .end-card .icon-wrap--mastery {
+    width: 64px; height: 64px;
+    animation: pop-in-mastery 560ms cubic-bezier(.34, 1.56, .64, 1), mastery-pulse-ring 900ms ease-out 560ms;
+  }
   .end-card h2 { font-size: 22px; margin: 0; }
   .end-card p { color: var(--soft); max-width: 44ch; margin: 0; }
   .end-card p.mastery-beat { color: var(--status-mastered); font-weight: 600; max-width: 40ch; }

@@ -49,6 +49,11 @@ const ICONS = {
   hourglass: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
   arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
   pause: '<circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="9" y2="15"/><line x1="15" y1="9" x2="15" y2="15"/>',
+  // Distinct glyph for a mastery beat (a newly-mastered concept this session)
+  // vs. the plain "check" used for a routine, nothing-new-happened session
+  // end -- see finishSession(). Same hand-authored stroke style as the icons
+  // above (no icon-library dependency): a five-point star outline.
+  star: '<path d="M12 3.5l2.47 5.18 5.65.68-4.15 3.95 1.09 5.6L12 16.15l-5.06 2.76 1.09-5.6-4.15-3.95 5.65-.68z"/>',
 };
 function icon(name, cls = "icon") {
   return el("span", { class: cls, html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ""}</svg>` });
@@ -368,9 +373,20 @@ async function finishSession(completed) {
   const result = await api("/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bundle) });
   const newlyMastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered : [];
 
+  // A mastery beat gets its own celebratory icon/animation (see
+  // .icon-wrap--mastery / pop-in-mastery in index.html) -- one distinct
+  // treatment for the whole moment, not per concept, and not driven by any
+  // client-side count (newlyMastered.length only ever gates which *branch*
+  // renders, it's never displayed). A routine end-of-session (no mastery)
+  // keeps the exact same icon-wrap/pop-in/check markup as before this change.
+  const justMastered = newlyMastered.length > 0;
+  const endIconWrap = justMastered
+    ? el("div", { class: "icon-wrap icon-wrap--mastery" }, [icon("star")])
+    : el("div", { class: "icon-wrap" }, [icon("check")]);
+
   render(
     el("div", { class: "end-card" }, [
-      el("div", { class: "icon-wrap" }, [icon("check")]),
+      endIconWrap,
       el("h2", {}, "What you built today"),
       el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
       ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
