@@ -137,8 +137,16 @@ describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", ()
     // like right after `npm run seed`: fresh selectNext call, seeded
     // belief, no mid-simulation state. This is exactly where 3 of 6
     // profiles used to come back with assignment: undefined.
+    //
+    // runCohort's default startDate anchors the *last* simulated round to
+    // a fixed number of days before "now" (see cohortRunner.ts's
+    // defaultStartDate / REVIEW_MARGIN_DAYS), not to a hardcoded calendar
+    // date -- so "right now" (real wall-clock) is always the correct
+    // stand-in for "moments after the seed script finished," regardless of
+    // when this test actually runs.
+    const rightAfterSeeding = new Date();
     for (const id of demoStudentIds) {
-      const belief = store.belief(id);
+      const belief = store.belief(id, rightAfterSeeding);
       const result = selectNext({
         studentId: id,
         graph,
@@ -147,7 +155,7 @@ describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", ()
         itemBank,
         anchors: new Map(),
         seed: `post-seed-check:${id}`,
-        now: new Date("2026-03-01T09:00:00Z"),
+        now: rightAfterSeeding,
       });
       expect(result.assignment, `${id} got no assignment: ${result.reason}`).toBeDefined();
       expect(result.reason).not.toBe("every candidate was blocked by a hard constraint");
