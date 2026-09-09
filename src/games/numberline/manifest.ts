@@ -11,5 +11,5 @@ export const numberlineManifest: CapabilityManifest = {
   items_per_session: { min: 4, max: 10 },
   reading_required: false,
   difficulty_range: [0.1, 0.9],
-  signatures: ["LOG_COMPRESSION", "WHOLE_NUMBER_BIAS", "LONGER_IS_LARGER", "LANDMARK_ONLY"],
+  signatures: ["LOG_COMPRESSION", "WHOLE_NUMBER_BIAS", "LONGER_IS_LARGER", "LANDMARK_ONLY", "RANGE_COMPRESSION"],
 };

@@ -3,6 +3,8 @@ import { ConceptGraph } from "../src/graph/loader.js";
 import { validateGraph } from "../src/graph/validate.js";
 import { frontier, blame, path, coverage, matchesCapability, type BeliefLookup } from "../src/graph/query.js";
 import type { ConceptGraphData } from "../src/graph/types.js";
+import { numberlineItems } from "../src/games/numberline/items.js";
+import { fractionbarsItems, partitionItems } from "../src/games/fractionbars/items.js";
 
 const graph = ConceptGraph.load();
 
@@ -106,6 +108,26 @@ describe("path()", () => {
 
   it("returns an empty route when no path exists", () => {
     expect(path(graph, "D.MAG", "N.COUNT")).toEqual([]);
+  });
+});
+
+describe("item coverage", () => {
+  it("every 'authored' concept has at least one item in a real item bank", () => {
+    // The three exported item-bank arrays in the repo today -- if a fourth
+    // game bank is ever added, it must be added to this list too, or this
+    // test silently stops catching the "metadata claims coverage that
+    // doesn't exist" bug class (the exact bug D.NOTATE, then N.PLACE/
+    // N.PLACE.HTH, both had for several cycles before being authored).
+    const allItemConceptIds = new Set<string>([
+      ...numberlineItems.map((i) => i.concept_id),
+      ...fractionbarsItems.map((i) => i.concept_id),
+      ...partitionItems.map((i) => i.concept_id),
+    ]);
+    const authoredNodes = graph.data.nodes.filter((n) => n.status === "authored");
+    expect(authoredNodes.length).toBeGreaterThan(0);
+    for (const node of authoredNodes) {
+      expect(allItemConceptIds.has(node.concept_id)).toBe(true);
+    }
   });
 });
 

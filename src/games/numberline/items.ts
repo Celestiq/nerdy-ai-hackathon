@@ -127,6 +127,126 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.2,
     claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.05 }],
   },
+  // N.PLACE ("place value: tens and ones") and N.PLACE.HTH ("place value:
+  // hundreds") test digit-position understanding specifically, one strand
+  // level below N.MAG -- not a re-skin of N.MAG's magnitude-estimation
+  // items. The misconception probed here is a two-/three-digit *digit-order*
+  // error: a child who has not yet internalised which digit occupies which
+  // place swaps two adjacent digits and places the number as if it read
+  // differently (e.g. "47" placed where "74" belongs; for the hundreds line,
+  // "340" placed where "430" belongs -- the hundreds digit traded for the
+  // tens digit). This is categorically different from N.MAG's errors, which
+  // are about *estimating where a correctly-read number sits* (log-shaped
+  // compression toward the low end, or anchoring only at landmarks like
+  // 0/half/max) -- a child with N.MAG's misconceptions has read the number
+  // right and misjudges its magnitude, while a child with this misconception
+  // has misread which digit means what and would misplace it by a very
+  // specific, structured offset, not a vague compression toward one region.
+  //
+  // Signature choice: SIGNATURE_CODES has LOG_COMPRESSION and LANDMARK_ONLY
+  // (already "owned" by N.MAG's items above -- reusing either here would
+  // blur exactly the distinction this pair of concepts exists to test) and
+  // LONGER_IS_LARGER (already "owned" by D.NOTATE's digit-string-length
+  // misreading, a different failure mode again -- that one is about string
+  // length implying size, not digit position). RANGE_COMPRESSION is declared
+  // in the enum but unused anywhere in the codebase before this commit. It's
+  // the best semantic fit here: the child's placement isn't spread according
+  // to the true value, it collapses into the wrong *sub-range* of the line
+  // determined by a swapped digit -- e.g. "47" (true sub-range: the 40s)
+  // collapses into the 70s sub-range because the digits were read in the
+  // wrong order. That's a range-level displacement, not a landmark anchor or
+  // a log-shaped bunching, so RANGE_COMPRESSION is used for both concepts
+  // below rather than reusing a signature already carrying a different
+  // concept's meaning. Flagging this explicitly for pedagogy-reviewer, same
+  // as D.NOTATE's signature choice was flagged and reviewed last cycle.
+  {
+    item_id: "itm_np_50",
+    concept_id: "N.PLACE",
+    prompt: "50",
+    scale: [0, 100],
+    target: 0.5,
+    tolerance: 0.05,
+    difficulty: 0.3,
+    // round decade number: swapping tens/ones ("05") isn't a coherent
+    // two-digit misplacement, so this is a plain anchor item, no claim --
+    // same role itm_dn_0_4 plays for D.NOTATE above.
+    claims: [],
+  },
+  {
+    item_id: "itm_np_47",
+    concept_id: "N.PLACE",
+    prompt: "47",
+    scale: [0, 100],
+    target: 0.47,
+    tolerance: 0.05,
+    difficulty: 0.4,
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.74, width: 0.07 }],
+  },
+  {
+    item_id: "itm_np_29",
+    concept_id: "N.PLACE",
+    prompt: "29",
+    scale: [0, 100],
+    target: 0.29,
+    tolerance: 0.05,
+    difficulty: 0.45,
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.92, width: 0.06 }],
+  },
+  {
+    item_id: "itm_np_63",
+    concept_id: "N.PLACE",
+    prompt: "63",
+    scale: [0, 100],
+    target: 0.63,
+    tolerance: 0.05,
+    difficulty: 0.4,
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.36, width: 0.07 }],
+  },
+  {
+    item_id: "itm_nph_500",
+    concept_id: "N.PLACE.HTH",
+    prompt: "500",
+    scale: [0, 1000],
+    target: 0.5,
+    tolerance: 0.04,
+    difficulty: 0.4,
+    // round-hundred anchor, same role as itm_np_50 above: no coherent
+    // hundreds/tens swap for a number with a zero tens digit.
+    claims: [],
+  },
+  {
+    item_id: "itm_nph_340",
+    concept_id: "N.PLACE.HTH",
+    prompt: "340",
+    scale: [0, 1000],
+    target: 0.34,
+    tolerance: 0.03,
+    difficulty: 0.5,
+    // hundreds/tens digit swap: "340" placed as if it were "430".
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.43, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_270",
+    concept_id: "N.PLACE.HTH",
+    prompt: "270",
+    scale: [0, 1000],
+    target: 0.27,
+    tolerance: 0.03,
+    difficulty: 0.55,
+    // hundreds/tens digit swap: "270" placed as if it were "720".
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.72, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_615",
+    concept_id: "N.PLACE.HTH",
+    prompt: "615",
+    scale: [0, 1000],
+    target: 0.615,
+    tolerance: 0.03,
+    difficulty: 0.6,
+    // hundreds/tens digit swap: "615" placed as if it were "165".
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.165, width: 0.03 }],
+  },
   {
     item_id: "itm_fu_1_8",
     concept_id: "F.MAG.UNIT",
