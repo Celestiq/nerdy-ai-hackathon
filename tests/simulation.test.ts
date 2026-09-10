@@ -162,11 +162,26 @@ describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", ()
     }
   });
 
-  it("reproduces the pre-fix starvation with the old uniform profiles, proving the scoped profiles above are what fixes it", () => {
+  // Historical note: this scenario (uniform misconceptionHolder/wheelSpinner
+  // with no targetConcepts) used to be the reproduction case for the
+  // candidate-starvation dead-end above -- stu_maya/stu_devon/stu_jonah
+  // wheel-spin-blocked on BOTH of this graph's roots at once and got
+  // `assignment: undefined` ("every candidate was blocked by a hard
+  // constraint") forever after. The scoped profiles above (targetConcepts /
+  // strugglesOn) fix that specific seeded-demo scenario by keeping one root
+  // open. But the underlying engine defect -- selectNext had no fallback at
+  // all when applyHardConstraints() returns zero survivors -- was real and
+  // independent of which profiles happened to trigger it: `npm run simulate
+  // -- 30 42`'s wider 7-persona cohort hit the exact same zero-candidate
+  // dead-end from round 6 onward (58% of all session attempts starved; see
+  // BACKLOG.md). That's fixed at the source now: src/engine/constraints.ts's
+  // applyHardConstraints() relaxes exactly one wheel-spin-blocked candidate
+  // (highest score, ties by longest-blocked) whenever the normal pass
+  // survives nothing, so this same uniform-profile scenario no longer
+  // starves at all. The two tests below replace the old
+  // "starvation is expected" assertion with a guard against it regressing.
+  it("the old starvation-reproduction scenario no longer starves: the wheel-spin relaxation fallback keeps every student playable", () => {
     const { registry, itemBank } = fullRegistry();
-    // The pre-fix shape: misconceptionHolder with no targetConcepts (wrong
-    // on every concept served) and the uniform wheelSpinner in place of
-    // devon's scoped strugglesOn(["G.PART"]).
     const students = [
       { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
       { id: "stu_devon", profile: wheelSpinner },
@@ -177,12 +192,56 @@ describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", ()
     ];
     const { trace } = runCohort({ graph, registry, itemBank, metaOf, students, rounds: 18, seed: "seed-cohort-v1" });
 
-    const starvedIds = new Set(
-      trace.filter((t) => t.blocked_reason === "every candidate was blocked by a hard constraint").map((t) => t.student_id),
-    );
-    // Same three students the manual curl testing found: whole-number-bias
-    // holders plus the uniform wheel-spinner, never the two competent
-    // learners or the decayer.
-    expect(starvedIds).toEqual(new Set(["stu_maya", "stu_devon", "stu_jonah"]));
+    // WHEEL_SPIN_LIMIT is 3: a candidate only becomes wheel-spin-blocked
+    // after 3 failed attempts, and the fallback relaxes exactly one blocked
+    // candidate the moment survivors would otherwise be zero -- so no
+    // student should ever be starved for more than a single consecutive
+    // round (a transient round where a still-open, non-wheel-spin candidate
+    // existed is fine; back-to-back-to-back true dead-ends, the old bug,
+    // are not).
+    const MAX_CONSECUTIVE_STARVED_ROUNDS = 1;
+    for (const s of students) {
+      const rows = trace.filter((t) => t.student_id === s.id).sort((a, b) => a.round - b.round);
+      let run = 0;
+      for (const r of rows) {
+        run = r.blocked_reason === "every candidate was blocked by a hard constraint" ? run + 1 : 0;
+        expect(run, `${s.id} hit ${run} consecutive starved rounds around round ${r.round}`).toBeLessThanOrEqual(MAX_CONSECUTIVE_STARVED_ROUNDS);
+      }
+    }
+  });
+
+  it("when the fallback relaxes a wheel-spin block, the decision_log records it explicitly and auditably", () => {
+    const { registry, itemBank } = fullRegistry();
+    const students = [
+      { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_devon", profile: wheelSpinner },
+      { id: "stu_priya", profile: competent },
+      { id: "stu_jonah", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_amara", profile: decayer },
+      { id: "stu_leo", profile: competent },
+    ];
+    // Same cohort + seed as above, run to the same round count, then take
+    // one more live "give me the next five minutes" request per student --
+    // exactly the shape a real client call makes (see the "post-seed check"
+    // test above). By this point stu_maya/stu_devon/stu_jonah are
+    // wheel-spin-blocked on G.PART (the only other root) and would have
+    // gotten `assignment: undefined` before this fix.
+    const { store } = runCohort({ graph, registry, itemBank, metaOf, students, rounds: 18, seed: "seed-cohort-v1" });
+    const now = new Date();
+
+    for (const id of ["stu_maya", "stu_devon", "stu_jonah"]) {
+      const belief = store.belief(id, now);
+      const result = selectNext({ studentId: id, graph, belief, registry, itemBank, anchors: new Map(), seed: `relax-audit:${id}`, now });
+
+      expect(result.assignment, `${id} got no assignment: ${result.reason}`).toBeDefined();
+
+      const blockedEntry = result.decisionLog.find((d) => d.reason.startsWith("wheel-spin block:"));
+      const relaxedEntry = result.decisionLog.find((d) => d.reason === "wheel-spin relaxed: no other candidate available");
+      expect(blockedEntry, `${id}: expected a wheel-spin-blocked candidate in the decision log`).toBeDefined();
+      expect(relaxedEntry, `${id}: expected the relaxed candidate to be logged, not silent`).toBeDefined();
+      expect(relaxedEntry!.included).toBe(true);
+      // Same assignment surfaces in the contract's own decision_log, not just the engine's internal return value.
+      expect(result.assignment!.decision_log).toEqual(result.decisionLog);
+    }
   });
 });

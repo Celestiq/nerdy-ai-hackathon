@@ -90,7 +90,20 @@ describe("selectNext", () => {
 });
 
 describe("wheel-spin simulation -- the one that matters", () => {
-  it("escalates a wheel-spinning child within the attempt limit and stops serving that concept afterwards", () => {
+  // `freshRegistry()` only registers numberline, so N.COUNT is the only
+  // covered root -- once stu_spin wheel-spin-blocks on it, it's the
+  // *genuinely single remaining candidate*, not one of several. Before the
+  // starvation fallback (src/engine/constraints.ts applyHardConstraints),
+  // that meant every round after escalation got `assignment: undefined`
+  // forever -- a real dead end the old assertion below ("stops serving that
+  // concept afterwards") was actually just describing. Now the fallback
+  // deliberately re-offers the sole blocked candidate rather than dead-end
+  // the child, and logs that explicitly. This test now asserts the new
+  // contract: escalation still fires every round the concept stays stuck
+  // (the tutor-facing signal never goes silent), and any further serving of
+  // the concept is only ever via the audited relaxation path, never a
+  // silent, unlogged un-blocking.
+  it("escalates a wheel-spinning child within the attempt limit; any further serving of the stuck concept is only via the audited wheel-spin relaxation fallback", () => {
     const { registry, itemBank } = freshRegistry();
     const { trace } = runCohort({
       graph,
@@ -108,7 +121,36 @@ describe("wheel-spin simulation -- the one that matters", () => {
     const firstEscalation = escalatedRounds[0];
     const stuckConcept = firstEscalation.escalations[0];
     const roundsAfter = trace.filter((t) => t.round > firstEscalation.round);
-    expect(roundsAfter.some((t) => t.concepts.includes(stuckConcept))).toBe(false);
+
+    // The human-facing signal must never go silent just because the
+    // fallback found something to re-serve.
+    for (const t of roundsAfter) expect(t.escalations).toContain(stuckConcept);
+
+    // It's the only concept this registry can ever cover, so if it's served
+    // at all after escalation, it must be alone (never smuggled in
+    // alongside a normal pick) -- consistent with "this round had exactly
+    // one relaxed candidate and nothing else survived".
+    for (const t of roundsAfter) {
+      if (t.concepts.length > 0) expect(t.concepts).toEqual([stuckConcept]);
+    }
+
+    // Directly confirm the relaxation is real and logged, not a
+    // coincidence: a fresh live request right now must still show the
+    // concept as wheel-spin-blocked AND explicitly relaxed in decision_log.
+    const store2 = runCohort({
+      graph, registry, itemBank, metaOf,
+      students: [{ id: "stu_spin", profile: wheelSpinner }],
+      rounds: 12,
+      seed: "wheelspin-1",
+    }).store;
+    const now = new Date();
+    const belief = store2.belief("stu_spin", now);
+    expect(belief.get(stuckConcept)!.attempts_without_mastery).toBeGreaterThanOrEqual(WHEEL_SPIN_LIMIT);
+    const result = selectNext({ studentId: "stu_spin", graph, belief, registry, itemBank, anchors: new Map(), seed: "wheelspin-1:probe", now });
+    expect(result.assignment, `expected the relaxation fallback to still produce an assignment: ${result.reason}`).toBeDefined();
+    expect(result.assignment!.concepts).toEqual([stuckConcept]);
+    const relaxedEntry = result.decisionLog.find((d) => d.concept_id === stuckConcept && d.included);
+    expect(relaxedEntry?.reason).toBe("wheel-spin relaxed: no other candidate available");
   });
 
   it("routes a misconception-holder toward the blamed prerequisite rather than more of the same", () => {

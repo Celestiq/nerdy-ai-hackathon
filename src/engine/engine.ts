@@ -71,7 +71,7 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   }
 
   const scored = scoreCandidates(graph, belief, candidates, cohortNeeds);
-  const { allowed, blocked } = applyHardConstraints(graph, belief, scored);
+  const { allowed, blocked, relaxed } = applyHardConstraints(graph, belief, scored);
 
   for (const b of blocked) decisionLog.push({ concept_id: b.concept_id, included: false, score: b.score, reason: b.reason });
 
@@ -89,18 +89,28 @@ export function selectNext(input: SelectionInput): SelectionOutput {
 
   if (!assembled) {
     for (const a of allowed) {
-      decisionLog.push({ concept_id: a.concept_id, included: false, score: a.score, reason: "no registered game covers this concept (coverage gap)" });
+      const reason =
+        a.concept_id === relaxed
+          ? "no registered game covers this concept (coverage gap) -- also had its wheel-spin block relaxed: no other candidate available"
+          : "no registered game covers this concept (coverage gap)";
+      decisionLog.push({ concept_id: a.concept_id, included: false, score: a.score, reason });
     }
     return { assignment: undefined, reason: "coverage gap: no registered game can assess the chosen concept(s)", escalations, decisionLog };
   }
 
   for (const a of allowed) {
     const included = assembled.concepts.includes(a.concept_id);
+    const selectedReason =
+      a.concept_id === relaxed
+        ? "wheel-spin relaxed: no other candidate available"
+        : coldStart
+          ? "cold start: root concept, first session"
+          : "selected: top of frontier/uncertainty/retrieval/blame score";
     decisionLog.push({
       concept_id: a.concept_id,
       included,
       score: a.score,
-      reason: included ? (coldStart ? "cold start: root concept, first session" : "selected: top of frontier/uncertainty/retrieval/blame score") : "matched game did not cover this concept",
+      reason: included ? selectedReason : "matched game did not cover this concept",
     });
   }
 

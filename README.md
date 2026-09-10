@@ -96,4 +96,19 @@ npm run simulate -- 40 my-seed   # headless cohort run against the real engine, 
 - **The wheel-spin claim:** `tests/engine.test.ts` and
   `tests/simulation.test.ts` drive a `wheelSpinner` profile through many
   sessions and assert escalation happens within the attempt limit, and
-  that the stuck concept is never served again afterwards.
+  that the stuck concept keeps escalating to the tutor every round it
+  stays stuck. It's normally never served again once blocked -- except as
+  a last-resort fallback when it's the only candidate left at all (see
+  "the starvation-fallback claim" below), in which case re-serving it is
+  logged explicitly, not silent.
+- **The starvation-fallback claim:** the selection engine used to return
+  no assignment at all -- a dead end for the child surface -- whenever
+  every candidate concept was wheel-spin-blocked simultaneously (see
+  `src/engine/constraints.ts`'s `applyHardConstraints`). It now relaxes
+  the wheel-spin block for exactly one candidate (highest score, ties
+  broken by longest-blocked) in that case only, leaving the prerequisite
+  gate untouched, and logs the relaxation in that assignment's
+  `decision_log` as `"wheel-spin relaxed: no other candidate available"`.
+  `tests/simulation.test.ts` and `tests/engine.test.ts` cover both the
+  no-more-than-one-consecutive-starved-round guarantee and the decision
+  log's auditability.
