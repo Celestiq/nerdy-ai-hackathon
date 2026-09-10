@@ -61,17 +61,34 @@ export function applyHardConstraints(
   // prerequisite gate, which we never relax), relax the wheel-spin block
   // for exactly one candidate so a session never dead-ends with literally
   // nothing to try -- see BACKLOG.md's dead-end bug (5 of 7 simulated
-  // personas starved continuously from round 6 onward before this). Pick
-  // the highest-scoring wheel-spin-blocked candidate that still clears the
-  // prerequisite gate; ties broken by highest attempts_without_mastery
-  // (the concept that's been blocked the longest is the most overdue for
-  // another look, and the one most likely to need a human's attention if
-  // it fails again).
+  // personas starved continuously from round 6 onward before this).
+  //
+  // Rotation (Cycle 14 gap #2 fix): picking highest-score-then-longest-
+  // blocked every time meant a student wheel-spin-blocked on 2+ concepts
+  // got the *same* one relaxed every single round -- live-verified 12/12
+  // consecutive sessions for stu_devon, a treadmill rather than a
+  // rotation. Fixed by preferring whichever eligible candidate was served
+  // *least recently* first (using `last_observed`, already computed by the
+  // belief projector -- no new persisted state needed: while a concept
+  // stays wheel-spin-blocked, this fallback is the only path that can ever
+  // re-serve it, so its `last_observed` already tracks "last time this
+  // concept's block was relaxed"). Score is now only a tiebreaker among
+  // candidates relaxed equally-long-ago (or never), and
+  // attempts_without_mastery breaks any remaining tie.
   let relaxed: string | undefined;
   if (survivors.length === 0 && wheelSpinBlocked.length > 0) {
     const eligible = wheelSpinBlocked.filter(({ candidate }) => prereqsMet(graph, belief, candidate.concept_id));
     if (eligible.length > 0) {
-      eligible.sort((a, b) => b.candidate.score - a.candidate.score || b.attempts - a.attempts);
+      const lastObservedMs = (conceptId: string): number => {
+        const iso = belief.get(conceptId)?.last_observed;
+        return iso ? new Date(iso).getTime() : -Infinity; // never observed sorts first
+      };
+      eligible.sort(
+        (a, b) =>
+          lastObservedMs(a.candidate.concept_id) - lastObservedMs(b.candidate.concept_id) ||
+          b.candidate.score - a.candidate.score ||
+          b.attempts - a.attempts,
+      );
       const winner = eligible[0].candidate;
       const idx = blocked.findIndex((b) => b.concept_id === winner.concept_id);
       if (idx !== -1) blocked.splice(idx, 1);

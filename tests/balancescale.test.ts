@@ -34,7 +34,7 @@ import { GameRegistry } from "../src/registry/index.js";
  */
 describe("Balance Scale registration order", () => {
   it("resolves F.EQV to balancescale.compare.v1, not fractionbars.compare.v1", () => {
-    const result = assembleAssignment(graph, registry, itemBank, ["F.EQV"], anchors);
+    const result = assembleAssignment(graph, registry, itemBank, ["F.EQV"], anchors, "test-seed-1");
     expect(result).toBeDefined();
     expect(result!.game_id).toBe("balancescale.compare.v1");
     expect(result!.item_specs.length).toBeGreaterThan(0);
@@ -43,12 +43,12 @@ describe("Balance Scale registration order", () => {
   it("leaves G.PART and F.NOTATE resolving to their existing games, unaffected", () => {
     // G.PART: AREA_MODEL + PARTITION -- balancescale doesn't declare
     // PARTITION as a task type, so it never enters this concept's match set.
-    const part = assembleAssignment(graph, registry, itemBank, ["G.PART"], anchors);
+    const part = assembleAssignment(graph, registry, itemBank, ["G.PART"], anchors, "test-seed-2");
     expect(part).toBeDefined();
     expect(part!.game_id).toBe("fractionbars.compare.v1");
 
     // F.NOTATE: AREA_MODEL + PARTITION -- same reasoning as G.PART.
-    const notate = assembleAssignment(graph, registry, itemBank, ["F.NOTATE"], anchors);
+    const notate = assembleAssignment(graph, registry, itemBank, ["F.NOTATE"], anchors, "test-seed-3");
     expect(notate).toBeDefined();
     expect(notate!.game_id).toBe("fractionbars.compare.v1");
   });
@@ -67,7 +67,7 @@ describe("Balance Scale registration order", () => {
     // guards (previously it resolved to numberline.place.v2, which only
     // produced an assignment at all because the two unrelated numberline
     // anchor items -- F.MAG.UNIT, D.MAG -- got attached regardless).
-    const cmp = assembleAssignment(graph, registry, itemBank, ["F.MAG.CMP"], anchors);
+    const cmp = assembleAssignment(graph, registry, itemBank, ["F.MAG.CMP"], anchors, "test-seed-4");
     expect(cmp).toBeDefined();
     expect(cmp!.game_id).toBe("fractionbars.compare.v1");
     expect(cmp!.item_specs.some((i) => i.concept_id === "F.MAG.CMP")).toBe(true);
@@ -185,15 +185,15 @@ describe("F.EQV/balancescale.compare.v1 is actually reachable by a real seeded s
 describe("assembleAssignment: zero-covering-games edge case", () => {
   it("returns undefined rather than throwing when no chosen concept has any covering game", () => {
     const emptyRegistry = new GameRegistry(); // no games registered at all
-    expect(() => assembleAssignment(graph, emptyRegistry, itemBank, ["F.EQV"], anchors)).not.toThrow();
-    const result = assembleAssignment(graph, emptyRegistry, itemBank, ["F.EQV"], anchors);
+    expect(() => assembleAssignment(graph, emptyRegistry, itemBank, ["F.EQV"], anchors, "test-seed-5")).not.toThrow();
+    const result = assembleAssignment(graph, emptyRegistry, itemBank, ["F.EQV"], anchors, "test-seed-5");
     expect(result).toBeUndefined();
   });
 
   it("falls through to the next chosen concept when the top-ranked one has no covering game", () => {
     // "N.MIXED.MADE.UP" isn't a real graph node at all, so it capability-matches
     // nothing; F.EQV (second in the list) should still resolve normally.
-    const result = assembleAssignment(graph, registry, itemBank, ["N.MIXED.MADE.UP", "F.EQV"], anchors);
+    const result = assembleAssignment(graph, registry, itemBank, ["N.MIXED.MADE.UP", "F.EQV"], anchors, "test-seed-6");
     expect(result).toBeDefined();
     expect(result!.game_id).toBe("balancescale.compare.v1");
   });

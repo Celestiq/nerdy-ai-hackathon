@@ -2,6 +2,7 @@ import type { ConceptGraph } from "../graph/loader.js";
 import type { GameRegistry, ItemBankRegistry, ItemBankEntry } from "../registry/index.js";
 import type { ItemSpec } from "../contracts/schemas.js";
 import { matchesCapability } from "../graph/query.js";
+import { hashInt } from "./hash.js";
 
 export interface AssembleResult {
   game_id: string;
@@ -30,6 +31,25 @@ export interface AssembleResult {
  * intended rule; see BACKLOG.md's Cycle 11 gap #1 for the full trace of why
  * the old policy silently defeated it. Verified against a live re-seed +
  * server run for all 6 seeded students -- see the commit message.
+ *
+ * Non-anchor tail ordering (Cycle 14 gap #1 fix): the tail used to be
+ * `nonAnchorPool.slice(0, remaining)` with no shuffle, ordering, or
+ * rotation at all -- two calls with the same chosen concepts (e.g. two
+ * sessions in a row, nothing about the child's belief having changed yet)
+ * produced byte-identical item sets in byte-identical order. `seed` (the
+ * same per-round seed `selectNext` already threads through for
+ * `assignment_id`, via the shared `hash()`/`hashInt()` in `./hash.js`) now
+ * deterministically rotates the non-relaxed portion of the pool before
+ * slicing -- reproducible for a fixed seed (tests stay deterministic,
+ * no `Math.random()`), different across rounds because the caller's seed
+ * already varies per round/session. Separately, if `relaxedConceptId` is
+ * set (the concept whose wheel-spin block `applyHardConstraints` just
+ * relaxed as a starvation fallback -- see constraints.ts), that concept's
+ * own items are pulled out of the rotation entirely and sorted by
+ * `difficulty` ascending, placed first: a child who just got unblocked
+ * after repeatedly failing a concept should land on its easiest items,
+ * not whatever the rotation happened to serve up next (pedagogy-reviewer's
+ * Cycle 14 follow-up).
  */
 export function assembleAssignment(
   graph: ConceptGraph,
@@ -37,6 +57,8 @@ export function assembleAssignment(
   itemBank: ItemBankRegistry,
   chosenConcepts: string[],
   anchors: Map<string, ItemBankEntry[]>,
+  seed: string,
+  relaxedConceptId?: string,
 ): AssembleResult | undefined {
   if (chosenConcepts.length === 0) return undefined;
 
@@ -93,7 +115,21 @@ export function assembleAssignment(
 
   const maxItems = manifest.items_per_session.max;
   const remaining = Math.max(0, maxItems - anchorItems.length);
-  const tail = nonAnchorPool.slice(0, remaining);
+
+  let orderedTail: ItemBankEntry[];
+  if (relaxedConceptId && nonAnchorPool.some((i) => i.concept_id === relaxedConceptId)) {
+    const relaxedItems = nonAnchorPool
+      .filter((i) => i.concept_id === relaxedConceptId)
+      .sort((a, b) => a.difficulty - b.difficulty);
+    const restItems = rotate(
+      nonAnchorPool.filter((i) => i.concept_id !== relaxedConceptId),
+      seed,
+    );
+    orderedTail = [...relaxedItems, ...restItems];
+  } else {
+    orderedTail = rotate(nonAnchorPool, seed);
+  }
+  const tail = orderedTail.slice(0, remaining);
 
   const item_specs: ItemSpec[] = [
     ...anchorItems.map((a) => ({ item_id: a.item_id, concept_id: a.concept_id, difficulty: a.difficulty, is_anchor: true })),
@@ -106,4 +142,17 @@ export function assembleAssignment(
     item_specs,
     time_budget_s: manifest.duration_s.max,
   };
+}
+
+/**
+ * Deterministically rotate an array using `seed` -- same seed always
+ * produces the same rotation (reproducible for tests), different seeds
+ * (e.g. successive rounds, which each get their own per-round seed from
+ * `selectNext`) rotate differently, so repeat sessions stop serving the
+ * same items in the same order. No `Math.random()` anywhere in this path.
+ */
+function rotate<T>(items: T[], seed: string): T[] {
+  if (items.length <= 1) return items;
+  const offset = hashInt(seed) % items.length;
+  return [...items.slice(offset), ...items.slice(0, offset)];
 }

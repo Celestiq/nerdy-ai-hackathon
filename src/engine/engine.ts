@@ -7,6 +7,7 @@ import { candidateConcepts, isColdStart, isCovered, rootConcepts } from "./candi
 import { scoreCandidates } from "./scoring.js";
 import { applyHardConstraints, stuckEscalations } from "./constraints.js";
 import { assembleAssignment } from "./assemble.js";
+import { hash } from "./hash.js";
 import type { z } from "zod";
 
 type DecisionLogEntry = z.infer<typeof DecisionLogEntrySchema>;
@@ -85,7 +86,7 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   }
 
   const chosenConcepts = allowed.map((a) => a.concept_id);
-  const assembled = assembleAssignment(graph, registry, itemBank, chosenConcepts, anchors);
+  const assembled = assembleAssignment(graph, registry, itemBank, chosenConcepts, anchors, seed, relaxed);
 
   if (!assembled) {
     for (const a of allowed) {
@@ -137,13 +138,4 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   }
 
   return { assignment: parsed.data, escalations, decisionLog };
-}
-
-function hash(seed: string): string {
-  let h = 2166136261;
-  for (let i = 0; i < seed.length; i++) {
-    h ^= seed.charCodeAt(i);
-    h = Math.imul(h, 16777619);
-  }
-  return (h >>> 0).toString(36);
 }

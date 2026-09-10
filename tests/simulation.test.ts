@@ -8,6 +8,7 @@ import { runCohort } from "../src/simulation/cohortRunner.js";
 import { competent, misconceptionHolder, rapidGuesser, abandoner, wheelSpinner, strugglesOn, decayer } from "../src/simulation/profiles.js";
 import { mulberry32, seedToInt } from "../src/simulation/rng.js";
 import { selectNext } from "../src/engine/engine.js";
+import { WHEEL_SPIN_LIMIT } from "../src/store/types.js";
 
 const graph = ConceptGraph.load();
 const metaOf: ConceptMetaLookup = (id) => {
@@ -243,5 +244,63 @@ describe("seeded demo cohort: no candidate-starvation dead-end (BACKLOG.md)", ()
       // Same assignment surfaces in the contract's own decision_log, not just the engine's internal return value.
       expect(result.assignment!.decision_log).toEqual(result.decisionLog);
     }
+  });
+
+  // Cycle 14 gap #2 regression coverage: the starvation fallback used to
+  // always relax the highest-scoring wheel-spin-blocked candidate, so a
+  // student blocked on both roots at once (N.COUNT, G.PART -- exactly
+  // stu_maya/stu_devon/stu_jonah above) got the *same* one relaxed every
+  // round -- live-verified 12/12 consecutive sessions for stu_devon.
+  // Continue driving stu_devon (wheelSpinner: reliably wrong, so it never
+  // escapes wheel-spin-block on whichever concept gets relaxed) through
+  // many more rounds and assert the relaxed concept actually alternates.
+  it("when a student is wheel-spin-blocked on 2+ concepts at once, the relaxation fallback rotates between them instead of always picking the same one", () => {
+    const { registry, itemBank } = fullRegistry();
+    const students = [
+      { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_devon", profile: wheelSpinner },
+      { id: "stu_priya", profile: competent },
+      { id: "stu_jonah", profile: misconceptionHolder("WHOLE_NUMBER_BIAS") },
+      { id: "stu_amara", profile: decayer },
+      { id: "stu_leo", profile: competent },
+    ];
+    const { store } = runCohort({ graph, registry, itemBank, metaOf, students, rounds: 18, seed: "seed-cohort-v1" });
+
+    // stu_devon is wheel-spin-blocked on both N.COUNT and G.PART by round
+    // 18 (asserted by the sibling test above); confirm that here too so
+    // this test fails loudly, not silently, if the seeded setup ever drifts.
+    const beliefAt18 = store.belief("stu_devon");
+    expect(beliefAt18.get("N.COUNT")?.attempts_without_mastery).toBeGreaterThanOrEqual(WHEEL_SPIN_LIMIT);
+    expect(beliefAt18.get("G.PART")?.attempts_without_mastery).toBeGreaterThanOrEqual(WHEEL_SPIN_LIMIT);
+
+    const relaxedSequence: string[] = [];
+    let now = new Date();
+    const EXTRA_ROUNDS = 12;
+    for (let i = 0; i < EXTRA_ROUNDS; i++) {
+      now = new Date(now.getTime() + 3 * 86_400_000);
+      const belief = store.belief("stu_devon", now);
+      const result = selectNext({ studentId: "stu_devon", graph, belief, registry, itemBank, anchors: new Map(), seed: `rotation-check:${i}`, now });
+      expect(result.assignment, `round ${i}: expected an assignment, got: ${result.reason}`).toBeDefined();
+      const relaxedEntry = result.decisionLog.find((d) => d.reason === "wheel-spin relaxed: no other candidate available");
+      expect(relaxedEntry, `round ${i}: expected a relaxed candidate`).toBeDefined();
+      relaxedSequence.push(relaxedEntry!.concept_id);
+
+      const rng = mulberry32(seedToInt(`rotation-check-rng:${i}`));
+      store.ingest(wheelSpinner(result.assignment!, { rng, simulatedAtMs: now.getTime(), sessionSeq: 18 + i }));
+    }
+
+    // The core Cycle 14 gap #2 fix: not the same concept every round.
+    expect(new Set(relaxedSequence).size).toBeGreaterThan(1);
+
+    // No more than one consecutive repeat -- true rotation, not just
+    // "eventually switches after a long streak" (the old, still-buggy
+    // behavior this test would otherwise still pass under).
+    let maxStreak = 1;
+    let curStreak = 1;
+    for (let i = 1; i < relaxedSequence.length; i++) {
+      curStreak = relaxedSequence[i] === relaxedSequence[i - 1] ? curStreak + 1 : 1;
+      maxStreak = Math.max(maxStreak, curStreak);
+    }
+    expect(maxStreak, `relaxed sequence: ${relaxedSequence.join(",")}`).toBeLessThanOrEqual(1);
   });
 });
