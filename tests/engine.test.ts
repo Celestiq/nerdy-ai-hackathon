@@ -38,7 +38,7 @@ describe("hard constraints override scoring", () => {
       ["N.MAG", { attempts_without_mastery: WHEEL_SPIN_LIMIT, p_mastery: 0.1 } as any],
       ["N.COUNT", { attempts_without_mastery: 0, p_mastery: 0.5 } as any],
     ]);
-    const { allowed, blocked } = applyHardConstraints(graph, belief, scored);
+    const { allowed, blocked } = applyHardConstraints(graph, belief, scored, "test-seed-1");
     expect(allowed.map((a) => a.concept_id)).not.toContain("N.MAG");
     expect(allowed.map((a) => a.concept_id)).toContain("N.COUNT");
     expect(blocked.find((b) => b.concept_id === "N.MAG")?.reason).toMatch(/wheel-spin/);
@@ -47,7 +47,7 @@ describe("hard constraints override scoring", () => {
   it("blocks a concept whose hard prerequisite isn't met, even with a high score", () => {
     const scored: ScoredCandidate[] = [{ concept_id: "F.MAG.UNIT", score: 0.99, components: { frontierValue: 1, uncertainty: 0, retrievalDue: 0, blameBoost: 0, cohortNeed: 0 } }];
     const belief = new Map<string, any>(); // nothing measured -> F.NOTATE unmet
-    const { allowed, blocked } = applyHardConstraints(graph, belief, scored);
+    const { allowed, blocked } = applyHardConstraints(graph, belief, scored, "test-seed-2");
     expect(allowed).toEqual([]);
     expect(blocked[0].reason).toMatch(/prerequisite gate/);
   });

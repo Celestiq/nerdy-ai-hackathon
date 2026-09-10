@@ -2,6 +2,7 @@ import type { ConceptGraph } from "../graph/loader.js";
 import type { BeliefInternal } from "../store/types.js";
 import type { ScoredCandidate } from "./scoring.js";
 import { WHEEL_SPIN_LIMIT } from "../store/types.js";
+import { hashInt } from "./hash.js";
 
 export interface ConstraintOutcome {
   allowed: ScoredCandidate[];
@@ -32,6 +33,7 @@ export function applyHardConstraints(
   graph: ConceptGraph,
   belief: Map<string, BeliefInternal>,
   scored: ScoredCandidate[],
+  seed: string,
 ): ConstraintOutcome {
   const blocked: ConstraintOutcome["blocked"] = [];
   const survivors: ScoredCandidate[] = [];
@@ -63,29 +65,34 @@ export function applyHardConstraints(
   // nothing to try -- see BACKLOG.md's dead-end bug (5 of 7 simulated
   // personas starved continuously from round 6 onward before this).
   //
-  // Rotation (Cycle 14 gap #2 fix): picking highest-score-then-longest-
-  // blocked every time meant a student wheel-spin-blocked on 2+ concepts
-  // got the *same* one relaxed every single round -- live-verified 12/12
-  // consecutive sessions for stu_devon, a treadmill rather than a
-  // rotation. Fixed by preferring whichever eligible candidate was served
-  // *least recently* first (using `last_observed`, already computed by the
-  // belief projector -- no new persisted state needed: while a concept
-  // stays wheel-spin-blocked, this fallback is the only path that can ever
-  // re-serve it, so its `last_observed` already tracks "last time this
-  // concept's block was relaxed"). Score is now only a tiebreaker among
-  // candidates relaxed equally-long-ago (or never), and
-  // attempts_without_mastery breaks any remaining tie.
+  // Rotation (Cycle 14 gap #2 fix; re-fixed Cycle 16 -- see below): picking
+  // highest-score-then-longest-blocked every time meant a student
+  // wheel-spin-blocked on 2+ concepts got the *same* one relaxed every
+  // single round -- live-verified 12/12 consecutive sessions for stu_devon,
+  // a treadmill rather than a rotation. The first fix preferred whichever
+  // eligible candidate was served *least recently* using `last_observed`,
+  // but that field is date-truncated by the belief projector
+  // (src/store/projector.ts, e.g. "2026-09-10", no time-of-day) -- any two
+  // candidates touched "today" (the normal case within one demo/server
+  // session) tied on it and fell straight through to the same score-based
+  // sort as before the fix, a provable no-op live-verified to repeat the
+  // same relaxed concept 5-7 sessions running. Fixed for real by using a
+  // deterministic hash of `seed + conceptId` (the same `hashInt` used for
+  // item rotation in assemble.ts) as the PRIMARY sort key: each round's
+  // `seed` already varies per call (production seed is
+  // `srv:${studentId}:${sessionCounter}`, incrementing every API call), so
+  // each eligible candidate gets a roughly-uniform independent shot at
+  // winning per round, without depending on wall-clock or persisted state
+  // at all. Score and attempts_without_mastery remain as secondary
+  // tiebreakers, only reachable when the hash itself ties (rare).
   let relaxed: string | undefined;
   if (survivors.length === 0 && wheelSpinBlocked.length > 0) {
     const eligible = wheelSpinBlocked.filter(({ candidate }) => prereqsMet(graph, belief, candidate.concept_id));
     if (eligible.length > 0) {
-      const lastObservedMs = (conceptId: string): number => {
-        const iso = belief.get(conceptId)?.last_observed;
-        return iso ? new Date(iso).getTime() : -Infinity; // never observed sorts first
-      };
+      const rotationKey = (conceptId: string): number => hashInt(`${seed}:${conceptId}`);
       eligible.sort(
         (a, b) =>
-          lastObservedMs(a.candidate.concept_id) - lastObservedMs(b.candidate.concept_id) ||
+          rotationKey(a.candidate.concept_id) - rotationKey(b.candidate.concept_id) ||
           b.candidate.score - a.candidate.score ||
           b.attempts - a.attempts,
       );

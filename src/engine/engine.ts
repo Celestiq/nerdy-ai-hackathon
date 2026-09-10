@@ -72,7 +72,7 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   }
 
   const scored = scoreCandidates(graph, belief, candidates, cohortNeeds);
-  const { allowed, blocked, relaxed } = applyHardConstraints(graph, belief, scored);
+  const { allowed, blocked, relaxed } = applyHardConstraints(graph, belief, scored, seed);
 
   for (const b of blocked) decisionLog.push({ concept_id: b.concept_id, included: false, score: b.score, reason: b.reason });
 
