@@ -4,6 +4,7 @@ import { LearnerStore } from "../src/store/store.js";
 import type { ConceptMetaLookup } from "../src/store/projector.js";
 import { numberlineManifest, numberlineItems } from "../src/games/numberline/index.js";
 import { fractionbarsManifest, fractionbarsItems, partitionItems } from "../src/games/fractionbars/index.js";
+import { balancescaleManifest, balancescaleItems } from "../src/games/balancescale/index.js";
 
 /**
  * Composition root. This is the ONLY file that knows about specific games
@@ -16,6 +17,16 @@ export const graph = ConceptGraph.load();
 
 export const registry = new GameRegistry();
 registry.register(numberlineManifest);
+// Registered before fractionbarsManifest -- load-bearing order, not
+// incidental. registry.matchConcepts() picks games[0] on a solo-concept
+// tie (see src/engine/assemble.ts), and F.EQV is the only concept both
+// manifests capability-match today (BALANCE_SCALE+EQUIVALENCE vs.
+// AREA_MODEL+EQUIVALENCE). Registering Balance Scale first makes it the
+// sole winner for F.EQV specifically, without affecting any other concept
+// fractionbars/numberline already serve (Balance Scale capability-matches
+// nothing else). See BACKLOG.md's "Balance Scale" item for the full
+// reachability-trap analysis this order avoids.
+registry.register(balancescaleManifest);
 registry.register(fractionbarsManifest);
 
 export const itemBank = new ItemBankRegistry();
@@ -28,6 +39,11 @@ itemBank.register(fractionbarsManifest.game_id, (conceptIds) => [
   ...fractionbarsItems.filter((i) => conceptIds.includes(i.concept_id)),
   ...partitionItems.filter((i) => conceptIds.includes(i.concept_id)),
 ].map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty })));
+itemBank.register(balancescaleManifest.game_id, (conceptIds) =>
+  balancescaleItems
+    .filter((i) => conceptIds.includes(i.concept_id))
+    .map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty })),
+);
 
 export const metaOf: ConceptMetaLookup = (conceptId) => {
   const node = graph.node(conceptId);

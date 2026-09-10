@@ -96,6 +96,20 @@ describe("blame()", () => {
   it("returns nothing for a signature that isn't wired to that concept", () => {
     expect(blame(graph, "N.COUNT", "LONGER_IS_LARGER")).toEqual([]);
   });
+
+  it("F.EQV's LANDMARK_ONLY signature (emitted by Balance Scale's classifyTip) blames F.MAG.NONUNIT", () => {
+    // Regression guard: Balance Scale used to emit WHOLE_NUMBER_BIAS/
+    // DENOMINATOR_BIAS for F.EQV, neither of which had an explains edge for
+    // that concept, so blame() silently returned [] -- a diagnostic dead
+    // end for the tutor-facing "suspects" list. The game was fixed to emit
+    // LANDMARK_ONLY instead, which is wired to a real explains edge in
+    // strand-magnitude-fractions.json. This test pins that edge so a future
+    // accidental removal/rename in the graph JSON fails here, not silently
+    // in production.
+    const suspects = blame(graph, "F.EQV", "LANDMARK_ONLY");
+    expect(suspects.length).toBeGreaterThan(0);
+    expect(suspects.some((s) => s.concept_id === "F.MAG.NONUNIT")).toBe(true);
+  });
 });
 
 describe("path()", () => {

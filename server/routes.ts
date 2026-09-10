@@ -11,6 +11,8 @@ import { numberlineItems } from "../src/games/numberline/items.js";
 import { classifyPlacement } from "../src/games/numberline/classify.js";
 import { fractionbarsItems, partitionItems } from "../src/games/fractionbars/items.js";
 import { classifyChoice, classifyPartition } from "../src/games/fractionbars/classify.js";
+import { balancescaleItems } from "../src/games/balancescale/items.js";
+import { classifyTip } from "../src/games/balancescale/classify.js";
 import type { BeliefInternal } from "../src/store/types.js";
 
 export const api = Router();
@@ -53,6 +55,10 @@ api.get("/items/:gameId", (req, res) => {
     ]);
     return;
   }
+  if (gameId === "balancescale.compare.v1") {
+    res.json(balancescaleItems.filter((i) => ids.includes(i.item_id)));
+    return;
+  }
   res.status(404).json({ error: `unknown game_id ${gameId}` });
 });
 
@@ -93,6 +99,26 @@ api.post("/games/:gameId/respond", (req, res) => {
       concept_id: item.concept_id,
       difficulty: item.difficulty,
       response: { kind: "choice", value: choice === "a" ? "a" : "b", target: item.correct },
+      verdict: result.verdict,
+      signature: result.signature,
+      signature_confidence: result.signature_confidence,
+      startedAtMs: Number(startedAtMs),
+      endedAtMs: Number(endedAtMs),
+      attempts: Number(attempts) || 1,
+    });
+    return res.json(observation);
+  }
+
+  if (gameId === "balancescale.compare.v1") {
+    const item = balancescaleItems.find((i) => i.item_id === item_id);
+    if (!item) return res.status(404).json({ error: "unknown item" });
+    const tap = choice === "balances" ? "balances" : "doesnt_balance";
+    const result = classifyTip(item, tap);
+    const observation = buildObservation({
+      item_id: item.item_id,
+      concept_id: item.concept_id,
+      difficulty: item.difficulty,
+      response: { kind: "choice", value: tap, target: item.correct },
       verdict: result.verdict,
       signature: result.signature,
       signature_confidence: result.signature_confidence,
@@ -200,6 +226,17 @@ function describeResponse(gameId: string, obs: Observation): { prompt_label: str
       prompt_label: `Which is bigger: ${label("a")} or ${label("b")}?`,
       student_answer_label: `Chose ${label(choice)}`,
       correct_answer_label: label(compareItem.correct),
+    };
+  }
+
+  const balanceItem = balancescaleItems.find((i) => i.item_id === obs.item_id);
+  if (balanceItem) {
+    const label = (w: { numerator: number; denominator: number }) => `${w.numerator}/${w.denominator}`;
+    const verdict = (v: string) => (v === "balances" ? "Balances" : "Doesn't balance");
+    return {
+      prompt_label: `Does ${label(balanceItem.left)} balance ${label(balanceItem.right)}?`,
+      student_answer_label: verdict(String(obs.response.value)),
+      correct_answer_label: verdict(balanceItem.correct),
     };
   }
 

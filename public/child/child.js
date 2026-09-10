@@ -305,6 +305,8 @@ function showItem() {
   let stage;
   if (state.assignment.game_id === "numberline.place.v2") {
     stage = renderNumberline(item, startedAtMs);
+  } else if (state.assignment.game_id === "balancescale.compare.v1") {
+    stage = renderBalanceScale(item, startedAtMs);
   } else if (item.kind === "partition") {
     stage = renderPartition(item, startedAtMs);
   } else {
@@ -412,6 +414,116 @@ function renderCompare(item, startedAtMs) {
     );
   }
   return [el("div", { class: "prompt" }, "Which is bigger?"), el("div", { class: "choice-row" }, [card("a"), card("b")])];
+}
+
+// Balance Scale (BACKLOG.md "Balance Scale"; reworked per pedagogy-reviewer
+// REQUIRED CHANGES): the beam-and-two-pans SVG still shows both fraction
+// weights, but the tappable targets are now two choice buttons below it --
+// "Balances" / "Doesn't Balance" -- not the pans themselves. Tapping a pan
+// made this read as "pick the bigger/smaller side" (a magnitude-comparison
+// gesture); F.EQV asks an equivalence question ("are these the same
+// amount?"), which only a genuine balances/doesn't-balance forced choice
+// actually tests. On resolution the beam settles to the *true* physical
+// relationship (level if the two fractions are truly equal, tipped toward
+// the larger one otherwise) -- a balance scale showing its own honest
+// physics is part of the visual metaphor, not a score/leaderboard readout;
+// the child still never sees a correct/incorrect label anywhere (see
+// submitAndAdvance's fixed "Nice — next one" note, unchanged by this).
+function renderBalanceScale(item, startedAtMs) {
+  const width = 560;
+  const height = 230;
+  const pivotX = width / 2;
+  const pivotY = 82;
+  const standBottomY = 186;
+  const beamHalf = 108;
+  const stringLen = 58;
+  const panW = 70;
+  const panH = 30;
+
+  const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+  svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
+  svg.setAttribute("class", "balance-svg");
+
+  function shape(tag, attrs) {
+    const node = document.createElementNS(svg.namespaceURI, tag);
+    for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+    return node;
+  }
+
+  svg.appendChild(
+    shape("polygon", {
+      points: `${pivotX - 34},${standBottomY} ${pivotX + 34},${standBottomY} ${pivotX},${pivotY}`,
+      class: "balance-fulcrum",
+    }),
+  );
+  svg.appendChild(shape("line", { x1: pivotX - 48, x2: pivotX + 48, y1: standBottomY, y2: standBottomY, class: "balance-base" }));
+
+  const pivotGroup = shape("g", { transform: `translate(${pivotX},${pivotY})` });
+  const beamGroup = shape("g", { class: "balance-beam", transform: "rotate(0 0 0)" });
+  beamGroup.appendChild(shape("line", { x1: -beamHalf, x2: beamHalf, y1: 0, y2: 0, class: "balance-beam-line" }));
+  beamGroup.appendChild(shape("circle", { cx: 0, cy: 0, r: 6, class: "balance-pivot-cap" }));
+
+  // Pans are display-only now (no click handler, no oversized hit-rect --
+  // the tappable surface moved to the two choice buttons below). The visual
+  // shape/label rendering is otherwise unchanged from the original build.
+  function panAssembly(side, weight) {
+    const sign = side === "left" ? -1 : 1;
+    const x = sign * beamHalf;
+    const group = shape("g", { class: "balance-pan-wrap", "data-side": side });
+    group.appendChild(shape("line", { x1: x, x2: x, y1: 0, y2: stringLen, class: "balance-string" }));
+    const panPath = `M ${x - panW / 2} ${stringLen} L ${x + panW / 2} ${stringLen} L ${x + panW / 2 - 9} ${stringLen + panH} L ${x - panW / 2 + 9} ${stringLen + panH} Z`;
+    group.appendChild(shape("path", { d: panPath, class: "balance-pan" }));
+    const label = shape("text", { x, y: stringLen + panH / 2 + 5, class: "balance-pan-label", "text-anchor": "middle" });
+    label.textContent = `${weight.numerator}/${weight.denominator}`;
+    group.appendChild(label);
+    return group;
+  }
+
+  beamGroup.appendChild(panAssembly("left", item.left));
+  beamGroup.appendChild(panAssembly("right", item.right));
+  pivotGroup.appendChild(beamGroup);
+  svg.appendChild(pivotGroup);
+
+  // Cross-multiplication, same exact-equality test classify.ts uses server-
+  // side -- this copy is purely for the visual settle animation (which way,
+  // if any, the beam should honestly tip) and never substitutes for the
+  // server's verdict; classifyTip(), not this, is what the belief model
+  // actually sees.
+  const trulyBalances = item.left.numerator * item.right.denominator === item.right.numerator * item.left.denominator;
+  const tiltAngle = trulyBalances ? 0 : decimalOfClient(item.left) > decimalOfClient(item.right) ? -12 : 12;
+  function decimalOfClient(w) {
+    return w.numerator / w.denominator;
+  }
+
+  // Guards the same double-tap window submitAndAdvance's state.busy guards
+  // elsewhere, but locally: the tilt-then-settle animation below delays the
+  // actual submitAndAdvance call by 260ms, a window state.busy (only set
+  // inside submitAndAdvance) doesn't cover on its own.
+  let settled = false;
+  function handleChoice(choice) {
+    if (settled) return;
+    settled = true;
+    const endedAtMs = Date.now(); // captured at the moment of the tap, not after the decorative settle delay
+    beamGroup.setAttribute("transform", `rotate(${tiltAngle} 0 0)`);
+    setTimeout(() => {
+      submitAndAdvance({ item_id: item.item_id, choice, startedAtMs, endedAtMs });
+    }, 260);
+  }
+
+  const area = el("div", { class: "balance-area" }, []);
+  area.appendChild(svg);
+
+  const choices = el("div", { class: "choice-row balance-choice-row" }, [
+    el("div", { class: "balance-choice", onclick: () => handleChoice("balances") }, "Balances"),
+    el("div", { class: "balance-choice", onclick: () => handleChoice("doesnt_balance") }, "Doesn't Balance"),
+  ]);
+
+  return [
+    el("div", { class: "prompt" }, "Does it balance?"),
+    el("div", { class: "subprompt" }, "Look at both sides, then choose"),
+    area,
+    choices,
+  ];
 }
 
 function renderPartition(item, startedAtMs) {

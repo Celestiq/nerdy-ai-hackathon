@@ -195,6 +195,44 @@
      reduced opacity signals decline from a full bloom, not a fresh start. */
   .const-star--fading { border-style: solid; border-color: var(--status-decayed); color: var(--status-decayed); background: var(--status-decayed-bg); opacity: 0.62; }
   .const-star--fading .icon svg { fill: currentColor; fill-opacity: 0.7; }
+
+  /* -------------------- balance scale (BACKLOG.md "Balance Scale") --------------------
+     Purely additive -- does not touch .choice-card/.bar-outer/.line-track/
+     .icon-wrap/pop-in/.progress-track above. A new SVG skin (beam-and-two-
+     pans), display-only: see renderBalanceScale() in child.js. The beam's
+     rotation is driven by the SVG `transform` attribute directly (not
+     inline CSS transform-origin math) so `rotate(angle cx cy)` can pivot
+     around the beam's own local origin regardless of its bounding box --
+     the `transition: transform` below still animates attribute changes to
+     it. The pans themselves are no longer tap targets (reworked per
+     pedagogy-reviewer REQUIRED CHANGES -- F.EQV is an equivalence
+     judgement, "does it balance?", not "which pan is bigger?"); the real
+     tap targets are .balance-choice below. */
+  .balance-area { width: 100%; touch-action: none; }
+  .balance-area svg { width: 100%; height: 230px; display: block; }
+  .balance-base { stroke: var(--ink); stroke-width: 3; }
+  .balance-fulcrum { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
+  .balance-beam { transition: transform 260ms cubic-bezier(.34, 1.56, .64, 1); }
+  .balance-beam-line { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
+  .balance-pivot-cap { fill: var(--ink); }
+  .balance-string { stroke: var(--soft); stroke-width: 1.5; }
+  .balance-pan { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
+  .balance-pan-label { font-family: var(--mono); font-size: 13px; fill: var(--ink); }
+
+  /* The actual tap targets for this game -- two big forced-choice buttons
+     below the (now display-only) beam. Sized comfortably beyond kid-ux's
+     ~52x66px minimum for this age group (min-height 66px here, full-width
+     flex share of a 500px-ish stage well over 52px wide each) -- same
+     touch-target generosity kid-ux's original balance-hit fix established,
+     carried over to the new tap surface rather than lost in the rework. */
+  .balance-choice-row { gap: 14px; }
+  .balance-choice {
+    flex: 1; min-height: 66px; min-width: 52px; display: flex; align-items: center; justify-content: center;
+    text-align: center; padding: 14px 12px; border: 2px solid var(--rule); border-radius: var(--r-lg);
+    background: var(--panel); font-size: 17px; font-weight: 600; color: var(--ink);
+    transition: border-color 120ms ease, box-shadow 120ms ease;
+  }
+  .balance-choice:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); }
 </style>
 </head>
 <body>
