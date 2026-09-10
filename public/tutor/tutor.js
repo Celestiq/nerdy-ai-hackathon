@@ -70,7 +70,11 @@ const STATUS_META = {
 const STRAND_LABEL = { NUMBER: "Whole numbers", GEOMETRY: "Geometry", FRACTION: "Fractions", DECIMAL: "Decimals" };
 const STRAND_ORDER = ["NUMBER", "GEOMETRY", "FRACTION", "DECIMAL"];
 
-const GAME_LABEL = { "numberline.place.v2": "Number line placement", "fractionbars.compare.v1": "Fraction bars" };
+const GAME_LABEL = {
+  "numberline.place.v2": "Number line placement",
+  "fractionbars.compare.v1": "Fraction bars",
+  "balancescale.compare.v1": "Balance scale",
+};
 
 // -------------------- state --------------------
 // Data is fetched once per poll (load) and cached; switching tabs, pages or
@@ -100,6 +104,14 @@ let openSessionId = null;
 // diagnostic detail, not the primary thing a tutor scans.
 const assignmentByStudent = new Map(); // student_id -> SelectionOutput | "loading"
 let whyOpen = false;
+// First-contact discoverability: a tutor landing cold on /tutor/ has no way
+// to know this panel exists (it's collapsed and only rendered once a child
+// is selected). Auto-expand it the very first time any student is picked
+// this browser session, then go back to collapsed-by-default (the original
+// design intent) for every subsequent switch -- same one-shot-per-session
+// shape as e.g. sessionsByStudent's per-student cache, just for a UI flag
+// instead of fetched data.
+let hasAutoOpenedWhy = false;
 
 function setTab(tab) {
   activeTab = tab;
@@ -111,7 +123,12 @@ function setStudent(id) {
   selectedStudentId = selectedStudentId === id ? null : id;
   needsPage = 0;
   openSessionId = null;
-  whyOpen = false;
+  if (selectedStudentId && !hasAutoOpenedWhy) {
+    whyOpen = true;
+    hasAutoOpenedWhy = true;
+  } else {
+    whyOpen = false;
+  }
   if (activeTab === "history") loadSessionsFor(selectedStudentId);
   if (selectedStudentId) loadAssignmentFor(selectedStudentId);
   render();
@@ -471,6 +488,16 @@ function decisionRow(entry, conceptById) {
   ]);
 }
 
+// One-line teaser shown in the collapsed header so the panel isn't literally
+// invisible content when a tutor doesn't (yet) click it open -- reuses the
+// same data the expanded body renders, just the headline part of it.
+function whyTeaser(data) {
+  if (!data || data === "loading") return null;
+  if (data.assignment) return `next up: ${GAME_LABEL[data.assignment.game_id] ?? data.assignment.game_id}`;
+  if (data.reason) return "no assignment this round";
+  return null;
+}
+
 function whyNextBlock() {
   const { directory, conceptById } = cache;
   const student = directory.find((d) => d.student_id === selectedStudentId);
@@ -483,7 +510,7 @@ function whyNextBlock() {
       el("span", { class: "why-chevron" + (whyOpen ? " open" : "") }, [icon("chevronDown")]),
       el("span", { class: "icon-wrap gray" }, [icon("bulb")]),
       el("span", { class: "sec-title" }, `Why this next${student ? ` — ${student.name}` : ""}`),
-      el("span", { class: "why-hint" }, "routing trace"),
+      el("span", { class: "why-hint" }, (!whyOpen && whyTeaser(data)) || "routing trace"),
     ],
   );
   const block = el("div", { class: "card card-pad tv-section why-block" }, [header]);
