@@ -8,6 +8,7 @@ dist/
 # agentic swarm coordination (local-only, not part of the submission)
 .claude/agents/
 BACKLOG.md
+CLAUDE.md
 IDEAS.md
 JUDGE_RUBRIC.md
 SWARM.md
