@@ -53,6 +53,13 @@ function avatar(name, hue, size = "md") {
   return el("span", { class: `avatar ${size}`, "data-hue": String(hue % 6) }, initials(name));
 }
 
+// Shared loading indicator (see .spinner in shared/styles.css) -- used in
+// place of bare "Loading..." text wherever this dashboard is waiting on a
+// per-student fetch (test history, session detail).
+function loadingRow(label) {
+  return el("div", { class: "loading-row" }, [el("span", { class: "spinner" }, [el("span", {}), el("span", {}), el("span", {})]), label]);
+}
+
 const STATUS_META = {
   MASTERED: { chip: "chip--mastered", seg: "seg-mastered", solo: "solo-mastered", label: "Mastered" },
   EMERGING: { chip: "chip--emerging", seg: "seg-emerging", solo: "solo-emerging", label: "Emerging" },
@@ -395,7 +402,7 @@ function historyBlock() {
   const sessions = sessionsByStudent.get(selectedStudentId);
 
   if (sessions === "loading" || sessions === undefined) {
-    block.appendChild(el("div", { class: "empty" }, `Loading ${student.name}'s tests...`));
+    block.appendChild(loadingRow(`Loading ${student.name}'s tests...`));
     return block;
   }
   if (sessions.length === 0) {
@@ -445,7 +452,7 @@ function sessionDetailPanel(student, summary) {
   const panel = el("div", { class: "session-detail" });
 
   if (detail === "loading" || detail === undefined) {
-    panel.appendChild(el("div", { class: "empty" }, "Loading questions..."));
+    panel.appendChild(loadingRow("Loading questions..."));
     return panel;
   }
 

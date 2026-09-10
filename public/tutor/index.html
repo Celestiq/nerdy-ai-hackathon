@@ -9,18 +9,25 @@
 <link rel="stylesheet" href="../shared/styles.css">
 <style>
   body { padding-bottom: 40px; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: 32px 28px 80px; }
+  .wrap { max-width: 1120px; margin: 0 auto; padding: var(--sp-8) var(--sp-7) var(--sp-9); }
 
-  .tv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
-  .tv-header h1 { font-size: 26px; margin: 0; letter-spacing: -0.01em; }
-  .tv-meta { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--soft); margin-top: 6px; }
-  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: #2A8F4E; box-shadow: 0 0 0 0 rgba(42,143,78,.5); animation: pulse 2s infinite; flex-shrink: 0; }
-  @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(42,143,78,.45); } 70% { box-shadow: 0 0 0 6px rgba(42,143,78,0); } 100% { box-shadow: 0 0 0 0 rgba(42,143,78,0); } }
+  .tv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-7); }
+  .tv-header h1 { font-size: var(--text-2xl); font-weight: var(--fw-bold); margin: 0; letter-spacing: -0.01em; }
+  .tv-meta { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); color: var(--soft); margin-top: 6px; }
+  /* Calm, purposeful motion budget for this surface: the one continuously-
+     running animation on the whole dashboard is this "data is live" dot --
+     everything else here animates once, on a state change, then stops. */
+  .live-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--live); box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 50%, transparent); animation: live-pulse 2s infinite; flex-shrink: 0; }
+  @keyframes live-pulse {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--live) 45%, transparent); }
+    70% { box-shadow: 0 0 0 6px transparent; }
+    100% { box-shadow: 0 0 0 0 transparent; }
+  }
 
-  .tv-section { margin-bottom: 24px; }
-  .card-pad { padding: 20px 22px 22px; }
+  .tv-section { margin-bottom: var(--sp-6); }
+  .card-pad { padding: var(--sp-5) var(--sp-6) var(--sp-6); }
 
-  .sec-h { display: flex; align-items: center; gap: 10px; margin: 0 0 14px; font-size: 15px; font-weight: 600; }
+  .sec-h { display: flex; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-4); font-size: var(--text-base); font-weight: var(--fw-semibold); }
   .sec-h .icon-wrap { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sec-h .icon-wrap.amber { background: var(--status-stuck-bg); color: var(--status-stuck); }
   .sec-h .icon-wrap.magenta { background: var(--status-weak-bg); color: var(--status-weak); }
@@ -37,10 +44,11 @@
   .roster-card {
     flex: 1 1 0; min-width: 0; cursor: pointer; padding: 12px 13px; display: flex; flex-direction: column; gap: 10px;
     border-radius: var(--r-lg); border: 1.5px solid var(--rule); background: var(--panel);
-    transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .roster-card:hover { border-color: var(--brand); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .roster-card.active { border-color: var(--brand); background: var(--brand-bg); }
+  .roster-card:active { transform: translateY(0) scale(0.98); }
+  .roster-card.active { border-color: var(--brand); background: var(--brand-bg); animation: fade-in var(--dur-fast) var(--ease-standard); }
   .rc-top { display: flex; align-items: center; gap: 9px; }
   .avatar.md { width: 32px; height: 32px; font-size: 13px; }
   .rc-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -63,23 +71,27 @@
   .tab-btn {
     appearance: none; border: none; background: none; padding: 11px 2px; font-family: var(--sans);
     font-size: 14px; font-weight: 600; color: var(--soft); cursor: pointer; position: relative;
-    display: flex; align-items: center; gap: 8px; transition: color 120ms ease;
+    display: flex; align-items: center; gap: 8px; transition: color var(--dur-fast) var(--ease-standard);
   }
   .tab-btn:hover { color: var(--ink); }
+  .tab-btn:active { opacity: 0.7; }
   .tab-btn.active { color: var(--ink); }
-  .tab-btn.active::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 2px; background: var(--brand); border-radius: 2px; }
+  .tab-btn.active::after {
+    content: ""; position: absolute; left: 0; right: 0; bottom: -1.5px; height: 2px; background: var(--brand); border-radius: 2px;
+    transform-origin: left; animation: grow-x var(--dur-base) var(--ease-out);
+  }
   .tab-btn .icon { width: 16px; height: 16px; }
-  .tab-panel { animation: fade-in 140ms ease; }
-  @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+  .tab-panel { animation: fade-in var(--dur-base) var(--ease-standard); }
 
   /* concept-map strand sub-tabs */
   .subtabbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
   .subtab-btn {
     padding: 7px 15px; border-radius: var(--r-pill); border: 1.5px solid var(--rule); background: var(--panel);
     font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--soft); cursor: pointer;
-    transition: border-color 120ms ease, color 120ms ease, background 120ms ease;
+    transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
   }
   .subtab-btn:hover { border-color: var(--brand); }
+  .subtab-btn:active { opacity: 0.75; }
   .subtab-btn.active { border-color: var(--brand); background: var(--brand-bg); color: var(--brand-ink); }
 
   /* generic pager (needs-a-human list) */
@@ -131,7 +143,7 @@
   .strand-block:last-child { margin-bottom: 0; }
   .strand-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: 10px; }
   .concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 10px; }
-  .concept-tile { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 11px 12px; background: var(--panel); display: flex; flex-direction: column; gap: 9px; transition: box-shadow 120ms ease, border-color 120ms ease; }
+  .concept-tile { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 11px 12px; background: var(--panel); display: flex; flex-direction: column; gap: 9px; transition: box-shadow var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard); animation: fade-in var(--dur-base) var(--ease-standard); }
   .concept-tile:hover { box-shadow: var(--shadow-sm); }
   .concept-tile .cid { font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: block; }
   .concept-tile .clabel { font-size: 12.5px; line-height: 1.35; color: var(--ink); }
@@ -161,16 +173,26 @@
     width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 4px;
     background: none; border: none; text-align: left; font-family: inherit; color: inherit;
   }
-  .session-chevron { width: 15px; height: 15px; color: var(--faint); flex-shrink: 0; transition: transform 150ms ease; }
+  .session-chevron { width: 15px; height: 15px; color: var(--faint); flex-shrink: 0; }
   .session-chevron .icon { width: 15px; height: 15px; }
-  .session-chevron.open { transform: rotate(180deg); color: var(--brand); }
+  /* Each render fully rebuilds this DOM subtree (see render() in tutor.js --
+     there's no persistent-node diffing here), so a plain `transition` on
+     `.open` would never actually animate: the element is born already in
+     its final state. An entrance `animation` runs regardless of whether
+     the node is new, so that's the technique used for every "this just
+     changed state" transition on this page (this chevron, the session
+     detail panel below, a newly-active roster card, the meter bars in
+     shared/styles.css) rather than a transition that would silently never
+     fire. */
+  .session-chevron.open { transform: rotate(180deg); color: var(--brand); animation: chevron-open var(--dur-fast) var(--ease-standard); }
+  @keyframes chevron-open { from { transform: rotate(0deg); } to { transform: rotate(180deg); } }
   .session-title { display: flex; flex-direction: column; gap: 2px; min-width: 148px; flex-shrink: 0; }
   .session-game { font-size: 13.5px; font-weight: 600; }
   .session-date { font-size: 11.5px; color: var(--soft); font-family: var(--mono); }
   .session-concepts { display: flex; flex-wrap: wrap; gap: 6px; flex: 1; }
   .session-head:hover .session-game { color: var(--brand-ink); }
 
-  .session-detail { padding: 4px 4px 18px 31px; display: flex; flex-direction: column; gap: 4px; }
+  .session-detail { padding: 4px 4px 18px 31px; display: flex; flex-direction: column; gap: 4px; animation: fade-up var(--dur-base) var(--ease-out); }
   .question-row { display: flex; gap: 12px; padding: 12px 0; border-top: 1px dashed var(--rule-lite); }
   .question-row:first-child { border-top: none; }
   .q-num { font-family: var(--mono); font-size: 11px; color: var(--faint); flex-shrink: 0; width: 26px; padding-top: 2px; }
@@ -184,6 +206,24 @@
   .insight-icon .icon { width: 13px; height: 13px; }
   .q-insight-text { font-size: 12.5px; line-height: 1.5; color: var(--ink); }
   .q-blame { margin-top: 6px; font-size: 12px; color: var(--soft); }
+
+  /* -------------------- small-screen safety net -------------------- */
+  /* A teacher scanning data is the primary case (desktop/tablet), but
+     nothing here should become unreadable on a phone browser either.
+     Rather than reflowing the whole dashboard, this loosens the specific
+     rules that assumed desktop-width: the header's meta row, the
+     paginated roster (arrows must stay -- they're the only way to reach
+     students past the first page, so this only lets the cards they page
+     through wrap instead of squeezing), and a session row's fixed-width
+     title column. */
+  @media (max-width: 640px) {
+    .wrap { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
+    .tv-header { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+    .roster { flex-wrap: wrap; }
+    .roster-card, .roster-card.all-card { flex: 1 1 128px; }
+    .session-head { flex-wrap: wrap; row-gap: var(--sp-2); }
+    .session-title { min-width: 0; flex: 1 1 auto; }
+  }
 </style>
 </head>
 <body>

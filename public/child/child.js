@@ -65,6 +65,16 @@ function avatar(name, hue, cls = "") {
   return el("span", { class: `avatar ${cls}`, "data-hue": String(hue % 6) }, initials(name));
 }
 
+// Shared loading indicator (see .spinner in shared/styles.css) -- swaps the
+// bare "Loading..." text both async views below used to render for a small
+// breathing-dots animation, so a wait reads as "working" rather than as a
+// screen that failed to render.
+function loadingCard(label = "Loading...") {
+  return el("div", { class: "empty-card" }, [
+    el("div", { class: "loading-row" }, [el("span", { class: "spinner" }, [el("span", {}), el("span", {}), el("span", {})]), label]),
+  ]);
+}
+
 // Plain-English display names for the graph's strand codes -- words only,
 // never a count or ranking. Kept local to this file rather than imported
 // from tutor.js (a different surface with a different bundling story), but
@@ -115,7 +125,7 @@ async function showPicker() {
 // hand-authored words with no digits. No tap-to-launch-a-session
 // interactivity -- this is a passive view only (see BACKLOG.md).
 async function showConstellation(student, hue = 0) {
-  render(el("div", { class: "empty-card" }, "Loading..."));
+  render(loadingCard());
   const [concepts, belief] = await Promise.all([api("/graph/concepts"), api(`/belief/${student.student_id}`)]);
   const beliefByConcept = new Map(belief.map((b) => [b.concept_id, b]));
 
@@ -204,7 +214,7 @@ function starNode(belief, index = 0) {
 async function startSession(student, hue = 0) {
   state.student = student;
   state.studentHue = hue;
-  render(el("div", { class: "empty-card" }, "Loading..."));
+  render(loadingCard());
   const result = await api(`/assignment/${student.student_id}`);
   if (!result.assignment) {
     showEmpty(result);

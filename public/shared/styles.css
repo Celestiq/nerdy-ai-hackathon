@@ -3,6 +3,10 @@
 /* child play surface. Component classes below (avatar, chip, card, meter)*/
 /* are built only from these tokens so the two surfaces stay visually     */
 /* related even though their tone (data-dense vs. playful) differs.       */
+/*                                                                        */
+/* Theming: every color below is a token, redefined wholesale in the      */
+/* `prefers-color-scheme: dark` block further down -- component rules     */
+/* never hardcode a color, so both themes fall out of the same markup.    */
 /* ---------------------------------------------------------------------- */
 :root {
   /* base */
@@ -20,6 +24,9 @@
   --brand-ink: #1E3AAE;
   --brand-bg: #E8EDFC;
 
+  /* "live data" accent -- tutor dashboard's polling indicator only */
+  --live: #2A8F4E;
+
   /* semantic status colors -- the single legend the whole app follows.
      mastered = teal, emerging = blue, weak/misconception = magenta,
      stuck/needs-human = amber, decayed = purple, unmeasured = neutral. */
@@ -36,29 +43,130 @@
   --status-unmeasured: #97A1AC;
   --status-unmeasured-bg: #F1F3F5;
 
-  /* spacing scale */
+  /* spacing scale -- 4px rhythm. -1/-2/-3 fill in the gaps a straight
+     4/8/16/32 doubling scale left (28/48/56/64), which is why raw pixel
+     values kept creeping into child.js/tutor.js's inline <style> blocks
+     instead of reusing this scale: there was nowhere on it to land. */
   --sp-1: 4px;
   --sp-2: 8px;
   --sp-3: 12px;
   --sp-4: 16px;
   --sp-5: 20px;
   --sp-6: 24px;
+  --sp-6-5: 28px;
   --sp-7: 32px;
   --sp-8: 40px;
+  --sp-9: 48px;
+  --sp-10: 56px;
+  --sp-11: 64px;
+
+  /* type scale -- a deliberate ramp both surfaces draw from. The tutor
+     dashboard mostly lives in the xs/sm/md band (dense, scanning-first);
+     the child surface reaches for lg/2xl/hero (big, unambiguous, one
+     thing at a time). */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 13px;
+  --text-md: 14px;
+  --text-base: 15px;
+  --text-lg: 17px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 28px;
+  --text-4xl: 34px;
+  --text-hero: 44px;
+
+  --fw-regular: 400;
+  --fw-medium: 500;
+  --fw-semibold: 600;
+  --fw-bold: 700;
+
+  --lh-tight: 1.15;
+  --lh-snug: 1.35;
+  --lh-normal: 1.5;
+  --lh-relaxed: 1.6;
 
   /* radius + shadow scale */
   --r-sm: 6px;
   --r-md: 10px;
   --r-lg: 16px;
+  --r-xl: 22px;
   --r-pill: 999px;
   --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
   --shadow-md: 0 6px 20px rgba(20, 30, 45, 0.08);
+  --shadow-lg: 0 16px 40px rgba(20, 30, 45, 0.16);
   --shadow-focus: 0 0 0 3px var(--brand-bg);
+
+  /* motion -- durations scale with what they're attached to (fast for a
+     hover/press, slow for a settle-and-celebrate), easings are named by
+     feel: `standard` for state changes, `out` for things entering/leaving,
+     `bounce` for the one deliberately playful/celebratory beat both
+     surfaces share (mastery pop, a settling scale, a twinkle-in). Using
+     one shared bounce curve everywhere it's used -- rather than a
+     hand-tuned cubic-bezier per component -- is what keeps the child
+     surface's exuberance and the tutor surface's rare celebratory touch
+     (e.g. a newly-mastered concept tile) reading as the same house motion
+     language instead of two unrelated products. */
+  --dur-instant: 90ms;
+  --dur-fast: 130ms;
+  --dur-base: 200ms;
+  --dur-slow: 320ms;
+  --dur-celebrate: 560ms;
+  --dur-pulse: 900ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+  --ease-out: cubic-bezier(0, 0, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
 
   --sans: "IBM Plex Sans", -apple-system, "Segoe UI", system-ui, sans-serif;
   --mono: "IBM Plex Mono", ui-monospace, "SF Mono", monospace;
 
-  color-scheme: light;
+  color-scheme: light dark;
+}
+
+/* Dark theme -- a real second palette (not an inverted filter): neutrals
+   shift to a deep navy rather than pure black so colored status chips keep
+   some warmth, brand/status foregrounds get lifted in lightness to hold
+   contrast, and every "-bg" tint becomes a low-luminance version of its own
+   hue (not a translucent overlay) so it still reads correctly composited
+   over either --panel or --paper. System-driven (prefers-color-scheme) --
+   this app has no manual theme toggle, so this is the only lever a user
+   has; it should never leave a screen unreadable when it fires. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #0C1220;
+    --panel: #161F2E;
+    --panel-sunk: #101827;
+    --ink: #EAF0F7;
+    --soft: #ACB6C4;
+    --faint: #808C9B;
+    --rule: #2C3648;
+    --rule-lite: #212B3B;
+
+    --brand: #7C97FF;
+    --brand-ink: #B7C6FF;
+    --brand-bg: #202B49;
+
+    --live: #3ADB86;
+
+    --status-mastered: #35D6C3;
+    --status-mastered-bg: #123832;
+    --status-emerging: #8CA8FF;
+    --status-emerging-bg: #1D2748;
+    --status-weak: #FF86B8;
+    --status-weak-bg: #3A1B2E;
+    --status-stuck: #FFC24D;
+    --status-stuck-bg: #3A2C10;
+    --status-decayed: #C3ACFF;
+    --status-decayed-bg: #2A2145;
+    --status-unmeasured: #8B96A3;
+    --status-unmeasured-bg: #1E2733;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 6px 20px rgba(0, 0, 0, 0.45);
+    --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+    --shadow-focus: 0 0 0 3px var(--brand-bg);
+  }
 }
 
 * { box-sizing: border-box; }
@@ -67,10 +175,61 @@ body {
   background: var(--paper);
   color: var(--ink);
   font-family: var(--sans);
+  font-size: var(--text-base);
+  line-height: var(--lh-normal);
   -webkit-font-smoothing: antialiased;
 }
 button { font-family: inherit; cursor: pointer; }
 h1, h2, h3 { font-family: var(--sans); }
+::selection { background: var(--brand-bg); color: var(--brand-ink); }
+
+/* Visible, on-brand focus ring for keyboard users everywhere -- replaces
+   the browser default outline with one drawn from the same tokens as
+   everything else, without suppressing focus visibility (a11y regression
+   this app doesn't have today and shouldn't gain while getting prettier). */
+a:focus-visible, button:focus-visible, [tabindex]:focus-visible {
+  outline: none;
+  box-shadow: var(--shadow-focus);
+  border-radius: var(--r-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ---------------------------------------------------------------------- */
+/* Shared keyframes -- the house motion vocabulary. Defined once here      */
+/* (previously duplicated/re-invented per file) so a "pop" or a "fade"     */
+/* means the same curve and duration everywhere it appears.                */
+/* ---------------------------------------------------------------------- */
+@keyframes pop-in {
+  from { opacity: 0; transform: scale(0.5); }
+  to { opacity: 1; transform: scale(1); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+/* Bars/meters "growing in" on mount -- the tutor-surface equivalent of a
+   chart transition. Scales on top of whatever width the inline style
+   already sets, so it works regardless of the target percentage. */
+@keyframes grow-x {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+@keyframes spinner-bounce {
+  0%, 80%, 100% { transform: scale(0.6); opacity: 0.5; }
+  40% { transform: scale(1); opacity: 1; }
+}
 
 /* ---------------------------------------------------------------------- */
 /* Primitives                                                              */
@@ -87,28 +246,31 @@ h1, h2, h3 { font-family: var(--sans); }
   display: inline-flex;
   align-items: center;
   gap: var(--sp-2);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: var(--text-sm);
+  font-weight: var(--fw-medium);
   color: var(--soft);
   text-decoration: none;
   padding: var(--sp-2) var(--sp-4);
   border-radius: var(--r-pill);
   border: 1px solid var(--rule);
   background: var(--panel);
-  transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+  transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
 }
 .pill-link:hover { border-color: var(--brand); color: var(--brand-ink); }
+.pill-link:active { transform: scale(0.97); }
 .pill-link svg { width: 14px; height: 14px; }
 
 /* avatar -- deterministic color from a small fixed palette so the same
-   student always renders the same color across roster / lists / chips */
+   student always renders the same color across roster / lists / chips.
+   Kept identical across themes on purpose: a child/tutor's color identity
+   shouldn't shift just because the OS switched theme mid-session. */
 .avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
   border-radius: 50%;
-  font-weight: 600;
+  font-weight: var(--fw-semibold);
   color: #fff;
   font-family: var(--sans);
   letter-spacing: -0.02em;
@@ -124,8 +286,8 @@ h1, h2, h3 { font-family: var(--sans); }
   display: inline-flex;
   align-items: center;
   gap: 5px;
-  font-size: 12px;
-  font-weight: 500;
+  font-size: var(--text-xs);
+  font-weight: var(--fw-medium);
   line-height: 1;
   padding: 4px 9px;
   border-radius: var(--r-pill);
@@ -142,7 +304,10 @@ h1, h2, h3 { font-family: var(--sans); }
 .icon { width: 16px; height: 16px; display: inline-block; vertical-align: middle; flex-shrink: 0; }
 .icon-sm { width: 13px; height: 13px; }
 
-/* stacked mini meter -- reused for roster summaries and concept tiles */
+/* stacked mini meter -- reused for roster summaries and concept tiles.
+   Each segment grows in from zero width on mount (see grow-x above): a
+   restrained, data-forward "chart transition" appropriate to the tutor
+   surface's calmer motion budget, not a bouncy child-surface flourish. */
 .stack-meter {
   display: flex;
   width: 100%;
@@ -151,7 +316,12 @@ h1, h2, h3 { font-family: var(--sans); }
   overflow: hidden;
   background: var(--rule-lite);
 }
-.stack-meter > span { display: block; height: 100%; }
+.stack-meter > span {
+  display: block;
+  height: 100%;
+  transform-origin: left;
+  animation: grow-x var(--dur-slow) var(--ease-out) backwards;
+}
 .stack-meter .seg-mastered { background: var(--status-mastered); }
 .stack-meter .seg-emerging { background: var(--status-emerging); }
 .stack-meter .seg-weak { background: var(--status-weak); }
@@ -160,7 +330,25 @@ h1, h2, h3 { font-family: var(--sans); }
 
 /* decay / progress bar with a marker, used in retention visuals */
 .range-meter { position: relative; width: 100%; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); }
-.range-meter .fill { position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--status-decayed); opacity: 0.85; }
-.range-meter .marker { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--ink); }
+.range-meter .fill {
+  position: absolute; inset: 0; border-radius: var(--r-pill); background: var(--status-decayed); opacity: 0.85;
+  transform-origin: left;
+  animation: grow-x var(--dur-slow) var(--ease-out) backwards;
+}
+.range-meter .marker {
+  position: absolute; top: -3px; width: 2px; height: 14px; background: var(--ink);
+  animation: fade-in var(--dur-slow) var(--ease-out) backwards;
+}
+
+/* shared loading indicator -- three breathing dots, replaces bare "Loading…"
+   text on both surfaces so a wait state reads as "working", not "stalled". */
+.spinner { display: inline-flex; align-items: center; gap: 5px; color: var(--soft); }
+.spinner span {
+  width: 7px; height: 7px; border-radius: 50%; background: currentColor;
+  animation: spinner-bounce var(--dur-pulse) var(--ease-standard) infinite;
+}
+.spinner span:nth-child(2) { animation-delay: 120ms; }
+.spinner span:nth-child(3) { animation-delay: 240ms; }
+.loading-row { display: flex; align-items: center; justify-content: center; gap: var(--sp-3); padding: var(--sp-2) 0; color: var(--soft); font-size: var(--text-sm); }
 
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }

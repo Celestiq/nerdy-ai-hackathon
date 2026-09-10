@@ -8,14 +8,39 @@
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../shared/styles.css">
 <style>
-  :root { --play: #E0592B; --play-bg: #FDECE3; --play-ink: #B8431C; }
-  body { min-height: 100vh; display: flex; flex-direction: column; align-items: center; }
-  .wrap { width: 100%; max-width: 640px; padding: 28px 20px 60px; }
+  /* Child surface's own accent -- a warm coral that sits alongside the
+     shared brand blue (tutor's accent) rather than replacing it: same
+     palette family, different amplitude, per the shared design system in
+     shared/styles.css. Dark variant lifts lightness/saturation the same
+     way the shared tokens do for status colors, so switching OS theme
+     never leaves this page's one page-local accent stranded in light-only
+     values while everything else (--paper/--panel/--ink/etc.) re-themes. */
+  /* --play-on: text color for anything sitting *on top of* the --play/
+     --play-ink accent (currently just .btn-primary). Light mode's accent is
+     dark enough for white text (5.4:1+); dark mode's lifted, lighter accent
+     (#FF8F5C/#FFC4A0) is not -- white-on-#FF8F5C is only ~2.25:1, unreadable
+     for a young/struggling reader on the session's one primary CTA ("Done"/
+     "Back"). Kid-ux review caught this: swap to the dark theme's near-black
+     --paper as button text instead, which holds 8:1+ against both states. */
+  :root { --play: #E0592B; --play-bg: #FDECE3; --play-ink: #B8431C; --play-on: #fff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --play: #FF8F5C; --play-bg: #3A2413; --play-ink: #FFC4A0; --play-on: #0C1220; }
+  }
 
-  .picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; gap: 12px; }
-  .picker-head h1 { font-size: 24px; margin: 0; letter-spacing: -0.01em; }
+  body {
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
+    /* A soft, immersive wash behind the play surface -- built from the same
+       --play-bg token used everywhere else on this page (not a one-off
+       color), just large and diffuse enough to feel like a place rather
+       than a form. Kept subtle so body text contrast is untouched. */
+    background: radial-gradient(ellipse 900px 500px at 20% -10%, var(--play-bg), transparent 60%), var(--paper);
+  }
+  .wrap { width: 100%; max-width: 640px; padding: var(--sp-6-5) var(--sp-5) var(--sp-9); }
 
-  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-6); gap: var(--sp-3); }
+  .picker-head h1 { font-size: var(--text-2xl); font-weight: var(--fw-bold); margin: 0; letter-spacing: -0.01em; }
+
+  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); }
   /* Each roster entry is a row of two buttons: the primary play action
      (unchanged behavior/appearance from before this file's B1 constellation
      work -- tapping it still starts a session exactly as before) plus a
@@ -23,72 +48,75 @@
      Splitting into .picker-row/.picker-play/.picker-map (rather than
      styling `.picker button` directly, as before) is what makes room for
      the second button without changing the play button's own look. */
-  .picker-row { display: flex; gap: 8px; }
+  .picker-row { display: flex; gap: var(--sp-2); }
   .picker-play {
-    flex: 1; display: flex; align-items: center; gap: 12px; text-align: left;
-    padding: 16px 16px; font-size: 16px; font-weight: 600; border-radius: var(--r-lg);
+    flex: 1; display: flex; align-items: center; gap: var(--sp-3); text-align: left;
+    padding: var(--sp-4); font-size: var(--text-lg); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
     border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
-    box-shadow: var(--shadow-sm); transition: border-color 120ms ease, box-shadow 120ms ease, transform 120ms ease;
+    box-shadow: var(--shadow-sm);
+    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .picker-play:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .picker-row .avatar { width: 38px; height: 38px; font-size: 15px; }
+  .picker-play:active { transform: translateY(0) scale(0.98); box-shadow: var(--shadow-sm); }
+  .picker-row .avatar { width: 38px; height: 38px; font-size: var(--text-md); }
   .picker-map {
-    flex-shrink: 0; width: 48px; border-radius: var(--r-lg);
+    flex-shrink: 0; width: 52px; border-radius: var(--r-lg);
     border: 1.5px solid var(--rule); background: var(--panel); color: var(--soft);
     display: flex; align-items: center; justify-content: center;
-    transition: border-color 120ms ease, color 120ms ease, box-shadow 120ms ease;
+    transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .picker-map:hover { border-color: var(--status-mastered); color: var(--status-mastered); box-shadow: var(--shadow-md); }
+  .picker-map:active { transform: scale(0.96); }
   .picker-map .icon { width: 18px; height: 18px; }
 
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; gap: 10px; }
-  .topbar .who { display: flex; align-items: center; gap: 9px; font-size: 14px; font-weight: 600; }
-  .topbar .avatar { width: 30px; height: 30px; font-size: 12.5px; }
+  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-5); gap: var(--sp-3); }
+  .topbar .who { display: flex; align-items: center; gap: 9px; font-size: var(--text-md); font-weight: var(--fw-semibold); }
+  .topbar .avatar { width: 30px; height: 30px; font-size: var(--text-xs); }
 
   .stage {
     background: var(--panel); border: 1px solid var(--rule-lite); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
-    padding: 34px 26px 28px; min-height: 320px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 26px;
+    padding: var(--sp-8) var(--sp-6) var(--sp-7); min-height: 320px; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: var(--sp-6);
+    animation: fade-up var(--dur-base) var(--ease-out);
   }
-  .prompt { font-size: 44px; font-weight: 700; letter-spacing: -0.01em; }
-  .subprompt { font-size: 14px; color: var(--soft); margin-top: -14px; }
+  .prompt { font-size: var(--text-hero); font-weight: var(--fw-bold); letter-spacing: -0.01em; text-align: center; }
+  .subprompt { font-size: var(--text-md); color: var(--soft); margin-top: -14px; }
 
   .line-area { width: 100%; touch-action: none; }
   .line-area svg { width: 100%; height: 110px; display: block; }
   .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
   .line-tick { stroke: var(--rule); stroke-width: 2; }
-  .line-tick-label { font-family: var(--mono); font-size: 12px; fill: var(--soft); }
-  .line-marker { fill: var(--play); }
+  .line-tick-label { font-family: var(--mono); font-size: var(--text-xs); fill: var(--soft); }
+  .line-marker { fill: var(--play); transition: cx var(--dur-base) var(--ease-out); }
 
-  .choice-row { display: flex; gap: 18px; width: 100%; justify-content: center; }
+  .choice-row { display: flex; gap: var(--sp-4); width: 100%; justify-content: center; }
   .choice-card {
-    flex: 1; max-width: 220px; border: 2px solid var(--rule); border-radius: var(--r-lg); padding: 18px;
+    flex: 1; max-width: 220px; min-height: 44px; border: 2px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-4);
     background: var(--panel); display: flex; flex-direction: column; align-items: center; gap: 10px;
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
-  .choice-card:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); }
+  .choice-card:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .choice-card:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
   .bar-outer { width: 100%; height: 34px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
-  .bar-fill { background: var(--status-mastered); height: 100%; }
-  .bar-empty { background: var(--rule-lite); height: 100%; }
-  .bar-label { font-family: var(--mono); font-size: 13px; color: var(--soft); }
+  .bar-fill { background: var(--status-mastered); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
+  .bar-empty { background: var(--rule-lite); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
+  .bar-label { font-family: var(--mono); font-size: var(--text-sm); color: var(--soft); }
 
   .partition-shape { width: 100%; height: 60px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
   .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; }
   .partition-slice:last-child { border-right: none; }
   .partition-slice.fill { background: var(--status-mastered); }
 
-  .progress-wrap { width: 100%; margin-top: 4px; display: flex; flex-direction: column; align-items: center; gap: 8px; }
+  .progress-wrap { width: 100%; margin-top: 4px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
   .progress-track { width: 100%; display: flex; gap: 6px; }
-  .progress-track .seg { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); transition: background-color 200ms ease; }
-  .progress-track .seg.done { background: var(--play); }
+  .progress-track .seg { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); }
+  .progress-track .seg.done { background: var(--play); animation: fade-in var(--dur-base) var(--ease-out); }
 
-  @keyframes pop-in { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: scale(1); } }
+  .feedback-note { display: flex; align-items: center; gap: 8px; font-size: var(--text-lg); color: var(--play-ink); font-weight: var(--fw-semibold); min-height: 20px; animation: fade-up var(--dur-fast) var(--ease-out); }
+  .feedback-note .icon-wrap { width: 30px; height: 30px; border-radius: 50%; background: var(--play-bg); color: var(--play); display: flex; align-items: center; justify-content: center; animation: pop-in var(--dur-slow) var(--ease-bounce); }
 
-  .feedback-note { display: flex; align-items: center; gap: 8px; font-size: 15px; color: var(--play-ink); font-weight: 600; min-height: 20px; }
-  .feedback-note .icon-wrap { width: 30px; height: 30px; border-radius: 50%; background: var(--play-bg); color: var(--play); display: flex; align-items: center; justify-content: center; animation: pop-in 260ms cubic-bezier(.34, 1.56, .64, 1); }
-
-  .end-card { text-align: center; padding: 24px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in 260ms cubic-bezier(.34, 1.56, .64, 1); }
+  .end-card { text-align: center; padding: var(--sp-6) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
+  .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in var(--dur-slow) var(--ease-bounce); }
 
   /* Distinct celebratory treatment for a mastery-beat session end only --
      additive on top of .icon-wrap/pop-in above, which stays untouched so a
@@ -109,27 +137,37 @@
     80% { transform: scale(0.92) rotate(-2deg); }
     100% { opacity: 1; transform: scale(1) rotate(0deg); }
   }
+  /* Ring color derived via color-mix from --status-mastered (not a fixed
+     rgba(14,124,130,...)) so the celebration still reads correctly in dark
+     mode, where --status-mastered is a lighter teal (#35D6C3) -- the old
+     hardcoded light-mode-only rgba would have rendered a near-invisible,
+     wrong-hue ring against a dark panel. */
   @keyframes mastery-pulse-ring {
-    0% { box-shadow: 0 0 0 0 rgba(14, 124, 130, 0.45); }
-    70% { box-shadow: 0 0 0 16px rgba(14, 124, 130, 0); }
-    100% { box-shadow: 0 0 0 16px rgba(14, 124, 130, 0); }
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-mastered) 45%, transparent); }
+    70% { box-shadow: 0 0 0 16px transparent; }
+    100% { box-shadow: 0 0 0 16px transparent; }
   }
   .end-card .icon-wrap--mastery {
     width: 64px; height: 64px;
-    animation: pop-in-mastery 560ms cubic-bezier(.34, 1.56, .64, 1), mastery-pulse-ring 900ms ease-out 560ms;
+    animation: pop-in-mastery var(--dur-celebrate) var(--ease-bounce), mastery-pulse-ring var(--dur-pulse) var(--ease-out) var(--dur-celebrate);
   }
-  .end-card h2 { font-size: 22px; margin: 0; }
-  .end-card p { color: var(--soft); max-width: 44ch; margin: 0; }
-  .end-card p.mastery-beat { color: var(--status-mastered); font-weight: 600; max-width: 40ch; }
-  .btn-primary { margin-top: 14px; padding: 13px 30px; border-radius: var(--r-pill); border: none; background: var(--play); color: #fff; font-size: 15px; font-weight: 600; box-shadow: var(--shadow-sm); }
-  .btn-primary:hover { background: var(--play-ink); }
+  .end-card h2 { font-size: var(--text-xl); font-weight: var(--fw-bold); margin: 0; }
+  .end-card p { color: var(--soft); max-width: 44ch; margin: 0; line-height: var(--lh-relaxed); }
+  .end-card p.mastery-beat { color: var(--status-mastered); font-weight: var(--fw-semibold); max-width: 40ch; }
+  .btn-primary {
+    margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-7); min-height: 48px; border-radius: var(--r-pill); border: none;
+    background: var(--play); color: var(--play-on); font-size: var(--text-base); font-weight: var(--fw-semibold); box-shadow: var(--shadow-sm);
+    transition: background-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard);
+  }
+  .btn-primary:hover { background: var(--play-ink); box-shadow: var(--shadow-md); }
+  .btn-primary:active { transform: scale(0.96); box-shadow: var(--shadow-sm); }
 
-  .empty-card { text-align: center; padding: 34px 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .empty-card { text-align: center; padding: var(--sp-8) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
   .empty-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--rule-lite); color: var(--soft); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
-  .empty-card h2 { margin: 0; font-size: 20px; }
-  .empty-card p { color: var(--soft); max-width: 40ch; margin: 0; }
+  .empty-card h2 { margin: 0; font-size: var(--text-xl); font-weight: var(--fw-bold); }
+  .empty-card p { color: var(--soft); max-width: 40ch; margin: 0; line-height: var(--lh-relaxed); }
 
-  .foot-link { margin-top: 26px; }
+  .foot-link { margin-top: var(--sp-6); }
   .icon { width: 16px; height: 16px; display: inline-block; }
 
   /* -------------------- constellation (BACKLOG.md B1) -------------------- */
@@ -140,22 +178,22 @@
 
   .const-back { margin-left: auto; }
 
-  .const-head { text-align: center; margin: 4px 0 26px; }
-  .const-head h1 { font-size: 22px; margin: 0 0 6px; letter-spacing: -0.01em; }
-  .const-sub { color: var(--soft); font-size: 14px; margin: 0 auto; max-width: 46ch; }
+  .const-head { text-align: center; margin: 4px 0 var(--sp-7); }
+  .const-head h1 { font-size: var(--text-xl); font-weight: var(--fw-bold); margin: 0 0 6px; letter-spacing: -0.01em; }
+  .const-sub { color: var(--soft); font-size: var(--text-md); margin: 0 auto; max-width: 46ch; line-height: var(--lh-relaxed); }
 
-  .const-strand { margin-bottom: 28px; }
+  .const-strand { margin-bottom: var(--sp-7); }
   .const-strand-title {
-    font-size: 13px; font-weight: 600; color: var(--soft); margin: 0 0 12px;
+    font-size: var(--text-sm); font-weight: var(--fw-semibold); color: var(--soft); margin: 0 0 var(--sp-3);
     text-transform: uppercase; letter-spacing: 0.06em;
   }
-  .const-grid { display: flex; flex-wrap: wrap; gap: 14px; }
+  .const-grid { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
 
   .const-star {
     width: 56px; height: 56px; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
     border: 1.5px solid var(--rule);
-    transition: transform 150ms ease;
+    transition: transform var(--dur-fast) var(--ease-standard);
     /* Twinkle-in on load, staggered per-star via an inline animation-delay
        set in starNode() (child.js) -- reuses the exact bouncy easing the
        rest of the child surface already uses for pop-in/pop-in-mastery, so
@@ -164,7 +202,7 @@
        genuinely invisible without permanently overriding each tier's own
        resting transform (e.g. --bloom's scale(1.08)) once the animation
        finishes. */
-    animation: pop-in 320ms cubic-bezier(.34, 1.56, .64, 1) backwards;
+    animation: pop-in var(--dur-slow) var(--ease-bounce) backwards;
   }
   .const-star .icon { width: 26px; height: 26px; }
 
@@ -183,7 +221,7 @@
 
   .const-star--bloom {
     border-style: solid; border-color: var(--status-mastered); color: var(--status-mastered); background: var(--status-mastered-bg);
-    box-shadow: 0 0 0 4px var(--status-mastered-bg), 0 4px 14px rgba(14, 124, 130, 0.28);
+    box-shadow: 0 0 0 4px var(--status-mastered-bg), 0 4px 14px color-mix(in srgb, var(--status-mastered) 28%, transparent);
     transform: scale(1.08);
   }
   .const-star--bloom .icon svg { fill: currentColor; }
@@ -212,12 +250,12 @@
   .balance-area svg { width: 100%; height: 230px; display: block; }
   .balance-base { stroke: var(--ink); stroke-width: 3; }
   .balance-fulcrum { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
-  .balance-beam { transition: transform 260ms cubic-bezier(.34, 1.56, .64, 1); }
+  .balance-beam { transition: transform var(--dur-slow) var(--ease-bounce); }
   .balance-beam-line { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
   .balance-pivot-cap { fill: var(--ink); }
   .balance-string { stroke: var(--soft); stroke-width: 1.5; }
   .balance-pan { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
-  .balance-pan-label { font-family: var(--mono); font-size: 13px; fill: var(--ink); }
+  .balance-pan-label { font-family: var(--mono); font-size: var(--text-sm); fill: var(--ink); }
 
   /* The actual tap targets for this game -- two big forced-choice buttons
      below the (now display-only) beam. Sized comfortably beyond kid-ux's
@@ -225,14 +263,27 @@
      flex share of a 500px-ish stage well over 52px wide each) -- same
      touch-target generosity kid-ux's original balance-hit fix established,
      carried over to the new tap surface rather than lost in the rework. */
-  .balance-choice-row { gap: 14px; }
+  .balance-choice-row { gap: var(--sp-3); }
   .balance-choice {
     flex: 1; min-height: 66px; min-width: 52px; display: flex; align-items: center; justify-content: center;
-    text-align: center; padding: 14px 12px; border: 2px solid var(--rule); border-radius: var(--r-lg);
-    background: var(--panel); font-size: 17px; font-weight: 600; color: var(--ink);
-    transition: border-color 120ms ease, box-shadow 120ms ease;
+    text-align: center; padding: var(--sp-3) var(--sp-3); border: 2px solid var(--rule); border-radius: var(--r-lg);
+    background: var(--panel); font-size: var(--text-lg); font-weight: var(--fw-semibold); color: var(--ink);
+    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
-  .balance-choice:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); }
+  .balance-choice:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .balance-choice:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
+
+  /* -------------------- small-screen safety net -------------------- */
+  /* This is a K-5 play surface, so phone-width is the *primary* target, not
+     an edge case -- these just tighten the same layout rather than
+     reflowing it, since the flex/percentage-based rules above already hold
+     up down to ~320px. Two adjustments: a two-up roster grid gets cramped
+     once each cell also has to fit a name plus a second icon button, and a
+     44px hero prompt can crowd a longer numberline prompt string. */
+  @media (max-width: 420px) {
+    .picker { grid-template-columns: 1fr; }
+    .prompt { font-size: var(--text-3xl); }
+  }
 </style>
 </head>
 <body>
