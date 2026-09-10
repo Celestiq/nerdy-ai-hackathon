@@ -22,9 +22,17 @@ export const fractionbarsItems: FractionbarsItem[] = [
   { item_id: "itm_fb_1_4v1_6", concept_id: "F.MAG.CMP", difficulty: 0.5, a: { numerator: 1, denominator: 4 }, b: { numerator: 1, denominator: 6 }, correct: "a" },
   { item_id: "itm_fb_3_4v2_3", concept_id: "F.MAG.CMP", difficulty: 0.55, a: { numerator: 3, denominator: 4 }, b: { numerator: 2, denominator: 3 }, correct: "a" },
   { item_id: "itm_fb_2_5v1_2", concept_id: "F.MAG.CMP", difficulty: 0.45, a: { numerator: 2, denominator: 5 }, b: { numerator: 1, denominator: 2 }, correct: "b" },
-  { item_id: "itm_fb_2_4v1_2", concept_id: "F.EQV", difficulty: 0.3, a: { numerator: 2, denominator: 4 }, b: { numerator: 1, denominator: 2 }, correct: "a" },
-  { item_id: "itm_fb_3_6v2_3", concept_id: "F.EQV", difficulty: 0.6, a: { numerator: 3, denominator: 6 }, b: { numerator: 2, denominator: 3 }, correct: "b" },
 ];
+
+// F.EQV ("equivalent fractions") used to have two items here
+// (itm_fb_2_4v1_2, itm_fb_3_6v2_3) -- both deleted, not fixed. renderCompare
+// only asks "which is bigger", so any pair that's genuinely equivalent (as
+// F.EQV requires) has no correct bigger/smaller answer under this mechanic;
+// itm_fb_2_4v1_2 was exactly that (2/4 == 1/2) and had been live-served with
+// a false answer key. itm_fb_3_6v2_3 was a valid magnitude comparison but
+// mis-filed under F.EQV rather than F.MAG.CMP. F.EQV's declared task type
+// was also removed from fractionbarsManifest below -- see balancescale.ts
+// for the game actually built for equivalence judgements.
 
 export { decimalOf };
 

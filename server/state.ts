@@ -17,15 +17,16 @@ export const graph = ConceptGraph.load();
 
 export const registry = new GameRegistry();
 registry.register(numberlineManifest);
-// Registered before fractionbarsManifest -- load-bearing order, not
-// incidental. registry.matchConcepts() picks games[0] on a solo-concept
-// tie (see src/engine/assemble.ts), and F.EQV is the only concept both
-// manifests capability-match today (BALANCE_SCALE+EQUIVALENCE vs.
-// AREA_MODEL+EQUIVALENCE). Registering Balance Scale first makes it the
-// sole winner for F.EQV specifically, without affecting any other concept
-// fractionbars/numberline already serve (Balance Scale capability-matches
-// nothing else). See BACKLOG.md's "Balance Scale" item for the full
-// reachability-trap analysis this order avoids.
+// Registered before fractionbarsManifest. This used to be load-bearing:
+// registry.matchConcepts() picks games[0] on a solo-concept tie (see
+// src/engine/assemble.ts), and F.EQV was briefly a concept both manifests
+// capability-matched (BALANCE_SCALE+EQUIVALENCE vs. AREA_MODEL+EQUIVALENCE).
+// fractionbars' two F.EQV items were deleted for a wrong answer key /
+// concept mismatch (see src/games/fractionbars/items.ts) and its manifest
+// no longer declares "EQUIVALENCE" at all, so it no longer capability-
+// matches F.EQV -- the tie this order broke doesn't exist any more. Order
+// kept as-is (harmless, and Balance Scale capability-matches nothing else)
+// rather than reshuffled for no functional reason.
 registry.register(balancescaleManifest);
 registry.register(fractionbarsManifest);
 

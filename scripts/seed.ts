@@ -180,6 +180,68 @@ yesterday.setUTCDate(yesterday.getUTCDate() - 1);
 const masteryResult = store.ingest(masteryBootstrapSession(devon, yesterday.toISOString()));
 console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryResult);
 
+// Hand-authored bootstrap unblocking F.EQV/balancescale.compare.v1's live
+// reachability (BACKLOG.md "Balance Scale" item, part a): F.EQV hard-requires
+// F.MAG.NONUNIT >= 0.85 p_mastery (strand-magnitude-fractions.json), and no
+// seeded student naturally crosses that gate -- stu_priya (competent
+// profile) is closest, at a stochastic p_mastery 0.798 / p_decayed 0.671
+// after the base cohort simulation above. Same discipline as
+// masteryBootstrapSession: real, already-authored F.MAG.NONUNIT items (only
+// two exist today, src/games/numberline/items.ts), verdict "correct"
+// responses placed exactly at each item's target, decoupled from
+// cohortRunner's stochastic timing. Note the hard-prerequisite gate itself
+// (src/engine/constraints.ts, src/graph/query.ts's frontier()) reads
+// p_mastery only, never p_decayed -- but this bundle is sized to clear both
+// comfortably, since p_decayed also drives this concept's own displayed
+// status (EMERGING/MASTERED) on the tutor/child surfaces.
+//
+// Sizing, verified empirically against this script's own printed belief
+// snapshot below (not assumed): stu_priya already carries 4 real
+// observations toward F.MAG.NONUNIT from the base simulation. Repeating the
+// 2 real items as 8 full passes (16 additional correct observations) lands
+// at p_mastery 0.940 / p_decayed 0.929 -- both comfortably clear of the 0.85
+// gate (a smaller 2-pass bundle only reaches 0.873/0.864, too thin a margin
+// to survive any future retuning of the decay/confidence constants, per the
+// exact regression class BACKLOG.md's Cycle 9 hit).
+function fmagNonunitBootstrapSession(studentId: string, startedAt: string): EvidenceBundle {
+  const t0 = new Date(startedAt).getTime();
+  // Real F.MAG.NONUNIT items from src/games/numberline/items.ts, confirmed
+  // by reading that file directly (item_id, difficulty, target copied
+  // verbatim -- not fabricated).
+  const items: Array<{ item_id: string; difficulty: number; target: number }> = [
+    { item_id: "itm_fn_3_4", difficulty: 0.45, target: 0.75 },
+    { item_id: "itm_fn_2_5", difficulty: 0.5, target: 0.4 },
+  ];
+  const mk = (item: (typeof items)[number], offsetMs: number) =>
+    buildObservation({
+      item_id: item.item_id,
+      concept_id: "F.MAG.NONUNIT",
+      difficulty: item.difficulty,
+      response: { kind: "position", value: item.target, target: item.target },
+      verdict: "correct",
+      signature: "UNCLASSIFIED",
+      signature_confidence: 0.95,
+      startedAtMs: t0 + offsetMs,
+      endedAtMs: t0 + offsetMs + 3000,
+      attempts: 1,
+    });
+  const PASSES = 8;
+  const rounds = Array.from({ length: PASSES }, () => items).flat();
+
+  return {
+    session_id: `ses_seed_fmagnonunit_${studentId}`,
+    student_id: studentId,
+    assignment_id: `asg_seed_fmagnonunit_${studentId}`,
+    game_id: "numberline.place.v2",
+    started_at: startedAt,
+    ended_at: new Date(t0 + rounds.length * 4000).toISOString(),
+    observations: rounds.map((item, i) => mk(item, i * 4000)),
+    engagement: { completed: true, abandoned_at: null, idle_ms: 0 },
+  };
+}
+const fmagResult = store.ingest(fmagNonunitBootstrapSession(priya, yesterday.toISOString()));
+console.log(`  seeded F.MAG.NONUNIT mastery-bootstrap session for ${priya}:`, fmagResult);
+
 console.log("\nDone. Belief snapshots:");
 let sawMastered = false;
 for (const id of directory.map((d) => d.student_id)) {

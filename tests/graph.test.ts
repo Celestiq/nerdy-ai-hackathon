@@ -5,6 +5,7 @@ import { frontier, blame, path, coverage, matchesCapability, type BeliefLookup }
 import type { ConceptGraphData } from "../src/graph/types.js";
 import { numberlineItems } from "../src/games/numberline/items.js";
 import { fractionbarsItems, partitionItems } from "../src/games/fractionbars/items.js";
+import { balancescaleItems } from "../src/games/balancescale/items.js";
 
 const graph = ConceptGraph.load();
 
@@ -127,15 +128,20 @@ describe("path()", () => {
 
 describe("item coverage", () => {
   it("every 'authored' concept has at least one item in a real item bank", () => {
-    // The three exported item-bank arrays in the repo today -- if a fourth
+    // The four exported item-bank arrays in the repo today -- if a fifth
     // game bank is ever added, it must be added to this list too, or this
     // test silently stops catching the "metadata claims coverage that
     // doesn't exist" bug class (the exact bug D.NOTATE, then N.PLACE/
-    // N.PLACE.HTH, both had for several cycles before being authored).
+    // N.PLACE.HTH, both had for several cycles before being authored --
+    // and, in reverse, the bug this list itself had for F.EQV until
+    // balancescaleItems was added here: F.EQV's real coverage moved
+    // entirely to Balance Scale once fractionbars' two defective F.EQV
+    // items were deleted, see src/games/fractionbars/items.ts).
     const allItemConceptIds = new Set<string>([
       ...numberlineItems.map((i) => i.concept_id),
       ...fractionbarsItems.map((i) => i.concept_id),
       ...partitionItems.map((i) => i.concept_id),
+      ...balancescaleItems.map((i) => i.concept_id),
     ]);
     const authoredNodes = graph.data.nodes.filter((n) => n.status === "authored");
     expect(authoredNodes.length).toBeGreaterThan(0);
