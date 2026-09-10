@@ -90,6 +90,17 @@ const sessionsByStudent = new Map(); // student_id -> summaries[] | "loading"
 const sessionDetailById = new Map(); // session_id -> detail | "loading"
 let openSessionId = null;
 
+// "Why this next" -- the engine's decision_log (see selectNext() in
+// src/engine/engine.ts), fetched live per-student on demand, same caching
+// shape as sessionsByStudent above. GET /api/assignment/:studentId is a
+// side-effect-free read of current belief state; it does not consume or
+// advance the assignment itself, but it does bump the server's in-memory
+// sessionCounter (used only to vary assignment_id/seed), same as any other
+// dashboard poll would. Collapsed by default -- this is supplementary
+// diagnostic detail, not the primary thing a tutor scans.
+const assignmentByStudent = new Map(); // student_id -> SelectionOutput | "loading"
+let whyOpen = false;
+
 function setTab(tab) {
   activeTab = tab;
   needsPage = 0;
@@ -100,7 +111,9 @@ function setStudent(id) {
   selectedStudentId = selectedStudentId === id ? null : id;
   needsPage = 0;
   openSessionId = null;
+  whyOpen = false;
   if (activeTab === "history") loadSessionsFor(selectedStudentId);
+  if (selectedStudentId) loadAssignmentFor(selectedStudentId);
   render();
 }
 function setStrand(strand) {
@@ -113,6 +126,19 @@ function loadSessionsFor(studentId) {
   sessionsByStudent.set(studentId, "loading");
   api(`/sessions/${studentId}`).then((sessions) => {
     sessionsByStudent.set(studentId, sessions);
+    render();
+  });
+}
+
+// force=true bypasses the cache (used by the panel's manual refresh, since
+// the underlying belief state can move between when a tutor opens the
+// panel and when they check it again).
+function loadAssignmentFor(studentId, force = false) {
+  if (!studentId) return;
+  if (!force && assignmentByStudent.has(studentId)) return;
+  assignmentByStudent.set(studentId, "loading");
+  api(`/assignment/${studentId}`).then((result) => {
+    assignmentByStudent.set(studentId, result);
     render();
   });
 }
@@ -172,6 +198,7 @@ function render() {
   if (activeTab === "overview") {
     panel.appendChild(needsHumanBlock());
     if (report.opening_move) panel.appendChild(openingMoveBlock());
+    if (selectedStudentId) panel.appendChild(whyNextBlock());
   } else if (activeTab === "history") {
     panel.appendChild(historyBlock());
   } else if (activeTab === "patterns") {
@@ -380,6 +407,134 @@ function openingMoveBlock() {
       el("p", {}, report.opening_move.text),
     ]),
   ]);
+}
+
+// -------------------- overview: "why this next" (glass-box routing trace) --------------------
+// Renders selectNext()'s decision_log (src/engine/engine.ts) -- the
+// auditable, per-concept record of every candidate the engine considered
+// for this student's *next* assignment, and why it was included or
+// excluded. Teacher-facing only: a K-5 child never sees scores or routing
+// internals (see CLAUDE.md/SWARM.md's no-score rule), which is why this
+// lives in public/tutor and has no counterpart in public/child.
+
+// Lightly cleans up the engine's own reason strings for a non-engineer
+// reader without inventing new reasons or changing what they mean -- the
+// exact original string is always shown underneath as well, so nothing the
+// engine actually said is hidden.
+function humanizeReason(reason) {
+  if (reason.includes("wheel-spin relaxed")) {
+    return "Re-served anyway: every other option was blocked this round, so this concept's \"stuck\" block was relaxed rather than leaving the child with nothing to do.";
+  }
+  const wheelBlock = reason.match(/^wheel-spin block: attempts_without_mastery=(\d+) >= (\d+)/);
+  if (wheelBlock) {
+    return `Blocked: ${wheelBlock[1]} sessions in a row without mastering this (wheel-spin guard, limit ${wheelBlock[2]}) -- flagged as "needs a human" instead of kept in rotation.`;
+  }
+  const prereq = reason.match(/^prerequisite gate: unmet hard prerequisite\(s\) (.+)/);
+  if (prereq) return `Blocked: prerequisite concept(s) not yet mastered -- ${prereq[1]}.`;
+  const variety = reason.match(/^variety: outside top (\d+) concepts/);
+  if (variety) return `Not chosen this round: kept out to keep the session focused on the top ${variety[1]} concepts.`;
+  if (reason === "selected: top of frontier/uncertainty/retrieval/blame score") {
+    return "Selected: currently the highest-priority concept (combines how ready/central it is, how uncertain we are, retrieval timing, and misconception evidence).";
+  }
+  if (reason === "cold start: root concept, first session") return "Selected: first-ever session, so we start at a foundational concept.";
+  if (reason === "matched game did not cover this concept") return "Not chosen: the game selected for this session doesn't cover this concept.";
+  if (reason === "excluded by hard constraints") return "Blocked by a hard constraint.";
+  if (reason.startsWith("no registered game covers this concept")) return "Not chosen: no registered game currently assesses this concept.";
+  return reason;
+}
+
+function decisionRow(entry, conceptById) {
+  const label = conceptById[entry.concept_id]?.label ?? entry.concept_id;
+  const isRelaxed = entry.reason.includes("wheel-spin relaxed");
+  const isWheelBlock = entry.reason.includes("wheel-spin block");
+  const classes = ["decision-row", entry.included ? "decision-row--included" : "decision-row--excluded"];
+  if (isRelaxed) classes.push("decision-row--relaxed");
+  else if (isWheelBlock) classes.push("decision-row--wheelblock");
+
+  return el("div", { class: classes.join(" ") }, [
+    el("div", { class: "decision-top" }, [
+      el("div", { class: "decision-left" }, [
+        el("span", { class: "mono-chip" }, label),
+        isRelaxed ? el("span", { class: "chip chip--stuck" }, [icon("alert", "icon icon-sm"), "re-served (relaxed)"]) : null,
+        isWheelBlock && !isRelaxed ? el("span", { class: "chip chip--stuck" }, [icon("alert", "icon icon-sm"), "wheel-spin block"]) : null,
+      ]),
+      el("div", { class: "decision-right" }, [
+        el("span", { class: "decision-score" }, `score ${entry.score.toFixed(2)}`),
+        el("span", { class: "chip " + (entry.included ? "chip--mastered" : "chip--neutral") }, [
+          icon(entry.included ? "check" : "cross", "icon icon-sm"),
+          entry.included ? "Included" : "Excluded",
+        ]),
+      ]),
+    ]),
+    el("div", { class: "decision-reason" }, humanizeReason(entry.reason)),
+    el("div", { class: "decision-reason-raw" }, entry.reason),
+  ]);
+}
+
+function whyNextBlock() {
+  const { directory, conceptById } = cache;
+  const student = directory.find((d) => d.student_id === selectedStudentId);
+  const data = assignmentByStudent.get(selectedStudentId);
+
+  const header = el(
+    "button",
+    { class: "why-toggle", onclick: () => { whyOpen = !whyOpen; render(); } },
+    [
+      el("span", { class: "why-chevron" + (whyOpen ? " open" : "") }, [icon("chevronDown")]),
+      el("span", { class: "icon-wrap gray" }, [icon("bulb")]),
+      el("span", { class: "sec-title" }, `Why this next${student ? ` — ${student.name}` : ""}`),
+      el("span", { class: "why-hint" }, "routing trace"),
+    ],
+  );
+  const block = el("div", { class: "card card-pad tv-section why-block" }, [header]);
+  if (!whyOpen) return block;
+
+  if (data === "loading" || data === undefined) {
+    block.appendChild(loadingRow("Computing the engine's next decision..."));
+    return block;
+  }
+
+  const body = el("div", { class: "why-body" });
+
+  const refreshRow = el("div", { class: "why-refresh-row" }, [
+    el("span", { class: "why-note" }, "A live, read-only snapshot of the routing engine's current decision for this child -- not a record of what was actually assigned."),
+    el("button", { class: "pill-link why-refresh", onclick: () => { loadAssignmentFor(selectedStudentId, true); render(); } }, "refresh"),
+  ]);
+  body.appendChild(refreshRow);
+
+  if (data.assignment) {
+    body.appendChild(el("div", { class: "why-note" }, `Next up: ${GAME_LABEL[data.assignment.game_id] ?? data.assignment.game_id}`));
+  } else if (data.reason) {
+    body.appendChild(el("div", { class: "why-note why-note-warn" }, `No assignment produced this round: ${data.reason}`));
+  }
+
+  const log = data.decisionLog ?? [];
+  if (log.length === 0) {
+    body.appendChild(el("div", { class: "empty" }, "No routing decision available right now."));
+  } else {
+    const included = log.filter((d) => d.included).sort((a, b) => b.score - a.score);
+    const excluded = log.filter((d) => !d.included).sort((a, b) => b.score - a.score);
+    if (included.length > 0) {
+      body.appendChild(el("div", { class: "why-group-label" }, "Included — what the child gets next"));
+      for (const d of included) body.appendChild(decisionRow(d, conceptById));
+    }
+    if (excluded.length > 0) {
+      body.appendChild(el("div", { class: "why-group-label" }, "Considered, not chosen"));
+      for (const d of excluded) body.appendChild(decisionRow(d, conceptById));
+    }
+  }
+
+  if (data.escalations && data.escalations.length > 0) {
+    body.appendChild(
+      el("div", { class: "why-note" }, [
+        "Currently flagged \"needs a human\": ",
+        data.escalations.map((cid) => conceptById[cid]?.label ?? cid).join(", "),
+      ]),
+    );
+  }
+
+  block.appendChild(body);
+  return block;
 }
 
 // -------------------- test history: every past test, drill into questions --------------------

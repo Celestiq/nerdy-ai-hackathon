@@ -207,6 +207,38 @@
   .q-insight-text { font-size: 12.5px; line-height: 1.5; color: var(--ink); }
   .q-blame { margin-top: 6px; font-size: 12px; color: var(--soft); }
 
+  /* "why this next" -- collapsed-by-default glass-box routing trace panel.
+     Secondary/diagnostic, so it sits visually quieter than the primary
+     overview cards above it: no icon-wrap background tint on the toggle
+     itself, and it stays collapsed until a tutor opts in. */
+  .why-block { cursor: default; }
+  .why-toggle {
+    width: 100%; display: flex; align-items: center; gap: var(--sp-3);
+    background: none; border: none; padding: 0; margin: 0; font-family: inherit; text-align: left; cursor: pointer;
+  }
+  .why-chevron { width: 15px; height: 15px; color: var(--faint); flex-shrink: 0; transition: transform var(--dur-fast) var(--ease-standard); }
+  .why-chevron .icon { width: 15px; height: 15px; }
+  .why-chevron.open { transform: rotate(180deg); color: var(--brand); }
+  .why-hint { margin-left: auto; font-size: var(--text-2xs); color: var(--faint); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .why-body { margin-top: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); animation: fade-up var(--dur-base) var(--ease-out); }
+  .why-refresh-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
+  .why-refresh { padding: 4px 12px; font-size: var(--text-2xs); }
+  .why-note { font-size: var(--text-sm); color: var(--soft); line-height: var(--lh-normal); }
+  .why-note-warn { color: var(--status-stuck); }
+  .why-group-label { font-size: var(--text-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: var(--sp-2) 0 var(--sp-1); }
+
+  .decision-row { border: 1px solid var(--rule); border-left-width: 3px; border-radius: var(--r-md); padding: var(--sp-3); margin-bottom: var(--sp-2); background: var(--panel-sunk); }
+  .decision-row:last-child { margin-bottom: 0; }
+  .decision-row--included { border-left-color: var(--status-mastered); }
+  .decision-row--excluded { border-left-color: var(--rule); opacity: 0.82; }
+  .decision-row--relaxed { border-left-color: var(--status-stuck); background: var(--status-stuck-bg); opacity: 1; }
+  .decision-row--wheelblock { border-left-color: var(--status-stuck); }
+  .decision-top { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-2); flex-wrap: wrap; }
+  .decision-left, .decision-right { display: flex; align-items: center; gap: var(--sp-2); flex-wrap: wrap; }
+  .decision-score { font-family: var(--mono); font-size: var(--text-2xs); color: var(--soft); white-space: nowrap; }
+  .decision-reason { font-size: var(--text-sm); color: var(--ink); margin-top: var(--sp-2); line-height: var(--lh-snug); }
+  .decision-reason-raw { font-family: var(--mono); font-size: var(--text-2xs); color: var(--faint); margin-top: 4px; }
+
   /* -------------------- small-screen safety net -------------------- */
   /* A teacher scanning data is the primary case (desktop/tablet), but
      nothing here should become unreadable on a phone browser either.
