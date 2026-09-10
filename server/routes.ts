@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { graph, registry, itemBank, store, anchors, directory, cohortMembers, studentName } from "./state.js";
 import { selectNext } from "../src/engine/engine.js";
-import { blame } from "../src/graph/query.js";
+import { blame, type BlameSuspect } from "../src/graph/query.js";
 import { buildTutorReport, type CohortMember } from "../src/analytics/index.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { BeliefState, SignatureRecord as ContractSignatureRecord, Observation } from "../src/contracts/schemas.js";
@@ -165,6 +165,21 @@ api.post("/evidence", (req, res) => {
   res.json({ ...result, newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter) });
 });
 
+// A concept the student has already MASTERED can't be the live root cause
+// of a current miss -- surfacing it as a blamed suspect would send the
+// tutor to remediate something already learned (see BACKLOG.md's F.EQV/
+// F.MAG.NONUNIT contradiction: F.MAG.NONUNIT>=0.85 MASTERED is F.EQV's own
+// hard prerequisite gate, so the one student who can reach a F.EQV game has
+// necessarily already mastered the only concept LANDMARK_ONLY blames it on).
+// Filtering here, against the belief map both call sites already have in
+// scope, keeps blame() itself concept/student-agnostic (src/graph/query.ts
+// has no belief data to filter with, and shouldn't grow any). An empty
+// result after filtering is left as-is -- honest "no confident suspect
+// currently identified" beats inventing a replacement suspect.
+function excludeMasteredSuspects(suspects: BlameSuspect[], belief: Map<string, BeliefInternal>): BlameSuspect[] {
+  return suspects.filter((s) => belief.get(s.concept_id)?.status !== "MASTERED");
+}
+
 function enrichBelief(studentId: string): BeliefState[] {
   const belief = store.belief(studentId);
   const out: BeliefState[] = [];
@@ -172,7 +187,7 @@ function enrichBelief(studentId: string): BeliefState[] {
     const signatures: ContractSignatureRecord[] = b.signatures.map((s) => ({
       ...s,
       code: s.code as SignatureCode,
-      blames: blame(graph, b.concept_id, s.code).map((suspect) => suspect.concept_id),
+      blames: excludeMasteredSuspects(blame(graph, b.concept_id, s.code), belief).map((suspect) => suspect.concept_id),
     }));
     out.push({ ...b, signatures });
   }
@@ -195,7 +210,8 @@ const SIGNATURE_MEANINGS: Record<SignatureCode, string> = {
     "Treats the line as if equal ratios (not equal amounts) get equal space, so larger numbers get squeezed too close to the low end instead of spread out to their true position.",
   LONGER_IS_LARGER:
     "Judges a decimal's size by how many digits it has (e.g. thinks 0.125 is bigger than 0.7 because \"125\" looks bigger than \"7\").",
-  LANDMARK_ONLY: "Anchors the placement to the nearest landmark (0, the middle, the end) instead of reasoning about the exact magnitude.",
+  LANDMARK_ONLY:
+    "Judges by a surface cue -- how close a mark looks to a landmark (0, the middle, the end), or how different two numbers look -- instead of working out the actual magnitude each represents.",
   RANGE_COMPRESSION: "Squeezes placements toward the middle of the range instead of using the full scale.",
   DENOMINATOR_BIAS: "Compares fractions by denominator alone (bigger denominator = bigger fraction), ignoring the numerator.",
   UNCLASSIFIED: "No specific misconception pattern was detected in this response.",
@@ -285,9 +301,13 @@ api.get("/sessions/:studentId/:sessionId", (req, res) => {
   const bundle = store.bundlesFor(req.params.studentId).find((b) => b.session_id === req.params.sessionId);
   if (!bundle) return res.status(404).json({ error: "unknown session" });
 
+  const belief = store.belief(req.params.studentId);
   const observations = bundle.observations.map((o) => {
     const { prompt_label, student_answer_label, correct_answer_label } = describeResponse(bundle.game_id, o);
-    const suspects = o.verdict === "incorrect" && o.signature !== "UNCLASSIFIED" ? blame(graph, o.concept_id, o.signature) : [];
+    const suspects =
+      o.verdict === "incorrect" && o.signature !== "UNCLASSIFIED"
+        ? excludeMasteredSuspects(blame(graph, o.concept_id, o.signature), belief)
+        : [];
     return {
       item_id: o.item_id,
       concept_id: o.concept_id,

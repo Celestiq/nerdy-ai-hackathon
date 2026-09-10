@@ -174,6 +174,105 @@ function wrongNumberlineObservation(): Observation {
   });
 }
 
+// BACKLOG.md gap: blame() traces F.EQV's LANDMARK_ONLY misses to
+// F.MAG.NONUNIT (the only wired explains edge for F.EQV) -- but
+// F.MAG.NONUNIT>=0.85 MASTERED is F.EQV's own hard prerequisite gate, so
+// the one student who can even reach a F.EQV/balancescale item has
+// necessarily already mastered the concept blame() would name as the root
+// cause. Both /api/belief and /api/sessions/:id/:sessionId now filter
+// blame()'s suspects against the student's own belief map, dropping any
+// suspect already MASTERED for that student -- confirmed here against the
+// real graph/store pipeline (not mocked), for both routes.
+describe("blame() suspects exclude concepts the student has already MASTERED", () => {
+  function masteredFmagNonunitObservation(i: number): Observation {
+    return buildObservation({
+      item_id: `itm_test_fmagnonunit_${i}`,
+      concept_id: "F.MAG.NONUNIT",
+      difficulty: 0.5,
+      response: { kind: "position", value: 0.5, target: 0.5 },
+      verdict: "correct",
+      signature: "UNCLASSIFIED",
+      signature_confidence: 0,
+      startedAtMs: i * 1000,
+      endedAtMs: i * 1000 + 2000,
+      attempts: 1,
+    });
+  }
+
+  function wrongBalanceScaleObservation(): Observation {
+    // itm_bs_1_2v2_4: 1/2 vs 2/4, genuinely equal (correct: "balances").
+    // Calling it "doesnt_balance" is the LANDMARK_ONLY direction (see
+    // src/games/balancescale/classify.ts).
+    return buildObservation({
+      item_id: "itm_bs_1_2v2_4",
+      concept_id: "F.EQV",
+      difficulty: 0.3,
+      response: { kind: "choice", value: "doesnt_balance", target: "balances" },
+      verdict: "incorrect",
+      signature: "LANDMARK_ONLY",
+      signature_confidence: 0.7,
+      startedAtMs: 0,
+      endedAtMs: 3000,
+      attempts: 1,
+    });
+  }
+
+  it("drops F.MAG.NONUNIT from blamed_concepts once the student has MASTERED it, though the raw graph edge still names it", async () => {
+    const studentId = `stu_${rand()}`;
+    const now = new Date().toISOString(); // avoid decay -- see the newlyMastered test's own note on this
+
+    // 7 correct F.MAG.NONUNIT observations at difficulty 0.5 (weight 0.75
+    // each): alpha = 1 + 7*0.75 = 6.25, beta = 1, p_mastery = 6.25/7.25 ~=
+    // 0.862 -- crosses the 0.85 mastery_threshold.
+    await postEvidence(
+      evidenceBundle({
+        student_id: studentId,
+        session_id: `ses_${rand()}_fmagnonunit`,
+        started_at: now,
+        ended_at: now,
+        game_id: "numberline.place.v2",
+        observations: Array.from({ length: 7 }, (_, i) => masteredFmagNonunitObservation(i)),
+      }),
+    );
+    const beliefAfterBootstrap = await fetch(`${baseUrl}/belief/${studentId}`);
+    const beliefList = (await beliefAfterBootstrap.json()) as { concept_id: string; status: string }[];
+    expect(beliefList.find((b) => b.concept_id === "F.MAG.NONUNIT")?.status).toBe("MASTERED"); // sanity
+
+    // Sanity: the raw graph edge really does blame F.MAG.NONUNIT for F.EQV's
+    // LANDMARK_ONLY -- otherwise this test would pass vacuously.
+    const rawBlame = blame(graph, "F.EQV", "LANDMARK_ONLY");
+    expect(rawBlame.map((s) => s.concept_id)).toContain("F.MAG.NONUNIT");
+
+    const sessionId = `ses_${rand()}_eqv`;
+    await postEvidence(
+      evidenceBundle({
+        student_id: studentId,
+        session_id: sessionId,
+        started_at: now,
+        ended_at: now,
+        game_id: "balancescale.compare.v1",
+        observations: [wrongBalanceScaleObservation()],
+      }),
+    );
+
+    const detailRes = await fetch(`${baseUrl}/sessions/${studentId}/${sessionId}`);
+    const detail = (await detailRes.json()) as SessionDetail;
+    const [observation] = detail.observations;
+    expect(observation.signature).toBe("LANDMARK_ONLY");
+    expect(observation.blamed_concepts.map((b) => b.concept_id)).not.toContain("F.MAG.NONUNIT");
+    expect(observation.blamed_concepts).toEqual([]); // F.MAG.NONUNIT was the only wired suspect
+
+    // /api/belief's own blame composition (enrichBelief) must be filtered
+    // the same way, for F.EQV's own LANDMARK_ONLY signature record.
+    const beliefFinalRes = await fetch(`${baseUrl}/belief/${studentId}`);
+    const beliefFinal = (await beliefFinalRes.json()) as { concept_id: string; signatures: { code: string; blames: string[] }[] }[];
+    const eqv = beliefFinal.find((b) => b.concept_id === "F.EQV");
+    const landmarkSig = eqv?.signatures.find((s) => s.code === "LANDMARK_ONLY");
+    expect(landmarkSig).toBeDefined();
+    expect(landmarkSig!.blames).not.toContain("F.MAG.NONUNIT");
+  });
+});
+
 describe("GET /api/sessions/:studentId", () => {
   it("returns an empty list for a student with no evidence, rather than 404ing", async () => {
     const res = await fetch(`${baseUrl}/sessions/stu_unknown_${rand()}`);

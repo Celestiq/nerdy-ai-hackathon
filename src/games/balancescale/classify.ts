@@ -21,15 +21,23 @@ export interface ClassifyResult {
  * "WHOLE_NUMBER_BIAS")` returns `[]`) -- reusing them here would have been
  * a dead-end signature the tutor-facing suspects list could never surface.
  *
- * The only signature wired to F.EQV is `LANDMARK_ONLY -> F.MAG.NONUNIT`.
- * Both wrong-answer directions on this task -- claiming a genuinely-equal
- * pair "doesn't balance", or claiming a genuinely-unequal pair "balances"
- * -- are the same underlying misconception surface: judging the pans by a
- * surface landmark cue (how the numbers look, e.g. "different numerator
- * and denominator so it must be different") rather than actually
- * evaluating each fraction's magnitude and comparing those. That's exactly
- * what LANDMARK_ONLY names, so both directions emit it rather than one of
- * them getting an invented, unwired code.
+ * The only signature wired to F.EQV is `LANDMARK_ONLY -> F.MAG.NONUNIT`, and
+ * the two wrong-answer directions on this task are NOT the same
+ * misconception, so they don't both get it:
+ *
+ * - Calling a genuinely-EQUAL pair "doesn't balance" fits LANDMARK_ONLY: the
+ *   child is anchoring to a surface cue (the numerator/denominator digits
+ *   look different, e.g. 1/2 vs 2/4) instead of computing each fraction's
+ *   actual magnitude -- exactly what LANDMARK_ONLY names, and the direction
+ *   this codebase's one wired `explains` edge was authored for.
+ * - Calling a genuinely-UNEQUAL pair "balances" is a different error shape:
+ *   under-attending to a real magnitude difference, not over-attending to a
+ *   surface cue. Nothing in this codebase's signature set names that shape
+ *   yet, so forcing LANDMARK_ONLY onto it would misdiagnose the child (and,
+ *   via blame(), point the tutor at the wrong remediation). This emits
+ *   UNCLASSIFIED@0 instead -- the same "no confident signature" discipline
+ *   classifyPartition uses in fractionbars/classify.ts for genuinely
+ *   ambiguous wrong answers -- rather than inventing an unwired code.
  */
 export function classifyTip(item: BalanceScaleItem, choice: "balances" | "doesnt_balance"): ClassifyResult {
   const trulyBalances = item.left.numerator * item.right.denominator === item.right.numerator * item.left.denominator;
@@ -38,5 +46,12 @@ export function classifyTip(item: BalanceScaleItem, choice: "balances" | "doesnt
   if (choice === correctChoice) {
     return { verdict: "correct", signature: "UNCLASSIFIED", signature_confidence: 0 };
   }
-  return { verdict: "incorrect", signature: "LANDMARK_ONLY", signature_confidence: 0.7 };
+
+  // Truly equal, called "doesn't balance": over-attending to a surface cue.
+  if (trulyBalances) {
+    return { verdict: "incorrect", signature: "LANDMARK_ONLY", signature_confidence: 0.7 };
+  }
+  // Truly unequal, called "balances": under-attending to a real magnitude
+  // difference -- a different, currently-unwired error shape.
+  return { verdict: "incorrect", signature: "UNCLASSIFIED", signature_confidence: 0 };
 }
