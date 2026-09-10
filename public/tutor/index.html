@@ -5,15 +5,88 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tutor view</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,450;9..144,550;9..144,600;9..144,700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../shared/styles.css">
 <style>
-  body { padding-bottom: 40px; }
-  .wrap { max-width: 1120px; margin: 0 auto; padding: var(--sp-8) var(--sp-7) var(--sp-9); }
+  /* ------------------------------------------------------------------ */
+  /* Grey-brown glass retheme -- tutor surface only. Every value below     */
+  /* re-declares a token shared/styles.css already defines; because this  */
+  /* <style> tag is parsed after that stylesheet <link>, these rules win  */
+  /* the cascade tie (equal specificity, later source order) without      */
+  /* editing the shared file -- public/child is untouched. Component      */
+  /* rules further down (.card, .chip, .stack-meter, ...) all read from   */
+  /* these same custom properties, so retheming here recolors the whole   */
+  /* dashboard; only shape/layout additions need new rules below.         */
+  /* This surface intentionally does NOT follow prefers-color-scheme: a   */
+  /* data-dense scanning dashboard reads better on one deliberate light   */
+  /* grey-brown ground than an auto dark mode would, so there is no dark  */
+  /* variant here (unlike an earlier pass of this file). */
+  :root {
+    --paper: #E7E1D6;
+    --panel: rgba(251, 249, 244, 0.58);
+    --panel-sunk: rgba(251, 249, 244, 0.36);
+    --ink: #2E2A22;
+    --soft: #6E6759;
+    --faint: #99907F;
+    --rule: rgba(53, 45, 32, 0.14);
+    --rule-lite: rgba(53, 45, 32, 0.08);
+    --glass-edge: rgba(255, 255, 255, 0.55);
 
-  .tv-header { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-7); }
-  .tv-header h1 { font-size: var(--text-2xl); font-weight: var(--fw-bold); margin: 0; letter-spacing: -0.01em; }
-  .tv-meta { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); color: var(--soft); margin-top: 6px; }
+    --brand: #5E6E45;
+    --brand-ink: #3D4A2A;
+    --brand-bg: rgba(94, 110, 69, 0.16);
+
+    --live: #6B8F47;
+
+    --status-mastered: #2F6E57;
+    --status-mastered-bg: rgba(47, 110, 87, 0.15);
+    --status-emerging: #4A6C8C;
+    --status-emerging-bg: rgba(74, 108, 140, 0.14);
+    --status-weak: #A44725;
+    --status-weak-bg: rgba(164, 71, 37, 0.14);
+    --status-stuck: #8C5F0C;
+    --status-stuck-bg: rgba(140, 95, 12, 0.16);
+    --status-decayed: #71503C;
+    --status-decayed-bg: rgba(113, 80, 60, 0.14);
+    --status-unmeasured: #857A69;
+    --status-unmeasured-bg: rgba(133, 122, 105, 0.12);
+
+    --shadow-sm: 0 1px 2px rgba(43, 36, 24, 0.06);
+    --shadow-md: 0 10px 30px rgba(43, 36, 24, 0.12);
+    --shadow-lg: 0 22px 50px rgba(43, 36, 24, 0.20);
+    --shadow-focus: 0 0 0 3px var(--brand-bg);
+
+    --r-lg: 18px;
+    --r-xl: 26px;
+    --r-2xl: 32px;
+
+    --serif: "Fraunces", Georgia, serif;
+
+    /* glass depth ladder -- level 1 sits directly on the page background
+       (top-level cards/tiles), level 2 is nested one layer in (rows inside
+       a level-1 card), level 3 is small chips/pills nested further still.
+       Blur strength AND opacity both step down together so deeper layers
+       read as further back / more see-through, per placement. */
+    --glass-blur-1: blur(26px) saturate(170%);
+    --glass-blur-2: blur(14px) saturate(150%);
+    --glass-blur-3: blur(7px) saturate(135%);
+  }
+
+  html, body { height: 100%; }
+  body {
+    overflow: hidden;
+    background:
+      radial-gradient(1100px 620px at 6% -8%, rgba(94, 110, 69, 0.24), transparent 60%),
+      radial-gradient(900px 560px at 102% -4%, rgba(140, 95, 12, 0.17), transparent 55%),
+      radial-gradient(820px 520px at 32% 108%, rgba(113, 80, 60, 0.18), transparent 55%),
+      var(--paper);
+    background-attachment: fixed;
+  }
+  .wrap { height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; max-width: 1400px; margin: 0 auto; padding: var(--sp-5) var(--sp-7) var(--sp-6); }
+
+  .tv-header { flex: 0 0 auto; display: flex; align-items: flex-start; justify-content: space-between; gap: var(--sp-4); flex-wrap: wrap; margin-bottom: var(--sp-4); }
+  .tv-header h1 { font-family: var(--serif); font-size: 26px; font-weight: 600; margin: 0; letter-spacing: -0.01em; }
+  .tv-meta { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--text-sm); color: var(--soft); margin-top: 4px; }
   /* Calm, purposeful motion budget for this surface: the one continuously-
      running animation on the whole dashboard is this "data is live" dot --
      everything else here animates once, on a state change, then stops. */
@@ -24,41 +97,131 @@
     100% { box-shadow: 0 0 0 0 transparent; }
   }
 
-  .tv-section { margin-bottom: var(--sp-6); }
+  /* -------------------- single-screen dashboard shell -------------------- */
+  /* No page scroll: #app fills the remaining viewport height below the
+     header as a fixed two-column grid. Scrolling happens only inside
+     .tab-panel (the one region whose content length is unbounded -- a
+     long "needs extra support" list, a big routing trace, a large concept
+     map). Everything else (sidebar stats, roster strip) sizes to its own
+     content and never needs to scroll. */
+  .dashboard-shell { flex: 1; min-height: 0; display: grid; grid-template-columns: 232px 1fr; gap: var(--sp-5); }
+
+  .pulse-col { display: flex; flex-direction: column; gap: var(--sp-4); min-height: 0; }
+  .pulse-tile {
+    flex: 1; min-height: 0; background: var(--panel); border: 1px solid var(--glass-edge); border-radius: var(--r-2xl);
+    backdrop-filter: var(--glass-blur-1); -webkit-backdrop-filter: var(--glass-blur-1);
+    box-shadow: var(--shadow-sm); padding: 16px 18px; display: flex; align-items: center; justify-content: center; gap: 14px;
+    transition: box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    animation: fade-up var(--dur-base) var(--ease-out);
+  }
+  .pulse-tile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  .pulse-gauge { flex-direction: column; text-align: center; gap: 6px; }
+  .gauge-ring { position: relative; width: 104px; height: 104px; flex-shrink: 0; }
+  .gauge-ring svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .gauge-track { fill: none; stroke: var(--rule-lite); stroke-width: 10; }
+  .gauge-fill { fill: none; stroke: var(--brand); stroke-width: 10; stroke-linecap: round; transition: stroke-dashoffset var(--dur-slow) var(--ease-out); }
+  .gauge-center { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; }
+  .gauge-pct { font-family: var(--serif); font-size: 25px; font-weight: 600; color: var(--ink); }
+  .pulse-label { font-size: var(--text-xs); color: var(--soft); text-transform: uppercase; letter-spacing: .05em; display: flex; align-items: center; justify-content: center; gap: 5px; }
+  .pulse-label .icon { width: 12px; height: 12px; flex-shrink: 0; }
+  .pulse-stat .pulse-icon {
+    width: 40px; height: 40px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+    flex-shrink: 0; background: var(--rule-lite); color: var(--soft);
+  }
+  .pulse-stat.moss .pulse-icon { background: var(--brand-bg); color: var(--brand-ink); }
+  .pulse-stat.amber .pulse-icon { background: var(--status-stuck-bg); color: var(--status-stuck); }
+  .pulse-stat.purple .pulse-icon { background: var(--status-decayed-bg); color: var(--status-decayed); }
+  .pulse-stat .pulse-icon .icon { width: 19px; height: 19px; }
+  .pulse-stat .pulse-body { min-width: 0; }
+  .pulse-value { font-family: var(--serif); font-size: 24px; font-weight: 600; line-height: 1.1; color: var(--ink); }
+  .pulse-body .pulse-label { margin-top: 3px; justify-content: flex-start; }
+
+  .right-col { min-width: 0; display: flex; flex-direction: column; gap: var(--sp-4); min-height: 0; }
+  .tab-region { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .tab-region .tabbar { flex: 0 0 auto; }
+  /* The panel itself never scrolls -- only the one section per tab whose
+     content is unbounded does (see the .tv-fill note below it). If the
+     panel scrolled as a whole, a card's rounded top edge would travel
+     past the panel's own square clipping box and get flattened against
+     it mid-scroll; keeping each card's box fixed and scrolling its
+     content internally keeps every corner rounded no matter how far down
+     a tutor has scrolled. */
+  .tab-region .tab-panel { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: var(--sp-5); }
+  /* Sections default to sizing themselves to their own content and
+     staying put (e.g. "Needs extra support", capped at 5 rows by its own
+     pagination -- it should never need to scroll). Exactly one section
+     per tab-panel opts into filling the rest of the space and scrolling
+     internally by carrying .tv-fill too: the routing trace under Overview,
+     the full test history, the concept map, each Patterns column. */
+  .tab-panel > .tv-section { flex: 0 0 auto; min-height: 0; margin-bottom: 0; }
+  .tab-panel > .tv-fill { flex: 1 1 auto; min-height: 0; overflow-y: auto; padding-right: 2px; }
+  .roster-region { flex: 0 0 auto; }
+
+  .tv-section { margin-bottom: var(--sp-5); }
+  .tv-section:last-child { margin-bottom: 0; }
   .card-pad { padding: var(--sp-5) var(--sp-6) var(--sp-6); }
+  /* rounder, glassier card primitive than shared/styles.css's default --
+     tutor surface only (see the retheme note at the top of this block).
+     This is the "level 1" glass pane: it sits directly on the page
+     background, so it gets the strongest blur + highest opacity of the
+     three glass tiers. */
+  .card {
+    border-radius: var(--r-xl); border-color: var(--glass-edge);
+    backdrop-filter: var(--glass-blur-1); -webkit-backdrop-filter: var(--glass-blur-1);
+  }
 
   .sec-h { display: flex; align-items: center; gap: var(--sp-3); margin: 0 0 var(--sp-4); font-size: var(--text-base); font-weight: var(--fw-semibold); }
-  .sec-h .icon-wrap { width: 28px; height: 28px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+  .sec-h .icon-wrap { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .sec-h .icon-wrap.amber { background: var(--status-stuck-bg); color: var(--status-stuck); }
   .sec-h .icon-wrap.magenta { background: var(--status-weak-bg); color: var(--status-weak); }
   .sec-h .icon-wrap.purple { background: var(--status-decayed-bg); color: var(--status-decayed); }
-  .sec-h .icon-wrap.blue { background: var(--brand-bg); color: var(--brand); }
+  .sec-h .icon-wrap.blue { background: var(--brand-bg); color: var(--brand-ink); }
   .sec-h .icon-wrap.gray { background: var(--rule-lite); color: var(--soft); }
-  .sec-h .sec-title { flex: 1; }
+  .sec-h .sec-title { flex: 1; font-family: var(--serif); font-size: 17px; font-weight: 600; letter-spacing: -0.005em; }
   .badge { font-family: var(--mono); font-size: 11px; background: var(--rule-lite); color: var(--soft); padding: 2px 8px; border-radius: var(--r-pill); }
   .badge.amber { background: var(--status-stuck-bg); color: var(--status-stuck); }
+  /* "level 3" glass -- small chips/pills nested inside a level-1 or level-2
+     surface get the lightest blur of the three-tier ladder (see the
+     --glass-blur-* tokens above), so depth reads consistently everywhere
+     a tinted pill sits on top of a card. .chip and .pill-link are defined
+     in shared/styles.css; this tutor-scoped rule only adds the blur. */
+  .chip, .badge, .mono-chip, .pill-link {
+    backdrop-filter: var(--glass-blur-3); -webkit-backdrop-filter: var(--glass-blur-3);
+  }
 
   /* roster -- paginated, never horizontally scrolled */
   .roster-row { display: flex; align-items: center; gap: 8px; }
   .roster { display: flex; gap: 10px; flex: 1; min-width: 0; }
   .roster-card {
-    flex: 1 1 0; min-width: 0; cursor: pointer; padding: 12px 13px; display: flex; flex-direction: column; gap: 10px;
-    border-radius: var(--r-lg); border: 1.5px solid var(--rule); background: var(--panel);
+    flex: 1 1 0; min-width: 0; cursor: pointer; padding: 13px 14px; display: flex; flex-direction: column; gap: 11px;
+    border-radius: var(--r-xl); border: 1.5px solid var(--glass-edge); background: var(--panel);
+    backdrop-filter: var(--glass-blur-1); -webkit-backdrop-filter: var(--glass-blur-1);
     transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .roster-card:hover { border-color: var(--brand); box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .roster-card:active { transform: translateY(0) scale(0.98); }
   .roster-card.active { border-color: var(--brand); background: var(--brand-bg); animation: fade-in var(--dur-fast) var(--ease-standard); }
   .rc-top { display: flex; align-items: center; gap: 9px; }
-  .avatar.md { width: 32px; height: 32px; font-size: 13px; }
+  .avatar.md { width: 34px; height: 34px; font-size: 13px; box-shadow: 0 0 0 3px var(--panel); }
   .rc-name { font-size: 13.5px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .rc-flag { margin-left: auto; }
   .rc-count { font-size: 11px; font-family: var(--mono); color: var(--soft); }
-  .roster-card.all-card { flex: 0 0 100px; align-items: center; justify-content: center; text-align: center; color: var(--soft); font-size: 12.5px; font-weight: 600; gap: 6px; }
+  .roster-card.all-card { flex: 0 0 104px; align-items: center; justify-content: center; text-align: center; color: var(--soft); font-size: 12.5px; font-weight: 600; gap: 6px; }
   .roster-card.all-card.active { color: var(--brand-ink); }
   .roster-card.all-card .icon { width: 18px; height: 18px; }
+
+  /* segmented-tick illusion drawn over the shared .stack-meter (see
+     shared/styles.css) via a thin repeating overlay -- purely cosmetic,
+     doesn't touch the underlying markup or the child surface. */
+  .roster-card .stack-meter, .concept-tile .stack-meter { position: relative; height: 7px; border-radius: var(--r-pill); }
+  .roster-card .stack-meter::after, .concept-tile .stack-meter::after {
+    content: ""; position: absolute; inset: 0; pointer-events: none; border-radius: inherit;
+    background: repeating-linear-gradient(90deg, transparent 0 5px, rgba(255, 255, 255, 0.4) 5px 6px);
+    opacity: 0.6;
+  }
   .roster-arrow {
     width: 30px; height: 30px; border-radius: 50%; border: 1px solid var(--rule); background: var(--panel);
+    backdrop-filter: var(--glass-blur-3); -webkit-backdrop-filter: var(--glass-blur-3);
     display: flex; align-items: center; justify-content: center; color: var(--soft); flex-shrink: 0;
   }
   .roster-arrow .icon { width: 15px; height: 15px; }
@@ -67,7 +230,7 @@
   .roster-page-note { font-size: 11px; color: var(--faint); text-align: center; margin-top: 6px; }
 
   /* primary tabs */
-  .tabbar { display: flex; gap: 22px; border-bottom: 1.5px solid var(--rule); margin-bottom: 20px; }
+  .tabbar { display: flex; gap: 22px; border-bottom: 1.5px solid var(--rule); margin-bottom: 16px; flex-shrink: 0; }
   .tab-btn {
     appearance: none; border: none; background: none; padding: 11px 2px; font-family: var(--sans);
     font-size: 14px; font-weight: 600; color: var(--soft); cursor: pointer; position: relative;
@@ -87,6 +250,7 @@
   .subtabbar { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
   .subtab-btn {
     padding: 7px 15px; border-radius: var(--r-pill); border: 1.5px solid var(--rule); background: var(--panel);
+    backdrop-filter: var(--glass-blur-3); -webkit-backdrop-filter: var(--glass-blur-3);
     font-family: var(--sans); font-size: 12.5px; font-weight: 600; color: var(--soft); cursor: pointer;
     transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), background var(--dur-fast) var(--ease-standard);
   }
@@ -106,20 +270,23 @@
   .pager .pager-note { font-size: 12px; color: var(--soft); font-family: var(--mono); }
 
   /* needs attention */
-  .na-row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-bottom: 1px solid var(--rule-lite); }
-  .na-row:last-child { border-bottom: none; }
+  .na-row { display: flex; align-items: flex-start; gap: 13px; padding: 13px 10px; border-radius: var(--r-lg); margin: 0 -10px; transition: background var(--dur-fast) var(--ease-standard); }
+  .na-row + .na-row { border-top: 1px solid var(--rule-lite); }
+  .na-row:hover { background: var(--panel-sunk); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); }
   .na-body { flex: 1; min-width: 0; }
   .na-name { font-size: 14px; font-weight: 600; margin-bottom: 6px; }
   .na-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 
-  /* spotlight (opening move) */
-  .spotlight { display: flex; gap: 14px; align-items: flex-start; padding: 18px 20px; border: 1.5px solid var(--brand); background: linear-gradient(180deg, var(--brand-bg) 0%, var(--panel) 65%); }
-  .spotlight .icon-wrap { width: 34px; height: 34px; border-radius: var(--r-md); background: var(--panel); display: flex; align-items: center; justify-content: center; box-shadow: var(--shadow-sm); color: var(--brand); flex-shrink: 0; }
-  .spotlight .body h2 { margin: 0 0 4px; font-size: 14.5px; }
-  .spotlight .body p { margin: 0; font-size: 14.5px; line-height: 1.55; color: var(--ink); }
-
-  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  @media (max-width: 820px) { .grid-2 { grid-template-columns: 1fr; } }
+  /* Patterns tab: two cards side by side, often of unequal content length
+     (a short cluster list next to a long retention list). Each one scrolls
+     independently (via .grid-2 > .card below) rather than sharing one
+     scroll with the other column -- otherwise the shorter column would
+     look broken, stranded at the top with dead space while the other
+     column scrolls past it. .grid-2 itself carries .tv-fill (see above)
+     so it fills the tab-panel the same way every other tab's content does. */
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; grid-template-rows: 1fr; gap: 16px; }
+  .grid-2 > .card { min-height: 0; overflow-y: auto; }
+  @media (max-width: 820px) { .grid-2 { grid-template-columns: 1fr; height: auto; } .grid-2 > .card { overflow-y: visible; } }
 
   /* misconception clusters */
   .cluster-row { padding: 12px 0; border-bottom: 1px solid var(--rule-lite); }
@@ -142,9 +309,9 @@
   .strand-block { margin-bottom: 20px; }
   .strand-block:last-child { margin-bottom: 0; }
   .strand-label { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin-bottom: 10px; }
-  .concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 10px; }
-  .concept-tile { border: 1px solid var(--rule); border-radius: var(--r-md); padding: 11px 12px; background: var(--panel); display: flex; flex-direction: column; gap: 9px; transition: box-shadow var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard); animation: fade-in var(--dur-base) var(--ease-standard); }
-  .concept-tile:hover { box-shadow: var(--shadow-sm); }
+  .concept-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(172px, 1fr)); gap: 11px; }
+  .concept-tile { border: 1px solid var(--rule); border-radius: var(--r-lg); padding: 12px 13px; background: var(--panel-sunk); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); display: flex; flex-direction: column; gap: 9px; transition: box-shadow var(--dur-fast) var(--ease-standard), border-color var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard); animation: fade-in var(--dur-base) var(--ease-standard); }
+  .concept-tile:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .concept-tile .cid { font-family: var(--mono); font-size: 10.5px; color: var(--faint); display: block; }
   .concept-tile .clabel { font-size: 12.5px; line-height: 1.35; color: var(--ink); }
   .concept-tile .cfoot { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; }
@@ -170,9 +337,11 @@
   .session-row { border-bottom: 1px solid var(--rule-lite); }
   .session-row:last-child { border-bottom: none; }
   .session-head {
-    width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 4px;
-    background: none; border: none; text-align: left; font-family: inherit; color: inherit;
+    width: 100%; display: flex; align-items: center; gap: 12px; padding: 13px 10px;
+    background: none; border: none; border-radius: var(--r-lg); text-align: left; font-family: inherit; color: inherit;
+    transition: background var(--dur-fast) var(--ease-standard);
   }
+  .session-head:hover { background: var(--panel-sunk); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); }
   .session-chevron { width: 15px; height: 15px; color: var(--faint); flex-shrink: 0; }
   .session-chevron .icon { width: 15px; height: 15px; }
   /* Each render fully rebuilds this DOM subtree (see render() in tutor.js --
@@ -201,7 +370,7 @@
   .q-prompt { font-size: 13.5px; color: var(--ink); }
   .q-answers { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12.5px; color: var(--soft); }
   .q-answer-label { color: var(--faint); }
-  .q-insight { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--r-md); background: var(--status-weak-bg); }
+  .q-insight { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border-radius: var(--r-md); background: var(--status-weak-bg); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); }
   .insight-icon { width: 22px; height: 22px; border-radius: 7px; background: var(--panel); color: var(--status-weak); display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
   .insight-icon .icon { width: 13px; height: 13px; }
   .q-insight-text { font-size: 12.5px; line-height: 1.5; color: var(--ink); }
@@ -213,13 +382,15 @@
      itself, and it stays collapsed until a tutor opts in. */
   .why-block { cursor: default; }
   .why-toggle {
-    width: 100%; display: flex; align-items: center; gap: var(--sp-3);
-    background: none; border: none; padding: 0; margin: 0; font-family: inherit; text-align: left; cursor: pointer;
+    width: 100%; display: flex; align-items: center; gap: var(--sp-3); border-radius: var(--r-lg);
+    background: none; border: none; padding: var(--sp-2) var(--sp-2); margin: calc(var(--sp-2) * -1); font-family: inherit; color: inherit; text-align: left; cursor: pointer;
+    transition: background var(--dur-fast) var(--ease-standard);
   }
+  .why-toggle:hover { background: var(--panel-sunk); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); }
   .why-chevron { width: 15px; height: 15px; color: var(--faint); flex-shrink: 0; transition: transform var(--dur-fast) var(--ease-standard); }
   .why-chevron .icon { width: 15px; height: 15px; }
   .why-chevron.open { transform: rotate(180deg); color: var(--brand); }
-  .why-hint { margin-left: auto; font-size: var(--text-2xs); color: var(--faint); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+  .why-hint { margin-left: auto; font-size: var(--text-2xs); color: var(--faint); font-family: var(--mono); text-transform: uppercase; letter-spacing: .06em; background: var(--rule-lite); backdrop-filter: var(--glass-blur-3); -webkit-backdrop-filter: var(--glass-blur-3); padding: 3px 9px; border-radius: var(--r-pill); }
   .why-body { margin-top: var(--sp-4); display: flex; flex-direction: column; gap: var(--sp-3); animation: fade-up var(--dur-base) var(--ease-out); }
   .why-refresh-row { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex-wrap: wrap; }
   .why-refresh { padding: 4px 12px; font-size: var(--text-2xs); }
@@ -227,7 +398,7 @@
   .why-note-warn { color: var(--status-stuck); }
   .why-group-label { font-size: var(--text-2xs); font-weight: var(--fw-semibold); text-transform: uppercase; letter-spacing: .06em; color: var(--faint); margin: var(--sp-2) 0 var(--sp-1); }
 
-  .decision-row { border: 1px solid var(--rule); border-left-width: 3px; border-radius: var(--r-md); padding: var(--sp-3); margin-bottom: var(--sp-2); background: var(--panel-sunk); }
+  .decision-row { border: 1px solid var(--rule); border-left-width: 3px; border-radius: var(--r-md); padding: var(--sp-3) var(--sp-4); margin-bottom: var(--sp-2); background: var(--panel-sunk); backdrop-filter: var(--glass-blur-2); -webkit-backdrop-filter: var(--glass-blur-2); }
   .decision-row:last-child { margin-bottom: 0; }
   .decision-row--included { border-left-color: var(--status-mastered); }
   .decision-row--excluded { border-left-color: var(--rule); opacity: 0.82; }
@@ -239,18 +410,49 @@
   .decision-reason { font-size: var(--text-sm); color: var(--ink); margin-top: var(--sp-2); line-height: var(--lh-snug); }
   .decision-reason-raw { font-family: var(--mono); font-size: var(--text-2xs); color: var(--faint); margin-top: 4px; }
 
+  /* -------------------- concept tooltip -------------------- */
+  /* Every place a bare concept id (N.MAG, G.PART, ...) or its resolved
+     label appears carries data-concept-id (see tutor.js); a single shared
+     tooltip element (built once, reused for all of them -- see
+     initConceptTooltips()) is what actually renders on hover/focus. It's
+     positioned in JS with `position: fixed` from the hovered element's own
+     getBoundingClientRect(), specifically so it can float free of every
+     scrolling ancestor (.tab-panel, .tv-fill, .grid-2 > .card) instead of
+     being clipped by their overflow -- a chip near the bottom edge of a
+     scrolled routing-trace list still gets a fully visible tooltip. */
+  [data-concept-id] { cursor: help; }
+  .concept-tooltip {
+    position: fixed; z-index: 1000; max-width: 280px; padding: 10px 13px;
+    background: var(--panel); border: 1px solid var(--glass-edge); border-radius: var(--r-md);
+    backdrop-filter: var(--glass-blur-1); -webkit-backdrop-filter: var(--glass-blur-1);
+    box-shadow: var(--shadow-lg);
+    opacity: 0; transform: translateY(2px) scale(0.98); transform-origin: var(--tt-origin-y, bottom) var(--tt-origin-x, left);
+    transition: opacity var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+    pointer-events: none;
+  }
+  .concept-tooltip.open { opacity: 1; transform: translateY(0) scale(1); }
+  .concept-tooltip .tt-id { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--faint); letter-spacing: .02em; margin-bottom: 3px; }
+  .concept-tooltip .tt-label { display: block; font-family: var(--serif); font-size: 14.5px; font-weight: 600; line-height: 1.3; color: var(--ink); }
+  .concept-tooltip .tt-meta { display: block; font-size: 11px; color: var(--soft); margin-top: 4px; }
+
   /* -------------------- small-screen safety net -------------------- */
-  /* A teacher scanning data is the primary case (desktop/tablet), but
-     nothing here should become unreadable on a phone browser either.
-     Rather than reflowing the whole dashboard, this loosens the specific
-     rules that assumed desktop-width: the header's meta row, the
-     paginated roster (arrows must stay -- they're the only way to reach
-     students past the first page, so this only lets the cards they page
-     through wrap instead of squeezing), and a session row's fixed-width
-     title column. */
-  @media (max-width: 640px) {
-    .wrap { padding: var(--sp-6) var(--sp-4) var(--sp-8); }
+  /* The single-screen, no-page-scroll shell above is deliberate for the
+     primary desktop/tablet case (a teacher scanning data), but a fixed
+     232px sidebar + fixed-height roster strip cannot fit a phone width
+     without becoming unreadable. Below this breakpoint the shell falls
+     back to a normal scrolling single column instead -- the "no whole-page
+     scroll" rule is a desktop-dashboard affordance, not achievable (or
+     expected) on a phone browser. */
+  @media (max-width: 880px) {
+    html, body { height: auto; overflow: visible; }
+    .wrap { height: auto; padding: var(--sp-6) var(--sp-4) var(--sp-8); }
     .tv-header { flex-direction: column; align-items: stretch; gap: var(--sp-2); }
+    .dashboard-shell { display: flex; flex-direction: column; }
+    .pulse-col { flex-direction: row; flex-wrap: wrap; }
+    .pulse-col .pulse-tile { flex: 1 1 45%; }
+    .tab-region .tab-panel { overflow: visible; display: block; }
+    .tab-panel > .tv-section, .tab-panel > .tv-fill { margin-bottom: var(--sp-5); overflow-y: visible; }
+    .tab-panel > .tv-section:last-child, .tab-panel > .tv-fill:last-child { margin-bottom: 0; }
     .roster { flex-wrap: wrap; }
     .roster-card, .roster-card.all-card { flex: 1 1 128px; }
     .session-head { flex-wrap: wrap; row-gap: var(--sp-2); }
@@ -270,7 +472,7 @@
       <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
     </a>
   </header>
-  <div id="app"></div>
+  <div id="app" class="dashboard-shell"></div>
 </div>
 <script type="module" src="./tutor.js"></script>
 </body>

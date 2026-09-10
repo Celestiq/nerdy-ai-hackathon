@@ -23,22 +23,28 @@ function el(tag, attrs = {}, children = []) {
   return node;
 }
 
-// Hand-authored, stroke-based icon set (no external icon font/library) --
-// kept to a handful of shapes so the visual language stays consistent.
+// Icon set sourced from Lucide (ISC-licensed, lucide.dev) -- path data
+// copied in verbatim rather than pulled from a CDN, so the dashboard has
+// zero runtime icon dependency (matters for an offline demo) while still
+// getting a proper, consistent, professionally-drawn icon pack instead of
+// ad hoc hand-rolled shapes.
 const ICONS = {
-  alert: '<path d="M12 9v4M12 16.5h.01M10.3 4.3 2.7 18a1.5 1.5 0 0 0 1.3 2.2h16a1.5 1.5 0 0 0 1.3-2.2L13.7 4.3a1.5 1.5 0 0 0-2.6 0Z"/>',
-  users: '<path d="M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 5 18.5V20M14 7a3 3 0 1 1-6 0 3 3 0 0 1 6 0ZM19 20v-1.5a3 3 0 0 0-2-2.83M16 4.2a3 3 0 0 1 0 5.6"/>',
-  trendDown: '<path d="M4 7l6 6 4-4 6 6M20 10.5V15h-4.5"/>',
-  grid: '<path d="M4 4h6v6H4V4Zm10 0h6v6h-6V4ZM4 14h6v6H4v-6Zm10 0h6v6h-6v-6Z"/>',
-  bulb: '<path d="M9 18h6M10 21h4M12 3a6 6 0 0 0-3.5 10.9c.4.3.6.8.6 1.3v.3h5.8v-.3c0-.5.2-1 .6-1.3A6 6 0 0 0 12 3Z"/>',
-  arrow: '<path d="M5 12h14M13 6l6 6-6 6"/>',
-  all: '<path d="M4 6h16M4 12h16M4 18h16"/>',
-  chevronLeft: '<polyline points="15 18 9 12 15 6"/>',
-  chevronRight: '<polyline points="9 18 15 12 9 6"/>',
-  chevronDown: '<polyline points="6 9 12 15 18 9"/>',
-  doc: '<path d="M7 3h7l4 4v13a1 1 0 0 1-1 1H7a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Z"/><path d="M14 3v4h4"/><path d="M9 12h6M9 15.5h6M9 8.5h2"/>',
-  check: '<path d="M5 13l4 4L19 7"/>',
-  cross: '<path d="M6 6l12 12M18 6 6 18"/>',
+  alert: '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/>',
+  support: '<path d="M11 14h2a2 2 0 0 0 0-4h-3c-.6 0-1.1.2-1.4.6L3 16"/><path d="m14.45 13.39 5.05-4.694C20.196 8 21 6.85 21 5.75a2.75 2.75 0 0 0-4.797-1.837.276.276 0 0 1-.406 0A2.75 2.75 0 0 0 11 5.75c0 1.2.802 2.248 1.5 2.946L16 11.95"/><path d="m2 15 6 6"/><path d="m7 20 1.6-1.4c.3-.4.8-.6 1.4-.6h4c1.1 0 2.1-.4 2.8-1.2l4.6-4.4a1 1 0 0 0-2.75-2.91"/>',
+  users: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/>',
+  trendDown: '<path d="M16 17h6v-6"/><path d="m22 17-8.5-8.5-5 5L2 7"/>',
+  grid: '<rect width="7" height="7" x="3" y="3" rx="1"/><rect width="7" height="7" x="14" y="3" rx="1"/><rect width="7" height="7" x="14" y="14" rx="1"/><rect width="7" height="7" x="3" y="14" rx="1"/>',
+  bulb: '<path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/>',
+  arrow: '<path d="M5 12h14"/><path d="m12 5 7 7-7 7"/>',
+  all: '<path d="M4 5h16"/><path d="M4 12h16"/><path d="M4 19h16"/>',
+  chevronLeft: '<path d="m15 18-6-6 6-6"/>',
+  chevronRight: '<path d="m9 18 6-6-6-6"/>',
+  chevronDown: '<path d="m6 9 6 6 6-6"/>',
+  doc: '<path d="M6 22a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h8a2.4 2.4 0 0 1 1.704.706l3.588 3.588A2.4 2.4 0 0 1 20 8v12a2 2 0 0 1-2 2z"/><path d="M14 2v5a1 1 0 0 0 1 1h5"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/>',
+  check: '<path d="M20 6 9 17l-5-5"/>',
+  cross: '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+  refresh: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
+  gauge: '<path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/>',
 };
 function icon(name, cls = "icon") {
   return el("span", { class: cls, html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ""}</svg>` });
@@ -67,8 +73,17 @@ const STATUS_META = {
   STUCK: { chip: "chip--stuck", seg: "seg-stuck", solo: "solo-stuck", label: "Stuck" },
 };
 
-const STRAND_LABEL = { NUMBER: "Whole numbers", GEOMETRY: "Geometry", FRACTION: "Fractions", DECIMAL: "Decimals" };
-const STRAND_ORDER = ["NUMBER", "GEOMETRY", "FRACTION", "DECIMAL"];
+const STRAND_LABEL = {
+  NUMBER: "Whole numbers",
+  OPERATIONS: "Operations",
+  ALGEBRA: "Patterns & algebra",
+  GEOMETRY: "Geometry",
+  MEASUREMENT: "Measurement",
+  DATA: "Data & graphs",
+  FRACTION: "Fractions",
+  DECIMAL: "Decimals",
+};
+const STRAND_ORDER = ["NUMBER", "OPERATIONS", "ALGEBRA", "GEOMETRY", "MEASUREMENT", "DATA", "FRACTION", "DECIMAL"];
 
 const GAME_LABEL = {
   "numberline.place.v2": "Number line placement",
@@ -81,6 +96,11 @@ const GAME_LABEL = {
 // the roster filter only re-renders from the cache -- no network round trip.
 
 let cache = null; // { directory, report, concepts, conceptById, beliefByStudent }
+// Fingerprint of the last poll's substantive data (see load() below) -- lets
+// the 15s poll skip a full render() when nothing actually changed, instead
+// of tearing down and rebuilding the whole DOM (and replaying every
+// entrance animation) every 15 seconds regardless.
+let lastSnapshotKey = null;
 let selectedStudentId = null; // null = whole cohort
 let activeTab = "overview"; // "overview" | "history" | "patterns" | "map"
 let activeStrand = null;
@@ -117,7 +137,10 @@ function setTab(tab) {
   activeTab = tab;
   needsPage = 0;
   if (tab === "history") loadSessionsFor(selectedStudentId);
-  render();
+  // Only the tab bar (active underline) and the panel content change --
+  // the sidebar stats and roster strip don't depend on which tab is open.
+  renderTabBar();
+  renderPanel();
 }
 function setStudent(id) {
   selectedStudentId = selectedStudentId === id ? null : id;
@@ -131,11 +154,17 @@ function setStudent(id) {
   }
   if (activeTab === "history") loadSessionsFor(selectedStudentId);
   if (selectedStudentId) loadAssignmentFor(selectedStudentId);
-  render();
+  // A different student genuinely changes all four regions: the sidebar
+  // stats scope to them, tab-bar badge counts are filtered by student,
+  // panel content is filtered, and the roster's "active" highlight moves.
+  renderPulse();
+  renderTabBar();
+  renderPanel();
+  renderRoster();
 }
 function setStrand(strand) {
   activeStrand = strand;
-  render();
+  renderPanel();
 }
 
 function loadSessionsFor(studentId) {
@@ -143,7 +172,9 @@ function loadSessionsFor(studentId) {
   sessionsByStudent.set(studentId, "loading");
   api(`/sessions/${studentId}`).then((sessions) => {
     sessionsByStudent.set(studentId, sessions);
-    render();
+    // The Test history tab's badge count depends on this too.
+    renderTabBar();
+    renderPanel();
   });
 }
 
@@ -156,7 +187,7 @@ function loadAssignmentFor(studentId, force = false) {
   assignmentByStudent.set(studentId, "loading");
   api(`/assignment/${studentId}`).then((result) => {
     assignmentByStudent.set(studentId, result);
-    render();
+    renderPanel();
   });
 }
 
@@ -166,10 +197,10 @@ function toggleSession(studentId, sessionId) {
     sessionDetailById.set(sessionId, "loading");
     api(`/sessions/${studentId}/${sessionId}`).then((detail) => {
       sessionDetailById.set(sessionId, detail);
-      render();
+      renderPanel();
     });
   }
-  render();
+  renderPanel();
 }
 
 // -------------------- data load --------------------
@@ -177,6 +208,22 @@ function toggleSession(studentId, sessionId) {
 async function api(path) {
   const res = await fetch(`/api${path}`);
   return res.json();
+}
+
+// Recursively rounds every number in a JSON-shaped value to 3 decimal
+// places. Used only to build the poll-comparison fingerprint below --
+// nothing displayed ever shows more precision than 2 decimals, so this
+// throws away sub-visible noise (see load()'s comment) without risking
+// masking a real change.
+function roundFloats(value) {
+  if (typeof value === "number") return Math.round(value * 1000) / 1000;
+  if (Array.isArray(value)) return value.map(roundFloats);
+  if (value && typeof value === "object") {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) out[k] = roundFloats(v);
+    return out;
+  }
+  return value;
 }
 
 async function load() {
@@ -195,35 +242,182 @@ async function load() {
     conceptById: Object.fromEntries(concepts.map((c) => [c.concept_id, c])),
     beliefByStudent: new Map(beliefEntries),
   };
+
+  // report.generated_at is a fresh timestamp on every single poll (the
+  // server stamps it at request time), and belief probabilities drift by
+  // sub-thousandth floating-point amounts between requests seconds apart
+  // (the engine's decay math is a function of elapsed wall-clock time, so
+  // it never sits perfectly still) -- neither is visible to a tutor, so
+  // both are normalized away here before comparing. Otherwise every 15s
+  // poll would look "changed" and force a full rebuild no matter what.
+  const { generated_at, ...reportRest } = report;
+  const snapshotKey = JSON.stringify(roundFloats({ directory, reportRest, concepts, beliefEntries }));
+  const changed = snapshotKey !== lastSnapshotKey;
+  lastSnapshotKey = snapshotKey;
+
   if (!activeStrand) {
     activeStrand = STRAND_ORDER.find((s) => concepts.some((c) => c.strand === s)) ?? concepts[0]?.strand ?? null;
   }
-  render();
+  // Only touch the DOM when something a tutor could actually see has
+  // changed -- render() (see below) replaces all four regions, which
+  // replays their entrance animations. Doing that every 15s regardless of
+  // whether data moved is what caused the whole dashboard to visibly
+  // flash/blink on every poll.
+  if (changed) render();
+  else updateMeta();
+}
+
+function updateMeta() {
+  const { report } = cache;
+  meta.textContent = `${report.cohort_size} children · generated ${new Date(report.generated_at).toLocaleString()}`;
 }
 
 // -------------------- render root --------------------
+// Four independent regions -- sidebar stats, tab bar, tab content, roster
+// strip -- each swapped in isolation (whole-node replaceWith, not
+// app.innerHTML="") so a given action only touches the DOM of the region it
+// actually changed. This used to be one render() that tore down and rebuilt
+// the entire page on every click; combined with this surface's entrance
+// animations (fade-in/fade-up on nearly every card), that made clicking
+// anything -- even a roster page arrow -- visibly flash the whole screen.
+// Specific state-changing functions below (setTab, setStudent, roster
+// pagination, ...) call only the renderX() functions their change actually
+// touches; render() itself is used only where everything might have moved
+// (the initial load, and a poll that found real changes).
 
-function render() {
-  if (!cache) return;
-  const { report } = cache;
-  meta.textContent = `${report.cohort_size} children · generated ${new Date(report.generated_at).toLocaleString()}`;
+let pulseMount = null;
+let tabbarMount = null;
+let panelMount = null;
+let rosterMount = null;
 
-  app.innerHTML = "";
-  app.appendChild(rosterBlock());
-  app.appendChild(tabBar());
+function buildPanel() {
   const panel = el("div", { class: "tab-panel" });
   if (activeTab === "overview") {
     panel.appendChild(needsHumanBlock());
-    if (report.opening_move) panel.appendChild(openingMoveBlock());
     if (selectedStudentId) panel.appendChild(whyNextBlock());
   } else if (activeTab === "history") {
     panel.appendChild(historyBlock());
   } else if (activeTab === "patterns") {
-    panel.appendChild(el("div", { class: "grid-2" }, [clustersBlock(), retentionBlock()]));
+    panel.appendChild(el("div", { class: "grid-2 tv-fill" }, [clustersBlock(), retentionBlock()]));
   } else {
     panel.appendChild(conceptMapBlock());
   }
-  app.appendChild(panel);
+  return panel;
+}
+
+function buildRosterRegion() {
+  return el("div", { class: "roster-region" }, [rosterBlock()]);
+}
+
+// Builds the persistent shell once and mounts all four regions into it.
+// Single-screen shell: a fixed left column of cohort-pulse stats, and a
+// right column stacking the tabbed content (flexes to fill remaining
+// height, scrolls internally) above the roster strip (sized to its own
+// content). See .dashboard-shell in index.html for the grid this fills.
+function renderShell() {
+  pulseMount = pulseCol();
+  tabbarMount = tabBar();
+  panelMount = buildPanel();
+  rosterMount = buildRosterRegion();
+  app.innerHTML = "";
+  app.appendChild(pulseMount);
+  app.appendChild(
+    el("div", { class: "right-col" }, [
+      el("div", { class: "tab-region" }, [tabbarMount, panelMount]),
+      rosterMount,
+    ]),
+  );
+}
+
+function renderPulse() {
+  if (!cache || !pulseMount) return;
+  const fresh = pulseCol();
+  pulseMount.replaceWith(fresh);
+  pulseMount = fresh;
+}
+function renderTabBar() {
+  if (!cache || !tabbarMount) return;
+  const fresh = tabBar();
+  tabbarMount.replaceWith(fresh);
+  tabbarMount = fresh;
+}
+function renderPanel() {
+  if (!cache || !panelMount) return;
+  const fresh = buildPanel();
+  panelMount.replaceWith(fresh);
+  panelMount = fresh;
+}
+function renderRoster() {
+  if (!cache || !rosterMount) return;
+  const fresh = buildRosterRegion();
+  rosterMount.replaceWith(fresh);
+  rosterMount = fresh;
+}
+
+function render() {
+  if (!cache) return;
+  updateMeta();
+  if (!pulseMount) renderShell();
+  else {
+    renderPulse();
+    renderTabBar();
+    renderPanel();
+    renderRoster();
+  }
+}
+
+// -------------------- cohort pulse (glanceable header stats) --------------------
+// A scan-first summary row above the roster: a mastery gauge (this child's,
+// or the whole cohort's, mirroring how the rest of the page already scopes
+// by selectedStudentId) plus three counts pulled from data the tabs below
+// already compute -- report.coverage (concept map), filteredStuck/
+// filteredRetention (overview/patterns tabs) -- so this row never drifts out
+// of sync with the detail views it summarizes.
+
+function cohortMasteryPct() {
+  const { report, concepts, beliefByStudent } = cache;
+  if (selectedStudentId) {
+    const belief = beliefByStudent.get(selectedStudentId) ?? [];
+    const masteredN = belief.filter((b) => b.status === "MASTERED").length;
+    return concepts.length ? Math.round((masteredN / concepts.length) * 100) : 0;
+  }
+  const totalMastered = report.coverage.reduce((sum, c) => sum + c.mastered_n, 0);
+  const totalPossible = concepts.length * report.cohort_size;
+  return totalPossible ? Math.round((totalMastered / totalPossible) * 100) : 0;
+}
+
+function gaugeTile(pct, label) {
+  const r = 46;
+  const circumference = 2 * Math.PI * r;
+  const clamped = Math.min(100, Math.max(0, pct));
+  const offset = circumference * (1 - clamped / 100);
+  return el("div", { class: "pulse-tile pulse-gauge" }, [
+    el("div", {
+      class: "gauge-ring",
+      html: `<svg viewBox="0 0 108 108"><circle class="gauge-track" cx="54" cy="54" r="${r}"/><circle class="gauge-fill" cx="54" cy="54" r="${r}" stroke-dasharray="${circumference.toFixed(2)}" stroke-dashoffset="${offset.toFixed(2)}"/></svg><div class="gauge-center"><span class="gauge-pct">${clamped}%</span></div>`,
+    }),
+    el("div", { class: "pulse-label" }, [icon("gauge", "icon"), label]),
+  ]);
+}
+
+function pulseStatTile(iconName, tint, value, label) {
+  return el("div", { class: `pulse-tile pulse-stat ${tint}` }, [
+    el("span", { class: "pulse-icon" }, [icon(iconName)]),
+    el("div", { class: "pulse-body" }, [
+      el("div", { class: "pulse-value" }, String(value)),
+      el("div", { class: "pulse-label" }, label),
+    ]),
+  ]);
+}
+
+function pulseCol() {
+  const { report } = cache;
+  return el("div", { class: "pulse-col" }, [
+    gaugeTile(cohortMasteryPct(), selectedStudentId ? "mastery — this child" : "cohort mastery"),
+    pulseStatTile("users", "moss", report.cohort_size, "children in cohort"),
+    pulseStatTile("support", "amber", filteredStuck().length, "needs extra support"),
+    pulseStatTile("trendDown", "purple", filteredRetention().length, "decayed since mastery"),
+  ]);
 }
 
 // -------------------- roster (paginated, no horizontal scroll) --------------------
@@ -240,7 +434,7 @@ function rosterBlock() {
   row.appendChild(
     el(
       "button",
-      { class: "roster-arrow", disabled: rosterPage === 0 ? "true" : null, onclick: () => { rosterPage -= 1; render(); } },
+      { class: "roster-arrow", disabled: rosterPage === 0 ? "true" : null, onclick: () => { rosterPage -= 1; renderRoster(); } },
       [icon("chevronLeft")],
     ),
   );
@@ -279,7 +473,7 @@ function rosterBlock() {
   row.appendChild(
     el(
       "button",
-      { class: "roster-arrow", disabled: rosterPage >= totalPages - 1 ? "true" : null, onclick: () => { rosterPage += 1; render(); } },
+      { class: "roster-arrow", disabled: rosterPage >= totalPages - 1 ? "true" : null, onclick: () => { rosterPage += 1; renderRoster(); } },
       [icon("chevronRight")],
     ),
   );
@@ -318,7 +512,7 @@ function tabBar() {
   const historyCount = Array.isArray(sessions) ? sessions.length : null;
 
   const tabs = [
-    { id: "overview", label: "Overview", icon: "alert", count: stuckCount },
+    { id: "overview", label: "Overview", icon: "support", count: stuckCount },
     { id: "history", label: "Test history", icon: "doc", count: historyCount },
     { id: "patterns", label: "Patterns", icon: "users", count: patternsCount },
     { id: "map", label: "Concept map", icon: "grid", count: null },
@@ -354,19 +548,19 @@ function filteredRetention() {
 // -------------------- overview: needs a human (paginated) --------------------
 
 function needsHumanBlock() {
-  const { directory } = cache;
+  const { directory, conceptById } = cache;
   const stuck = filteredStuck();
   const hueOf = new Map(directory.map((d, i) => [d.student_id, i]));
 
   const block = el("div", { class: "card card-pad tv-section" }, [
     el("div", { class: "sec-h" }, [
-      el("span", { class: "icon-wrap amber" }, [icon("alert")]),
-      el("span", { class: "sec-title" }, "Needs a human"),
+      el("span", { class: "icon-wrap amber" }, [icon("support")]),
+      el("span", { class: "sec-title" }, "Needs extra support"),
       el("span", { class: "badge amber" }, String(stuck.length)),
     ]),
   ]);
   if (stuck.length === 0) {
-    block.appendChild(el("div", { class: "empty" }, "No one is stuck right now."));
+    block.appendChild(el("div", { class: "empty" }, "No one needs extra support right now."));
     return block;
   }
 
@@ -390,9 +584,9 @@ function needsHumanBlock() {
             "div",
             { class: "na-chips" },
             group.items.map((s) =>
-              el("span", { class: "chip chip--stuck" }, [
+              el("span", { class: "chip chip--stuck", "data-concept-id": s.concept_id }, [
                 el("span", { class: "dot" }),
-                `${s.concept_id} · ${s.attempts_without_mastery} sessions`,
+                `${conceptById[s.concept_id]?.label ?? s.concept_id} · ${s.attempts_without_mastery} sessions`,
               ]),
             ),
           ),
@@ -404,26 +598,13 @@ function needsHumanBlock() {
   if (totalPages > 1) {
     block.appendChild(
       el("div", { class: "pager" }, [
-        el("button", { disabled: needsPage === 0 ? "true" : null, onclick: () => { needsPage -= 1; render(); } }, [icon("chevronLeft")]),
+        el("button", { disabled: needsPage === 0 ? "true" : null, onclick: () => { needsPage -= 1; renderPanel(); } }, [icon("chevronLeft")]),
         el("span", { class: "pager-note" }, `${needsPage + 1} / ${totalPages}`),
-        el("button", { disabled: needsPage >= totalPages - 1 ? "true" : null, onclick: () => { needsPage += 1; render(); } }, [icon("chevronRight")]),
+        el("button", { disabled: needsPage >= totalPages - 1 ? "true" : null, onclick: () => { needsPage += 1; renderPanel(); } }, [icon("chevronRight")]),
       ]),
     );
   }
   return block;
-}
-
-// -------------------- overview: opening move --------------------
-
-function openingMoveBlock() {
-  const { report } = cache;
-  return el("div", { class: "card spotlight tv-section" }, [
-    el("span", { class: "icon-wrap" }, [icon("bulb")]),
-    el("div", { class: "body" }, [
-      el("h2", {}, "Suggested opening — 5 min"),
-      el("p", {}, report.opening_move.text),
-    ]),
-  ]);
 }
 
 // -------------------- overview: "why this next" (glass-box routing trace) --------------------
@@ -471,7 +652,7 @@ function decisionRow(entry, conceptById) {
   return el("div", { class: classes.join(" ") }, [
     el("div", { class: "decision-top" }, [
       el("div", { class: "decision-left" }, [
-        el("span", { class: "mono-chip" }, label),
+        el("span", { class: "mono-chip", "data-concept-id": entry.concept_id }, label),
         isRelaxed ? el("span", { class: "chip chip--stuck" }, [icon("alert", "icon icon-sm"), "re-served (relaxed)"]) : null,
         isWheelBlock && !isRelaxed ? el("span", { class: "chip chip--stuck" }, [icon("alert", "icon icon-sm"), "wheel-spin block"]) : null,
       ]),
@@ -505,7 +686,7 @@ function whyNextBlock() {
 
   const header = el(
     "button",
-    { class: "why-toggle", onclick: () => { whyOpen = !whyOpen; render(); } },
+    { class: "why-toggle", onclick: () => { whyOpen = !whyOpen; renderPanel(); } },
     [
       el("span", { class: "why-chevron" + (whyOpen ? " open" : "") }, [icon("chevronDown")]),
       el("span", { class: "icon-wrap gray" }, [icon("bulb")]),
@@ -513,7 +694,10 @@ function whyNextBlock() {
       el("span", { class: "why-hint" }, (!whyOpen && whyTeaser(data)) || "routing trace"),
     ],
   );
-  const block = el("div", { class: "card card-pad tv-section why-block" }, [header]);
+  // Only fill/scroll independently while actually expanded -- collapsed,
+  // it's just a one-line header and should size to that, not stretch to
+  // claim the rest of the tab-panel's height.
+  const block = el("div", { class: "card card-pad tv-section why-block" + (whyOpen ? " tv-fill" : "") }, [header]);
   if (!whyOpen) return block;
 
   if (data === "loading" || data === undefined) {
@@ -525,7 +709,7 @@ function whyNextBlock() {
 
   const refreshRow = el("div", { class: "why-refresh-row" }, [
     el("span", { class: "why-note" }, "A live, read-only snapshot of the routing engine's current decision for this child -- not a record of what was actually assigned."),
-    el("button", { class: "pill-link why-refresh", onclick: () => { loadAssignmentFor(selectedStudentId, true); render(); } }, "refresh"),
+    el("button", { class: "pill-link why-refresh", onclick: () => { loadAssignmentFor(selectedStudentId, true); renderPanel(); } }, [icon("refresh", "icon icon-sm"), "refresh"]),
   ]);
   body.appendChild(refreshRow);
 
@@ -552,12 +736,12 @@ function whyNextBlock() {
   }
 
   if (data.escalations && data.escalations.length > 0) {
-    body.appendChild(
-      el("div", { class: "why-note" }, [
-        "Currently flagged \"needs a human\": ",
-        data.escalations.map((cid) => conceptById[cid]?.label ?? cid).join(", "),
-      ]),
-    );
+    const items = [];
+    data.escalations.forEach((cid, i) => {
+      if (i > 0) items.push(", ");
+      items.push(el("span", { class: "mono-chip", "data-concept-id": cid }, conceptById[cid]?.label ?? cid));
+    });
+    body.appendChild(el("div", { class: "why-note" }, ["Currently flagged as needing extra support: ", ...items]));
   }
 
   block.appendChild(body);
@@ -568,7 +752,7 @@ function whyNextBlock() {
 
 function historyBlock() {
   const { directory } = cache;
-  const block = el("div", { class: "card card-pad tv-section" }, [
+  const block = el("div", { class: "card card-pad tv-section tv-fill" }, [
     el("div", { class: "sec-h" }, [
       el("span", { class: "icon-wrap gray" }, [icon("doc")]),
       el("span", { class: "sec-title" }, "Test history"),
@@ -616,7 +800,7 @@ function sessionRow(student, summary) {
       el(
         "div",
         { class: "session-concepts" },
-        summary.concept_ids.map((cid) => el("span", { class: "mono-chip" }, conceptById[cid]?.label ?? cid)),
+        summary.concept_ids.map((cid) => el("span", { class: "mono-chip", "data-concept-id": cid }, conceptById[cid]?.label ?? cid)),
       ),
       !summary.completed ? el("span", { class: "chip chip--stuck" }, "abandoned") : null,
       el("span", { class: "chip " + (pct >= 80 ? "chip--mastered" : pct >= 50 ? "chip--emerging" : "chip--weak") }, `${summary.correct_count}/${summary.item_count} correct`),
@@ -645,7 +829,7 @@ function sessionDetailPanel(student, summary) {
         el("div", { class: "q-num" }, `Q${i + 1}`),
         el("div", { class: "q-body" }, [
           el("div", { class: "q-top" }, [
-            el("span", { class: "mono-chip" }, conceptById[o.concept_id]?.label ?? o.concept_label),
+            el("span", { class: "mono-chip", "data-concept-id": o.concept_id }, conceptById[o.concept_id]?.label ?? o.concept_label),
             el("span", { class: "chip " + (correct ? "chip--mastered" : "chip--weak") }, [
               icon(correct ? "check" : "cross", "icon icon-sm"),
               correct ? "Correct" : "Incorrect",
@@ -664,7 +848,7 @@ function sessionDetailPanel(student, summary) {
                   o.blamed_concepts.length > 0
                     ? el("div", { class: "cluster-chain q-blame" }, [
                         el("span", {}, "may trace back to"),
-                        ...o.blamed_concepts.map((b) => el("span", { class: "node root" }, b.label)),
+                        ...o.blamed_concepts.map((b) => el("span", { class: "node root", "data-concept-id": b.concept_id }, b.label)),
                       ])
                     : null,
                 ]),
@@ -705,10 +889,10 @@ function clustersBlock() {
           c.names.map((n) => el("span", { class: "chip chip--weak" }, n)),
         ),
         el("div", { class: "cluster-chain" }, [
-          el("span", { class: "node" }, label),
+          el("span", { class: "node", "data-concept-id": c.concept_id }, label),
           el("span", {}, c.signature.toLowerCase().replace(/_/g, " ")),
           rootLabel
-            ? el("div", { class: "cluster-chain" }, [icon("arrow", "icon arrow"), el("span", { class: "node root" }, rootLabel)])
+            ? el("div", { class: "cluster-chain" }, [icon("arrow", "icon arrow"), el("span", { class: "node root", "data-concept-id": c.root_cause }, rootLabel)])
             : null,
         ]),
       ]),
@@ -742,7 +926,7 @@ function retentionBlock() {
     block.appendChild(
       el("div", { class: "ret-row" }, [
         el("div", { class: "ret-head" }, [
-          el("span", {}, [el("span", { class: "name" }, r.name), " — ", el("span", { class: "concept" }, label)]),
+          el("span", {}, [el("span", { class: "name" }, r.name), " — ", el("span", { class: "concept", "data-concept-id": r.concept_id }, label)]),
           el("span", { class: "ret-val" }, `p(decayed) ${r.p_decayed.toFixed(2)}`),
         ]),
         rmeter,
@@ -763,7 +947,7 @@ function conceptMapBlock() {
   for (const c of concepts) if (!strandsPresent.includes(c.strand)) strandsPresent.push(c.strand);
   if (!activeStrand || !strandsPresent.includes(activeStrand)) activeStrand = strandsPresent[0];
 
-  const block = el("div", { class: "card card-pad tv-section" }, [
+  const block = el("div", { class: "card card-pad tv-section tv-fill" }, [
     el("div", { class: "sec-h" }, [
       el("span", { class: "icon-wrap gray" }, [icon("grid")]),
       el("span", { class: "sec-title" }, selectedStudentId ? "Concept map — this child" : "Concept map — whole cohort"),
@@ -791,14 +975,14 @@ function conceptTile(node, coverage, soloBelief, cohortSize) {
     const b = soloBelief.get(node.concept_id);
     if (!b) {
       return el("div", { class: "concept-tile unmeasured" }, [
-        el("span", { class: "cid" }, node.concept_id),
+        el("span", { class: "cid", "data-concept-id": node.concept_id }, node.concept_id),
         el("div", { class: "clabel" }, node.label),
         el("div", { class: "cfoot" }, [el("span", { class: "n" }, "unmeasured")]),
       ]);
     }
     const m = STATUS_META[b.status] ?? STATUS_META.EMERGING;
     return el("div", { class: `concept-tile ${m.solo}` }, [
-      el("span", { class: "cid" }, node.concept_id),
+      el("span", { class: "cid", "data-concept-id": node.concept_id }, node.concept_id),
       el("div", { class: "clabel" }, node.label),
       el("div", { class: "cfoot" }, [el("span", { class: "n" }, m.label), el("span", { class: "n" }, `p=${b.p_mastery.toFixed(2)}`)]),
     ]);
@@ -806,7 +990,7 @@ function conceptTile(node, coverage, soloBelief, cohortSize) {
 
   if (!coverage || coverage.measured_n === 0) {
     return el("div", { class: "concept-tile unmeasured" }, [
-      el("span", { class: "cid" }, node.concept_id),
+      el("span", { class: "cid", "data-concept-id": node.concept_id }, node.concept_id),
       el("div", { class: "clabel" }, node.label),
       el("div", { class: "cfoot" }, [el("span", { class: "n" }, "unmeasured")]),
     ]);
@@ -818,7 +1002,7 @@ function conceptTile(node, coverage, soloBelief, cohortSize) {
     other > 0 ? el("span", { style: `width:${(other / cohortSize) * 100}%;background:var(--rule-lite)` }) : null,
   ]);
   return el("div", { class: "concept-tile" }, [
-    el("span", { class: "cid" }, node.concept_id),
+    el("span", { class: "cid", "data-concept-id": node.concept_id }, node.concept_id),
     el("div", { class: "clabel" }, node.label),
     meter,
     el("div", { class: "cfoot" }, [
@@ -849,6 +1033,101 @@ function legend() {
   );
   return legendEl;
 }
+
+// -------------------- concept tooltip --------------------
+// Every place a bare concept id (N.MAG, G.PART, ...) or its resolved label
+// shows up carries data-concept-id (see needsHumanBlock, decisionRow,
+// clustersBlock, etc. above) -- a tutor unfamiliar with the id vocabulary
+// can hover any of them to see the concept's full label, strand and grade
+// band without leaving the page. One tooltip element is built once and
+// repositioned/repopulated per hover via event delegation on `document`,
+// rather than one tooltip per chip: cheap regardless of how many chips are
+// on screen, and needs no rewiring when render() rebuilds the DOM.
+
+let tooltipEl = null;
+let tooltipHideTimer = null;
+
+function ensureTooltipEl() {
+  if (tooltipEl) return tooltipEl;
+  tooltipEl = el("div", { class: "concept-tooltip", role: "tooltip" });
+  document.body.appendChild(tooltipEl);
+  return tooltipEl;
+}
+
+function conceptMetaLine(concept) {
+  const strand = STRAND_LABEL[concept.strand] ?? concept.strand;
+  const [lo, hi] = concept.grade_band ?? [];
+  const fmt = (g) => (g === 0 ? "K" : String(g));
+  const gradeText = lo != null && hi != null ? (lo === hi ? `Grade ${fmt(lo)}` : `Grades ${fmt(lo)}–${fmt(hi)}`) : null;
+  return [strand, gradeText].filter(Boolean).join(" · ");
+}
+
+function showConceptTooltip(target, conceptId) {
+  const concept = cache?.conceptById?.[conceptId];
+  if (!concept) return;
+  clearTimeout(tooltipHideTimer);
+  const tip = ensureTooltipEl();
+  tip.innerHTML = "";
+  tip.appendChild(el("span", { class: "tt-id" }, conceptId));
+  tip.appendChild(el("span", { class: "tt-label" }, concept.label));
+  const meta = conceptMetaLine(concept);
+  if (meta) tip.appendChild(el("span", { class: "tt-meta" }, meta));
+
+  // Open (and measure) before placing: default above the chip, flipping
+  // below if there isn't room, and clamped horizontally so it never runs
+  // off either edge of the viewport -- position: fixed (see .concept-tooltip
+  // in index.html) means none of this is at the mercy of any scrolling
+  // ancestor's overflow clipping.
+  tip.classList.add("open");
+  const rect = target.getBoundingClientRect();
+  const tipRect = tip.getBoundingClientRect();
+  const gap = 8;
+  let top = rect.top - tipRect.height - gap;
+  let originY = "bottom";
+  if (top < 8) {
+    top = rect.bottom + gap;
+    originY = "top";
+  }
+  let left = rect.left + rect.width / 2 - tipRect.width / 2;
+  left = Math.max(8, Math.min(left, window.innerWidth - tipRect.width - 8));
+  const originX = left + tipRect.width / 2 < rect.left + rect.width / 2 ? "right" : "left";
+  tip.style.setProperty("--tt-origin-y", originY);
+  tip.style.setProperty("--tt-origin-x", originX);
+  tip.style.top = `${top}px`;
+  tip.style.left = `${left}px`;
+}
+
+function hideConceptTooltip(immediate) {
+  if (!tooltipEl) return;
+  clearTimeout(tooltipHideTimer);
+  if (immediate) {
+    tooltipEl.classList.remove("open");
+    return;
+  }
+  tooltipHideTimer = setTimeout(() => tooltipEl.classList.remove("open"), 60);
+}
+
+function initConceptTooltips() {
+  document.addEventListener("mouseover", (e) => {
+    const target = e.target.closest("[data-concept-id]");
+    if (!target) return;
+    showConceptTooltip(target, target.getAttribute("data-concept-id"));
+  });
+  document.addEventListener("mouseout", (e) => {
+    const target = e.target.closest("[data-concept-id]");
+    if (!target) return;
+    if (e.relatedTarget && target.contains(e.relatedTarget)) return;
+    hideConceptTooltip(false);
+  });
+  // Any scroll (the tab panel, a Patterns column, the routing trace) moves
+  // the hovered chip relative to the viewport; the fixed-position tooltip
+  // would otherwise drift out of alignment with it, so just dismiss it --
+  // it reappears immediately on the next hover. `capture: true` because
+  // scroll events don't bubble.
+  document.addEventListener("scroll", () => hideConceptTooltip(true), true);
+}
+
+initConceptTooltips();
 
 load();
 setInterval(load, 15000);
