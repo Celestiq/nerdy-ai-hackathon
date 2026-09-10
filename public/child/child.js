@@ -80,7 +80,16 @@ function loadingCard(label = "Loading...") {
 // from tutor.js (a different surface with a different bundling story), but
 // intentionally the exact same strings tutor.js's STRAND_LABEL uses so the
 // two surfaces read as one vocabulary.
-const STRAND_LABEL = { NUMBER: "Whole numbers", GEOMETRY: "Geometry", FRACTION: "Fractions", DECIMAL: "Decimals" };
+const STRAND_LABEL = {
+  NUMBER: "Whole numbers",
+  OPERATIONS: "Operations",
+  ALGEBRA: "Patterns & algebra",
+  GEOMETRY: "Geometry",
+  MEASUREMENT: "Measurement",
+  DATA: "Data & graphs",
+  FRACTION: "Fractions",
+  DECIMAL: "Decimals",
+};
 
 // -------------------- picker --------------------
 
