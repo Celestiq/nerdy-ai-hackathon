@@ -57,9 +57,11 @@ describe("mastery evidence floor", () => {
   // (The Cycle 16 devon shape -- all-correct 2-item sessions -- is no longer
   // STUCK at all; see the wheel-spin describe block below.)
   const stuckHistory = [
+    // s0 is long (60 corrects) so its weight survives recency discounting
+    // (RECENCY_HALF_LIFE_OBS) through the 10 observations that follow.
     // s0 ends on two easy misses so the opening never itself earns MASTERED
     // (DECAY_MARGIN hysteresis would otherwise keep it mastered through s1-s3).
-    session("s0", 0, [...Array.from({ length: 30 }, () => obs("correct", 1)), obs("incorrect", 0), obs("incorrect", 0)]),
+    session("s0", 0, [...Array.from({ length: 60 }, () => obs("correct", 1)), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s1", 1, [obs("correct", 1), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s2", 3, [obs("correct", 1), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s3", 6, [obs("incorrect", 0), obs("incorrect", 0), obs("correct", 1)]),

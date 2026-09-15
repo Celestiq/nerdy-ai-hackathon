@@ -5,6 +5,8 @@ import {
   MASTERY_RECENT_MIN_CORRECT,
   MASTERY_RECENT_WINDOW,
   MIN_MASTERY_OBS,
+  RECENCY_GRACE_OBS,
+  RECENCY_HALF_LIFE_OBS,
   WHEEL_SPIN_LIMIT,
   WHEEL_SPIN_MIN_SESSION_OBS,
   WHEEL_SPIN_SESSION_ACCURACY,
@@ -33,6 +35,48 @@ interface TimedObservation extends Observation {
 
 function difficultyWeight(difficulty: number): number {
   return 0.5 + 0.5 * difficulty;
+}
+
+/** Retention factor per observation beyond the grace window: older evidence is multiplied by this. */
+const RECENCY_STEP = Math.pow(0.5, 1 / RECENCY_HALF_LIFE_OBS);
+
+/**
+ * Recency-weighted Beta posterior (see RECENCY_GRACE_OBS and
+ * RECENCY_HALF_LIFE_OBS in ./types.ts). An observation with k newer ones on
+ * the concept carries its full difficulty weight while k < RECENCY_GRACE_OBS,
+ * and 0.5^((k - RECENCY_GRACE_OBS) / RECENCY_HALF_LIFE_OBS) of it after that.
+ * The Beta(1,1) prior is never discounted. Incremental form: the newest
+ * RECENCY_GRACE_OBS observations sit undiscounted in `window`; each one that
+ * ages out joins `correctMass`/`incorrectMass` at full weight, after that
+ * older mass has been scaled by RECENCY_STEP. The same accumulator serves both
+ * the final p_mastery and the session-by-session replay, so the two can't
+ * drift apart.
+ */
+class RecencyPosterior {
+  private correctMass = 0;
+  private incorrectMass = 0;
+  private readonly window: Array<{ correct: boolean; weight: number }> = [];
+
+  add(o: Observation): void {
+    this.window.push({ correct: o.verdict === "correct", weight: difficultyWeight(o.difficulty) });
+    if (this.window.length > RECENCY_GRACE_OBS) {
+      const aged = this.window.shift()!;
+      this.correctMass *= RECENCY_STEP;
+      this.incorrectMass *= RECENCY_STEP;
+      if (aged.correct) this.correctMass += aged.weight;
+      else this.incorrectMass += aged.weight;
+    }
+  }
+
+  get mean(): number {
+    let alpha = 1 + this.correctMass;
+    let beta = 1 + this.incorrectMass;
+    for (const x of this.window) {
+      if (x.correct) alpha += x.weight;
+      else beta += x.weight;
+    }
+    return alpha / (alpha + beta);
+  }
 }
 
 function daysBetween(a: string, b: string): number {
@@ -79,15 +123,10 @@ function projectConcept(
   meta: ConceptMeta,
   now: Date,
 ): BeliefInternal {
-  // --- p_mastery: Beta(1,1) prior, difficulty-weighted evidence ---
-  let alpha = 1;
-  let beta = 1;
-  for (const o of observations) {
-    const w = difficultyWeight(o.difficulty);
-    if (o.verdict === "correct") alpha += w;
-    else beta += w;
-  }
-  const p_mastery = alpha / (alpha + beta);
+  // --- p_mastery: Beta(1,1) prior, difficulty- and recency-weighted evidence ---
+  const posterior = new RecencyPosterior();
+  for (const o of observations) posterior.add(o);
+  const p_mastery = posterior.mean;
 
   // --- confidence: count (saturating) x agreement x difficulty spread x recency ---
   const n = observations.length;
@@ -141,8 +180,7 @@ function projectConcept(
   // The evidence floor is evaluated over the same chronological replay order
   // (bundle.started_at, then in-bundle order) as everything else here --
   // `replayed` accumulates observations in exactly that order.
-  let runAlpha = 1;
-  let runBeta = 1;
+  const running = new RecencyPosterior();
   let attempts_without_mastery = 0;
   const replayed: TimedObservation[] = [];
   let obsSinceStuck = 0;
@@ -158,18 +196,16 @@ function projectConcept(
     // already faded to DECAYED before this session began, it has left
     // mastery and must re-earn the full bar.
     if (mastered && lastSessionAt !== null) {
-      const gapDecayed = decayToward(runAlpha / (runAlpha + runBeta), daysBetween(lastSessionAt, sessionAt), meta);
+      const gapDecayed = decayToward(running.mean, daysBetween(lastSessionAt, sessionAt), meta);
       if (gapDecayed < meta.mastery_threshold - DECAY_MARGIN) mastered = false;
     }
     lastSessionAt = sessionAt;
     for (const o of sessionObs) {
-      const w = difficultyWeight(o.difficulty);
-      if (o.verdict === "correct") runAlpha += w;
-      else runBeta += w;
+      running.add(o);
       replayed.push(o);
       obsSinceStuck += 1;
     }
-    const runningMastery = runAlpha / (runAlpha + runBeta);
+    const runningMastery = running.mean;
     const freshSupport = !wasStuck || obsSinceStuck >= MASTERY_RECENT_WINDOW;
     // Reset / Increment / Hold. A session that doesn't meet the mastery bar
     // only counts as a wheel-spin if the child actually struggled in it: a

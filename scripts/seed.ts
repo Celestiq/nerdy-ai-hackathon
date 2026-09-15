@@ -171,7 +171,8 @@ function masteryBootstrapSession(studentId: string, startedAt: string): Evidence
   // this student (belief is a full replay over every bundle, not just this
   // one). A second pass pushes p_mastery, and therefore p_decayed, further
   // above threshold -- verified empirically against the real printed
-  // output below, not assumed.
+  // output below, not assumed. (Cycle 18 re-measure, fresh seed: stu_devon's
+  // N.COUNT ends at p_mastery 0.941 / p_decayed 0.935 over 26 obs.)
   const rounds = [...items, ...items];
 
   return {
@@ -201,8 +202,9 @@ console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryR
 // reachability (BACKLOG.md "Balance Scale" item, part a): F.EQV hard-requires
 // F.MAG.NONUNIT >= 0.85 p_mastery (strand-magnitude-fractions.json), and no
 // seeded student naturally crosses that gate -- stu_priya (competent
-// profile) is closest, at a stochastic p_mastery 0.798 / p_decayed 0.671
-// after the base cohort simulation above. Same discipline as
+// profile) is closest, at a stochastic p_mastery ~0.80 / p_decayed ~0.72
+// after the base cohort simulation above (Cycle 18 re-measure; originally
+// 0.798 / 0.671). Same discipline as
 // masteryBootstrapSession: real, already-authored F.MAG.NONUNIT items (only
 // two exist today, src/games/numberline/items.ts), verdict "correct"
 // responses placed exactly at each item's target, decoupled from
@@ -213,11 +215,13 @@ console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryR
 // status (EMERGING/MASTERED) on the tutor/child surfaces.
 //
 // Sizing, verified empirically against this script's own printed belief
-// snapshot below (not assumed): stu_priya already carries 4 real
-// observations toward F.MAG.NONUNIT from the base simulation. Repeating the
-// 2 real items as 8 full passes (16 additional correct observations) lands
-// at p_mastery 0.940 / p_decayed 0.929 -- both comfortably clear of the 0.85
-// gate (a smaller 2-pass bundle only reaches 0.873/0.864, too thin a margin
+// snapshot below (not assumed): stu_priya carries some real observations
+// toward F.MAG.NONUNIT from the base simulation (4 when sized; 9 as of Cycle
+// 18). Repeating the 2 real items as 8 full passes (16 additional correct
+// observations) landed at p_mastery 0.940 / p_decayed 0.929 when sized, and
+// 0.914 / 0.903 as of Cycle 18 (recency-weighted p_mastery, src/store/types.ts
+// RECENCY_GRACE_OBS) -- both comfortably clear of the 0.85
+// gate (a smaller 2-pass bundle only reached 0.873/0.864 when sized, too thin a margin
 // to survive any future retuning of the decay/confidence constants, per the
 // exact regression class BACKLOG.md's Cycle 9 hit).
 function fmagNonunitBootstrapSession(studentId: string, startedAt: string): EvidenceBundle {
