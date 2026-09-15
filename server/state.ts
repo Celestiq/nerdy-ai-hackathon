@@ -3,7 +3,7 @@ import { GameRegistry, ItemBankRegistry, type ItemBankEntry } from "../src/regis
 import { LearnerStore } from "../src/store/store.js";
 import type { ConceptMetaLookup } from "../src/store/projector.js";
 import { numberlineManifest, numberlineItems } from "../src/games/numberline/index.js";
-import { fractionbarsManifest, fractionbarsItems, partitionItems } from "../src/games/fractionbars/index.js";
+import { fractionbarsManifest, fractionbarsItems, partitionItems, partitionContentKey } from "../src/games/fractionbars/index.js";
 import { balancescaleManifest, balancescaleItems } from "../src/games/balancescale/index.js";
 import { isDbConfigured, loadAllBundles } from "./db.js";
 
@@ -57,7 +57,7 @@ itemBank.register(fractionbarsManifest.game_id, (conceptIds) => [
     })),
   ...partitionItems
     .filter((i) => conceptIds.includes(i.concept_id))
-    .map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty, content_key: `partition:${i.parts}` })),
+    .map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty, content_key: partitionContentKey(i) })),
 ]);
 itemBank.register(balancescaleManifest.game_id, (conceptIds) =>
   balancescaleItems

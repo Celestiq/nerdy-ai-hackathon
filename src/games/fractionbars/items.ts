@@ -60,14 +60,51 @@ export function itemsForConcept(conceptId: string): FractionbarsItem[] {
  * wrong answer here never needs a named misconception -- just correct or
  * not. Two shapes are shown (rendered client-side); one is split into
  * equal parts, the other isn't.
+ *
+ * Two optional, additive fields turn the same pick-one-of-two-pictures
+ * mechanic into distinct items for the two concepts one hop off G.PART
+ * (cycle 18 C3; before this, all three concepts were `{parts, correct}`
+ * only and served the identical pictures):
+ *  - `unequalStyle` (G.PART.UNEQUAL): how the not-equal picture is cut.
+ *    Absent means "big" -- the original G.PART drawing.
+ *  - `shaded` (F.NOTATE): "Which picture shows shaded/parts?" -- the
+ *    correct picture is one whole cut into `parts` EQUAL pieces with
+ *    `shaded` of them shaded. `distractor` picks the wrong picture (see
+ *    notateDistractor). When `shaded` is set, `unequalStyle` is unused.
  */
+export type UnequalStyle =
+  /** One piece twice as wide as the rest (the original G.PART drawing). */
+  | "big"
+  /** Same piece count, but one cut is shifted so two neighbours differ. */
+  | "offset"
+  /** Every piece a slightly different width, narrow to wide. */
+  | "strips";
+
 export interface PartitionItem {
   item_id: string;
   concept_id: string;
   difficulty: number;
   parts: number;
-  correct: "a" | "b"; // which side shows an equal partition
+  /** Which side is correct: the equal partition, or (with `shaded`) the picture showing shaded/parts. */
+  correct: "a" | "b";
+  unequalStyle?: UnequalStyle;
+  shaded?: number;
+  /** F.NOTATE only; absent means "complement". See NotateDistractor. */
+  distractor?: NotateDistractor;
 }
+
+/**
+ * The wrong picture on an F.NOTATE item. Both are one whole cut into equal
+ * parts:
+ *  - "complement": same D parts, D - N shaded (counts the parts the
+ *    numerator doesn't count). Same piece count as the correct picture, so
+ *    it tests the numerator only.
+ *  - "partpart": N shaded out of N + D parts (reads N/D as "N shaded, D
+ *    not shaded"). Same shaded count, different piece count, so matching
+ *    the teal count to the numerator isn't enough -- the child has to use
+ *    the denominator. N + D is kept <= 8 so the pieces stay readable.
+ */
+export type NotateDistractor = "complement" | "partpart";
 
 export const partitionItems: PartitionItem[] = [
   { item_id: "itm_gp_halves", concept_id: "G.PART", difficulty: 0.2, parts: 2, correct: "a" },
@@ -76,27 +113,63 @@ export const partitionItems: PartitionItem[] = [
   { item_id: "itm_gp_fifths", concept_id: "G.PART", difficulty: 0.4, parts: 5, correct: "b" },
   { item_id: "itm_gp_sixths", concept_id: "G.PART", difficulty: 0.45, parts: 6, correct: "a" },
 
-  // G.PART.UNEQUAL ("recognise unequal partitions as invalid") -- one hop
-  // off G.PART, same equal-vs-unequal-partition mechanic at a harder
-  // difficulty band than G.PART itself, since there is no distinct
-  // "unequal-detection" UI/mechanic built yet. Flagged for pedagogy review:
-  // this authenticates the same discrimination skill as G.PART rather than
-  // a materially different task, which is a reasonable minimal stand-in
-  // but not a permanent design.
-  { item_id: "itm_gpu_halves", concept_id: "G.PART.UNEQUAL", difficulty: 0.5, parts: 2, correct: "b" },
-  { item_id: "itm_gpu_thirds", concept_id: "G.PART.UNEQUAL", difficulty: 0.55, parts: 3, correct: "a" },
-  { item_id: "itm_gpu_fourths", concept_id: "G.PART.UNEQUAL", difficulty: 0.6, parts: 4, correct: "b" },
+  // G.PART.UNEQUAL ("recognise unequal partitions as invalid") -- same
+  // pick-the-equal-one mechanic as G.PART, but the not-equal picture is cut
+  // more subtly ("offset": one shifted cut; "strips": widths ramp narrow to
+  // wide), so spotting the unfair cut is the actual task rather than
+  // noticing one obviously double piece. Never "big": that's G.PART's
+  // drawing, and reusing it would serve G.PART's exact pictures again.
+  // Both pictures always have the same number of pieces, so counting alone
+  // can't answer it. A wrong pick stays UNCLASSIFIED (no signature code
+  // names "accepts an unequal cut as fair").
+  { item_id: "itm_gpu_halves_offset", concept_id: "G.PART.UNEQUAL", difficulty: 0.5, parts: 2, correct: "b", unequalStyle: "offset" },
+  { item_id: "itm_gpu_thirds_offset", concept_id: "G.PART.UNEQUAL", difficulty: 0.55, parts: 3, correct: "a", unequalStyle: "offset" },
+  { item_id: "itm_gpu_thirds_strips", concept_id: "G.PART.UNEQUAL", difficulty: 0.6, parts: 3, correct: "b", unequalStyle: "strips" },
+  { item_id: "itm_gpu_fourths_offset", concept_id: "G.PART.UNEQUAL", difficulty: 0.6, parts: 4, correct: "a", unequalStyle: "offset" },
+  { item_id: "itm_gpu_fourths_strips", concept_id: "G.PART.UNEQUAL", difficulty: 0.65, parts: 4, correct: "b", unequalStyle: "strips" },
+  { item_id: "itm_gpu_sixths_strips", concept_id: "G.PART.UNEQUAL", difficulty: 0.7, parts: 6, correct: "a", unequalStyle: "strips" },
 
-  // F.NOTATE ("fraction notation: numerator/denominator meaning") -- also
-  // one hop off G.PART. Reuses the same PartitionItem shape/mechanic as
-  // G.PART/G.PART.UNEQUAL because task_types for F.NOTATE in the graph is
-  // PARTITION-only, and no numerator/denominator-labelling UI exists in
-  // either game yet. This is a stand-in, not a real notation-reading item
-  // -- flagged for pedagogy review, same caveat as G.PART.UNEQUAL above.
-  { item_id: "itm_fno_halves", concept_id: "F.NOTATE", difficulty: 0.55, parts: 2, correct: "a" },
-  { item_id: "itm_fno_thirds", concept_id: "F.NOTATE", difficulty: 0.6, parts: 3, correct: "b" },
-  { item_id: "itm_fno_fourths", concept_id: "F.NOTATE", difficulty: 0.65, parts: 4, correct: "a" },
+  // F.NOTATE ("numerator and denominator meaning") -- "Which picture shows
+  // N/D?". The correct picture is one whole cut into D equal parts with N
+  // shaded; the wrong one is either the complement (D - N of D shaded) or
+  // part-to-part (N of N + D shaded), see NotateDistractor. Denominators are
+  // grade-3 ones only (2, 3, 4, 6, 8); no complement item with N = D - N
+  // (e.g. 1/2), where both pictures would be the same. Side a/b is 3/3.
+  // By shaded area the correct picture is the fuller one on 4 items and the
+  // emptier on 2: a part-to-part distractor (N/(N+D) < N/D) is always the
+  // emptier picture, so both are on the least area-cued picks (1/3 vs 1/4,
+  // 1/4 vs 1/5), and the complement items 3/8 and 2/6 keep the correct
+  // picture emptier. Every wrong pick is UNCLASSIFIED: both distractors are
+  // notation misreads, not WHOLE_NUMBER_BIAS or DENOMINATOR_BIAS (both about
+  // comparing two fractions' sizes), and the graph has no explains edge at
+  // F.NOTATE.
+  { item_id: "itm_fno_1_3", concept_id: "F.NOTATE", difficulty: 0.55, parts: 3, shaded: 1, distractor: "partpart", correct: "a" },
+  { item_id: "itm_fno_1_4", concept_id: "F.NOTATE", difficulty: 0.55, parts: 4, shaded: 1, distractor: "partpart", correct: "b" },
+  { item_id: "itm_fno_5_6", concept_id: "F.NOTATE", difficulty: 0.6, parts: 6, shaded: 5, distractor: "complement", correct: "b" },
+  { item_id: "itm_fno_3_8", concept_id: "F.NOTATE", difficulty: 0.65, parts: 8, shaded: 3, distractor: "complement", correct: "a" },
+  { item_id: "itm_fno_7_8", concept_id: "F.NOTATE", difficulty: 0.6, parts: 8, shaded: 7, distractor: "complement", correct: "a" },
+  { item_id: "itm_fno_2_6", concept_id: "F.NOTATE", difficulty: 0.6, parts: 6, shaded: 2, distractor: "complement", correct: "b" },
 ];
+
+/** The wrong picture on an F.NOTATE item, as {parts, shaded}. Mirrored in public/child/child.js renderPartition. */
+export function notateDistractor(item: PartitionItem): { parts: number; shaded: number } | undefined {
+  if (item.shaded === undefined) return undefined;
+  return (item.distractor ?? "complement") === "partpart"
+    ? { parts: item.shaded + item.parts, shaded: item.shaded }
+    : { parts: item.parts, shaded: item.parts - item.shaded };
+}
+
+/**
+ * What the child actually sees for a partition item, for the engine's
+ * within-session content dedupe (server/state.ts). Includes every field that
+ * changes the pictures: part count, the unequal cut style, the shaded
+ * count and the F.NOTATE distractor kind -- `partition:${parts}` alone made G.PART / G.PART.UNEQUAL / F.NOTATE
+ * items with the same part count collide.
+ */
+export function partitionContentKey(item: PartitionItem): string {
+  if (item.shaded !== undefined) return `partition:${item.parts}:shaded:${item.shaded}:${item.distractor ?? "complement"}`;
+  return `partition:${item.parts}:unequal:${item.unequalStyle ?? "big"}`;
+}
 
 export function partitionItemsForConcept(conceptId: string): PartitionItem[] {
   return partitionItems.filter((i) => i.concept_id === conceptId);

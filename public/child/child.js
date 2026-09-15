@@ -800,22 +800,59 @@ function renderBalanceScale(item, startedAtMs) {
 
 function renderPartition(item, startedAtMs) {
   // Same fixed blue/magenta data-hue convention renderCompare uses -- see
-  // the comment there.
+  // the comment there. Still exactly one tap on one of two pictures; the
+  // optional item fields only change what the pictures look like:
+  //  - item.shaded (F.NOTATE): each picture is one whole cut into equal
+  //    pieces, shaded from the left. Correct: item.parts pieces, item.shaded
+  //    shaded. Wrong (item.distractor, mirrors notateDistractor in
+  //    src/games/fractionbars/items.ts): "complement" = item.parts pieces,
+  //    parts - shaded shaded; "partpart" = shaded + parts pieces, shaded
+  //    shaded -- so the two pictures can have different piece counts.
+  //  - item.unequalStyle (G.PART.UNEQUAL; absent = "big", G.PART): how the
+  //    not-equal picture is cut. Both pictures always have item.parts pieces.
+  // Teal means "shaded parts" and appears only on F.NOTATE pictures; the
+  // equal/unequal pictures are uniformly neutral so colour never hints.
+  const notate = Number.isInteger(item.shaded);
+  function picture(correct) {
+    if (!notate) return { parts: item.parts, shaded: 0 };
+    if (correct) return { parts: item.parts, shaded: item.shaded };
+    return item.distractor === "partpart"
+      ? { parts: item.shaded + item.parts, shaded: item.shaded }
+      : { parts: item.parts, shaded: item.parts - item.shaded };
+  }
+  function sliceWeights(equal, n) {
+    if (equal || notate) return Array(n).fill(1);
+    const style = item.unequalStyle || "big";
+    if (style === "offset") return Array.from({ length: n }, (_, i) => (i === 0 ? 1.35 : i === 1 ? 0.65 : 1));
+    if (style === "strips") return Array.from({ length: n }, (_, i) => 0.55 + (0.9 * i) / Math.max(n - 1, 1));
+    return Array.from({ length: n }, (_, i) => (i === 0 ? 2 : 1));
+  }
   function shape(side) {
-    const equal = side === item.correct;
-    const slices = [];
-    for (let i = 0; i < item.parts; i++) {
-      const uneven = !equal && i === 0;
-      slices.push(el("div", { class: "partition-slice" + (i % 2 === 0 ? " fill" : ""), style: uneven ? "flex:2" : "" }));
-    }
+    const correct = side === item.correct;
+    const pic = picture(correct);
+    const slices = sliceWeights(correct, pic.parts).map((w, i) =>
+      el("div", { class: "partition-slice" + (notate && i < pic.shaded ? " fill" : ""), style: `flex:${w}` }),
+    );
     return el(
       "div",
       { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
       [el("div", { class: "partition-shape" }, slices)],
     );
   }
-  const word = PARTITION_WORDS[item.parts];
-  return [el("div", { class: "prompt" }, word ? `Which shows equal ${word}?` : "Which shows equal parts?"), el("div", { class: "choice-row" }, [shape("a"), shape("b")])];
+  let prompt;
+  if (notate) {
+    // The fraction itself is the math content, so it is shown as digits --
+    // stacked the way a grade-3 page writes it, not "2/3".
+    const frac = el("span", { class: "prompt-frac", role: "img", "aria-label": `${item.shaded} out of ${item.parts}` }, [
+      el("span", { class: "prompt-frac-num" }, String(item.shaded)),
+      el("span", { class: "prompt-frac-den" }, String(item.parts)),
+    ]);
+    prompt = el("div", { class: "prompt" }, ["Which picture shows ", frac, "?"]);
+  } else {
+    const word = PARTITION_WORDS[item.parts];
+    prompt = el("div", { class: "prompt" }, word ? `Which shows equal ${word}?` : "Which shows equal parts?");
+  }
+  return [prompt, el("div", { class: "choice-row" }, [shape("a"), shape("b")])];
 }
 
 // Mirrors PARTITION_WORDS in server/routes.ts (the tutor's replay labels).

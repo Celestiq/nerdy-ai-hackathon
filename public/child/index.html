@@ -276,10 +276,17 @@
   .bar-cell.fill { background: var(--status-mastered); }
   .bar-label { font-family: var(--mono); font-size: clamp(var(--text-sm), 1.8vw, var(--text-xl)); color: var(--soft); }
 
-  .partition-shape { width: 100%; height: clamp(60px, 12vh, 150px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
-  .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; }
+  /* Teal = shaded parts, and only F.NOTATE pictures shade any (renderPartition).
+     Every other slice is the same pale cell as a fraction bar. */
+  .partition-shape { width: 100%; height: clamp(60px, 12vh, 150px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; overflow: hidden; }
+  .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; background: var(--rule-lite); }
   .partition-slice:last-child { border-right: none; }
   .partition-slice.fill { background: var(--status-mastered); }
+  /* Stacked fraction inside the prompt ("Which picture shows 2/3?"): two
+     short lines at ~0.6em so the prompt keeps roughly one line's height. */
+  .prompt-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: 0.6em; line-height: 1; margin-inline: 0.15em; }
+  .prompt-frac-num { padding-inline: 0.2em; border-bottom: 0.1em solid currentColor; padding-bottom: 0.06em; }
+  .prompt-frac-den { padding-top: 0.06em; }
 
   /* -------------------- Fizz + the path track --------------------
      The one progress mechanic every item type above funnels through --

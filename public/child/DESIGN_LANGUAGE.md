@@ -322,7 +322,24 @@ one screen).
   not a single fill width. It uses only the item's `numerator`/`denominator`.
 - **Partition** (`renderPartition`): the prompt word comes from the
   `PARTITION_WORDS` lookup (halves … sixths, mirroring `server/routes.ts`).
-  An unknown part count says "equal parts", never a digit.
+  An unknown part count says "equal parts", never a digit. Always one tap on
+  one of two pictures (`.partition-shape` of flex `.partition-slice`s), same
+  piece count on both sides so counting alone can't answer it. Two optional
+  item fields change the drawing, never the interaction:
+  - `unequalStyle` (G.PART.UNEQUAL): the not-equal picture is `big` (one
+    double piece, G.PART's drawing and the default), `offset` (one shifted
+    cut) or `strips` (widths ramp narrow to wide). Don't add a fourth style
+    without a matching content_key change (`partitionContentKey`).
+  - `shaded` (F.NOTATE): "Which picture shows N/D?". Every picture is equal
+    parts, counted pieces teal `.fill` from the left. The wrong picture is
+    `distractor: "complement"` (same D parts, D−N shaded) or `"partpart"`
+    (N shaded of N+D parts, so the piece counts differ and the denominator
+    has to be read). Keep N+D ≤ 8 so pieces stay readable. The fraction is
+    the one place digits appear in a partition prompt, stacked
+    (`.prompt-frac`) at ~0.6em so the prompt stays about one line tall.
+  - **Teal means shaded parts, and only F.NOTATE shades.** Equal/unequal
+    pictures are uniformly `--rule-lite`; never alternate-fill slices (it
+    read as "shaded" and could hint).
 - **End card** (`showEndCard`): the routine finish only. "Thanks for
   playing!", "See my stars". No beats on it any more.
 - **Celebration** (`showCelebration`): replaces the end card when `POST
