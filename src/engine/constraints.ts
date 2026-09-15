@@ -15,12 +15,30 @@ export interface ConstraintOutcome {
 
 const VARIETY_LIMIT = 2;
 
-/** Would this candidate's hard prerequisites be satisfied right now? Shared
- * by the normal pass and the starvation fallback below so the fallback
- * never has to re-derive or drift from the real gate logic. */
-function prereqsMet(graph: ConceptGraph, belief: Map<string, BeliefInternal>, conceptId: string): boolean {
-  const hardReqs = graph.data.requires.filter((e) => e.from === conceptId && e.strength === "hard");
-  return hardReqs.every((e) => (belief.get(e.to)?.p_mastery ?? 0) >= (graph.node(e.to)?.mastery_threshold ?? 1));
+/** Belief statuses that satisfy a hard prerequisite. Status, not raw
+ * p_mastery: p over threshold alone is not mastery (the store's recent-
+ * evidence gate must also hold), and a MASTERED concept inside its
+ * hysteresis margin is still mastered. DECAYED counts -- a fading
+ * prerequisite is a retrieval need, not a reason to lock its successors. */
+const PREREQ_SATISFIED: ReadonlySet<BeliefInternal["status"]> = new Set(["MASTERED", "DECAYED"]);
+
+/** Hard prerequisite edges of `conceptId` that are NOT satisfied right now. */
+export function unmetHardPrereqs(graph: ConceptGraph, belief: ReadonlyMap<string, BeliefInternal>, conceptId: string): string[] {
+  return graph.data.requires
+    .filter((e) => e.from === conceptId && e.strength === "hard")
+    .filter((e) => !PREREQ_SATISFIED.has(belief.get(e.to)?.status ?? "UNTESTED"))
+    .map((e) => e.to);
+}
+
+/**
+ * The single prerequisite predicate: are all of `conceptId`'s hard
+ * prerequisites MASTERED or DECAYED for this child? Used by the normal gate
+ * and the starvation fallback below (so the fallback never drifts from the
+ * real gate), and exported so the child map's `next` eligibility can use the
+ * exact same rule instead of re-deriving it (Cycle 19 lane G/R).
+ */
+export function prereqsMet(graph: ConceptGraph, belief: ReadonlyMap<string, BeliefInternal>, conceptId: string): boolean {
+  return unmetHardPrereqs(graph, belief, conceptId).length === 0;
 }
 
 /**
@@ -48,10 +66,9 @@ export function applyHardConstraints(
       continue;
     }
 
-    if (!prereqsMet(graph, belief, candidate.concept_id)) {
-      const hardReqs = graph.data.requires.filter((e) => e.from === candidate.concept_id && e.strength === "hard");
-      const unmet = hardReqs.filter((e) => (belief.get(e.to)?.p_mastery ?? 0) < (graph.node(e.to)?.mastery_threshold ?? 1));
-      blocked.push({ ...candidate, reason: `prerequisite gate: unmet hard prerequisite(s) ${unmet.map((e) => e.to).join(", ")}` });
+    const unmet = unmetHardPrereqs(graph, belief, candidate.concept_id);
+    if (unmet.length > 0) {
+      blocked.push({ ...candidate, reason: `prerequisite gate: unmet hard prerequisite(s) ${unmet.join(", ")}` });
       continue;
     }
 

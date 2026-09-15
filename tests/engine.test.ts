@@ -251,32 +251,40 @@ describe("assembleAssignment: seed-based item rotation", () => {
 });
 
 /**
- * Cycle 14 gap #1's pedagogy follow-up: when a concept's wheel-spin block
- * was just relaxed (the starvation fallback in constraints.ts), its items
- * should be served easiest-first, not whatever the rotation would have
- * served next -- a child who just failed a concept three times shouldn't
- * immediately land on its hardest item.
+ * Cycle 19 lane G (replaces Cycle 14's ascending-difficulty rule): the
+ * relaxed wheel-spin concept's items are a seeded shuffle within the concept,
+ * so repeat relaxed sessions differ (a difficulty sort served Devon the
+ * identical session s3-s13). Deterministic per seed; no Math.random().
  */
-describe("assembleAssignment: relaxed concept gets ascending-difficulty ordering", () => {
-  it("orders the relaxed concept's own items by difficulty ascending, ahead of the rotated rest", () => {
+describe("assembleAssignment: relaxed concept gets a seeded shuffle", () => {
+  it("is reproducible for a seed, varies across seeds, and only ever serves the relaxed concept's own items", () => {
     const { registry, itemBank } = freshRegistry();
-    const result = assembleAssignment(graph, registry, itemBank, ["N.COUNT", "N.ORD"], new Map(), "relax-seed-1", "N.COUNT");
-    expect(result).toBeDefined();
+    const bankNOrd = new Set(numberlineItems.filter((i) => i.concept_id === "N.ORD").map((i) => i.item_id));
+    const orderFor = (seed: string) =>
+      assembleAssignment(graph, registry, itemBank, ["N.ORD"], new Map(), seed, "N.ORD")!
+        .item_specs.map((i) => i.item_id)
+        .join(">");
+    expect(orderFor("relax-seed-1")).toBe(orderFor("relax-seed-1"));
+    const orders = ["r1", "r2", "r3", "r4", "r5", "r6"].map(orderFor);
+    for (const order of orders) for (const id of order.split(">")) expect(bankNOrd.has(id)).toBe(true);
+    expect(new Set(orders).size).toBeGreaterThan(1);
+    // Not a difficulty sort: at least one seed yields a non-ascending order.
+    const difficultyOf = new Map(numberlineItems.map((i) => [i.item_id, i.difficulty]));
+    const ascending = (order: string) => {
+      const d = order.split(">").map((id) => difficultyOf.get(id)!);
+      return d.every((x, i) => i === 0 || d[i - 1] <= x);
+    };
+    expect(orders.some((o) => !ascending(o))).toBe(true);
+  });
 
-    const nCountDifficulties = result!.item_specs.filter((i) => i.concept_id === "N.COUNT").map((i) => i.difficulty);
-    // Every N.COUNT item in the bank, easiest first (derived from the bank:
-    // the pool was deepened in cycle 18, C2, and still fits in one session
-    // with room for the other concept).
-    const bankNCount = numberlineItems.filter((i) => i.concept_id === "N.COUNT").map((i) => i.difficulty);
-    expect(bankNCount.length).toBeLessThan(numberlineManifest.items_per_session.max);
-    expect(nCountDifficulties).toEqual([...nCountDifficulties].sort((a, b) => a - b));
-    expect(nCountDifficulties).toEqual([...bankNCount].sort((a, b) => a - b));
-
-    // The relaxed concept's items come first, ahead of the other concept's
-    // (rotated) items.
-    const firstNonNCountIndex = result!.item_specs.findIndex((i) => i.concept_id !== "N.COUNT");
-    const lastNCountIndex = result!.item_specs.map((i) => i.concept_id).lastIndexOf("N.COUNT");
-    expect(firstNonNCountIndex).toBeGreaterThan(lastNCountIndex);
+  it("a relaxed top concept still leads the session and keeps its share next to another chosen concept", () => {
+    const { registry, itemBank } = freshRegistry();
+    for (const seed of ["relax-a", "relax-b", "relax-c"]) {
+      const result = assembleAssignment(graph, registry, itemBank, ["N.COUNT", "N.ORD"], new Map(), seed, "N.COUNT")!;
+      expect(result.item_specs[0].concept_id).toBe("N.COUNT");
+      const n = result.item_specs.filter((i) => i.concept_id === "N.COUNT").length;
+      expect(n).toBe(Math.ceil(numberlineManifest.items_per_session.max / 2));
+    }
   });
 
   it("does not force ascending order on a concept that was NOT the relaxed one", () => {

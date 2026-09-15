@@ -18,8 +18,9 @@ export interface AssembleResult {
 
 /**
  * Step 4-5 of the pipeline: match a game against manifests for the chosen
- * concepts, then assemble item specs -- anchors first, then the adaptive
- * tail. See architecture.html #engine figure and "The anchor set" section.
+ * concepts, then assemble item specs -- the adaptive tail with the fixed
+ * anchor items placed in its back half. See architecture.html #engine figure
+ * and "The anchor set" section.
  *
  * Policy: the *highest-scored* chosen concept (chosenConcepts[0]) always
  * picks the serving game -- `registry.matchConcept(chosenConcepts[0])[0]` --
@@ -37,24 +38,13 @@ export interface AssembleResult {
  * the old policy silently defeated it. Verified against a live re-seed +
  * server run for all 6 seeded students -- see the commit message.
  *
- * Non-anchor tail ordering (Cycle 14 gap #1 fix): the tail used to be
- * `nonAnchorPool.slice(0, remaining)` with no shuffle, ordering, or
- * rotation at all -- two calls with the same chosen concepts (e.g. two
- * sessions in a row, nothing about the child's belief having changed yet)
- * produced byte-identical item sets in byte-identical order. `seed` (the
- * same per-round seed `selectNext` already threads through for
- * `assignment_id`, via the shared `hash()`/`hashInt()` in `./hash.js`) now
- * deterministically rotates the non-relaxed portion of the pool before
- * slicing -- reproducible for a fixed seed (tests stay deterministic,
- * no `Math.random()`), different across rounds because the caller's seed
- * already varies per round/session. Separately, if `relaxedConceptId` is
- * set (the concept whose wheel-spin block `applyHardConstraints` just
- * relaxed as a starvation fallback -- see constraints.ts), that concept's
- * own items are pulled out of the rotation entirely and sorted by
- * `difficulty` ascending, placed first: a child who just got unblocked
- * after repeatedly failing a concept should land on its easiest items,
- * not whatever the rotation happened to serve up next (pedagogy-reviewer's
- * Cycle 14 follow-up).
+ * Session order (Cycle 19 lane G): the tail is drawn only from the chosen
+ * concepts -- concepts[0] gets ceil(remaining/2) slots, the others share the
+ * rest round-robin, and the two are interleaved starting with concepts[0].
+ * Within a concept, items are rotated by `seed` (reproducible, varies per
+ * round); the relaxed wheel-spin concept is seed-shuffled instead, so repeat
+ * relaxed sessions don't serve the same items. Anchors are inserted at
+ * seeded positions in the back half, never first.
  */
 export function assembleAssignment(
   graph: ConceptGraph,
@@ -141,32 +131,74 @@ export function assembleAssignment(
   const maxItems = manifest.items_per_session.max;
   const remaining = Math.max(0, maxItems - anchorItems.length);
 
-  let orderedTail: ItemBankEntry[];
-  if (relaxedConceptId && nonAnchorPool.some((i) => i.concept_id === relaxedConceptId)) {
-    const relaxedItems = nonAnchorPool
-      .filter((i) => i.concept_id === relaxedConceptId)
-      .sort((a, b) => a.difficulty - b.difficulty);
-    const restItems = rotate(
-      nonAnchorPool.filter((i) => i.concept_id !== relaxedConceptId),
-      seed,
-    );
-    orderedTail = [...relaxedItems, ...restItems];
-  } else {
-    orderedTail = rotate(nonAnchorPool, seed);
+  // Per-concept ordering. The relaxed (wheel-spin-unblocked, STUCK) concept
+  // gets a seeded shuffle so repeat relaxed sessions differ -- a difficulty
+  // sort served the same first N items every time (Devon s3-s13 identical).
+  // Every other concept keeps its seeded rotation.
+  const queues = new Map<string, ItemBankEntry[]>(
+    concepts.map((c) => {
+      const own = nonAnchorPool.filter((i) => i.concept_id === c);
+      return [c, c === relaxedConceptId ? seededShuffle(own, `${seed}:relaxed:${c}`) : rotate(own, `${seed}:${c}`)];
+    }),
+  );
+  // Pop the next item of `concept` whose content hasn't been served yet.
+  const take = (concept: string): ItemBankEntry | undefined => {
+    const q = queues.get(concept)!;
+    while (q.length > 0) {
+      const item = q.shift()!;
+      const key = contentKeyOf(item);
+      if (seenContent.has(key)) continue;
+      seenContent.add(key);
+      return item;
+    }
+    return undefined;
+  };
+
+  // Top-concept share: concepts[0] gets ceil(remaining/2) tail slots
+  // (capped by its deduped pool); the other chosen concepts fill the rest
+  // round-robin; any slot still empty is backfilled from whoever has items
+  // left (top first). Replaces one rotate() over the concept-grouped pool,
+  // which could hand the top concept 0 items.
+  const [top, ...others] = concepts;
+  const topItems: ItemBankEntry[] = [];
+  const otherItems: ItemBankEntry[] = [];
+  const topQuota = Math.ceil(remaining / 2);
+  while (topItems.length < topQuota) {
+    const item = take(top);
+    if (!item) break;
+    topItems.push(item);
   }
+  const roundRobin = (sources: string[], out: ItemBankEntry[]) => {
+    let live = [...sources];
+    while (live.length > 0 && topItems.length + otherItems.length < remaining) {
+      const next: string[] = [];
+      for (const c of live) {
+        if (topItems.length + otherItems.length >= remaining) break;
+        const item = take(c);
+        if (item) {
+          out.push(item);
+          next.push(c);
+        }
+      }
+      live = next;
+    }
+  };
+  roundRobin(others, otherItems);
+  roundRobin([top], topItems);
+
+  // Interleave: top first, then alternate with the others; leftovers last.
   const tail: ItemBankEntry[] = [];
-  for (const item of orderedTail) {
-    if (tail.length >= remaining) break;
-    const key = contentKeyOf(item);
-    if (seenContent.has(key)) continue;
-    seenContent.add(key);
-    tail.push(item);
+  for (let i = 0; i < Math.max(topItems.length, otherItems.length); i++) {
+    if (i < topItems.length) tail.push(topItems[i]);
+    if (i < otherItems.length) tail.push(otherItems[i]);
   }
 
-  const item_specs: ItemSpec[] = [
-    ...anchorItems.map((a) => ({ item_id: a.item_id, concept_id: a.concept_id, difficulty: a.difficulty, is_anchor: true })),
-    ...tail.map((i) => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty, is_anchor: false })),
-  ];
+  // Anchors are never first: they go to seed-chosen positions in the back
+  // half, so a session opens on the concept the engine chose (not "1/8" or
+  // "3/4 vs 2/3" for every child). Only an empty tail forces an anchor first.
+  const tailSpecs: ItemSpec[] = tail.map((i) => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty, is_anchor: false }));
+  const anchorSpecs: ItemSpec[] = anchorItems.map((a) => ({ item_id: a.item_id, concept_id: a.concept_id, difficulty: a.difficulty, is_anchor: true }));
+  const item_specs = placeAnchors(tailSpecs, anchorSpecs, seed);
 
   return {
     game_id: manifest.game_id,
@@ -176,6 +208,34 @@ export function assembleAssignment(
     anchorConcepts: [...new Set(anchorItems.map((a) => a.concept_id))],
     skippedAnchors,
   };
+}
+
+/**
+ * Insert anchors (in their configured order) at seed-chosen positions in the
+ * back half of the session: never index 0 while there is any tail item.
+ */
+function placeAnchors(tail: ItemSpec[], anchorSpecs: ItemSpec[], seed: string): ItemSpec[] {
+  if (anchorSpecs.length === 0) return tail;
+  if (tail.length === 0) return anchorSpecs;
+  const n = tail.length + anchorSpecs.length;
+  const start = Math.max(1, Math.min(Math.floor(n / 2), n - anchorSpecs.length));
+  const slots = Array.from({ length: n - start }, (_, i) => start + i);
+  const chosen = new Set(seededShuffle(slots, `${seed}:anchors`).slice(0, anchorSpecs.length));
+  const out: ItemSpec[] = [];
+  let t = 0;
+  let a = 0;
+  for (let pos = 0; pos < n; pos++) out.push(chosen.has(pos) ? anchorSpecs[a++] : tail[t++]);
+  return out;
+}
+
+/** Deterministic Fisher-Yates driven by `hashInt` -- no Math.random(). */
+function seededShuffle<T>(items: T[], seed: string): T[] {
+  const out = [...items];
+  for (let i = out.length - 1; i > 0; i--) {
+    const j = hashInt(`${seed}:${i}`) % (i + 1);
+    [out[i], out[j]] = [out[j], out[i]];
+  }
+  return out;
 }
 
 function contentKeyOf(item: ItemBankEntry): string {

@@ -86,12 +86,22 @@ describe("Balance Scale registration order", () => {
  * ["F.EQV"] concept list (what this file used to assert against) is not
  * something selectNext() ever produces under VARIETY_LIMIT=2 -- see
  * BACKLOG.md's Cycle 11 gap #3 ("looked fixed, wasn't guarded"). This test
- * drives the actual engine instead, for the same stu_priya F.MAG.NONUNIT
- * bootstrap scripts/seed.ts uses to make F.EQV's hard prerequisite
- * (F.MAG.NONUNIT >= 0.85 p_mastery) reachable at all.
+ * drives the actual engine instead, over the seeded cohort.
+ *
+ * The demo guarantee is "Balance Scale is reachable by a seeded student on a
+ * fresh seed", not "by stu_priya specifically": which competent student gets
+ * there depends on how fast the engine moves them (Cycle 19 lane G's larger
+ * top-concept share lets simulated stu_priya master F.EQV inside the seeded
+ * history itself, so her next session is something else). Asserted as: at
+ * least one seeded student's first live assignment -- seeded with the
+ * server's own `srv:<student>:<own bundle count>` rotation seed -- is
+ * balancescale.compare.v1 serving F.EQV items.
  *
  * Mirrors scripts/seed.ts's base cohort simulation (profiles/seed/rounds)
- * plus its stu_priya F.MAG.NONUNIT bootstrap bundle exactly -- same
+ * plus its stu_priya F.MAG.NONUNIT bootstrap bundle exactly (seed.ts's other
+ * hand-authored bundles -- devon's N.COUNT bootstrap, maya/jonah's
+ * whole-number-bias sessions -- aren't mirrored; they don't touch F.EQV's
+ * prerequisite chain) -- same
  * duplication discipline tests/simulation.test.ts's demoCohort() already
  * uses for this file, so this test fails the same way a live post-seed
  * request would if either drifts, rather than silently going stale.
@@ -130,7 +140,9 @@ describe("F.EQV/balancescale.compare.v1 is actually reachable by a real seeded s
     };
   }
 
-  function seededPriyaBelief() {
+  const SEEDED = ["stu_maya", "stu_devon", "stu_priya", "stu_jonah", "stu_amara", "stu_leo"];
+
+  function seededStore() {
     const { trace, store: simStore } = runCohort({
       graph,
       registry,
@@ -155,30 +167,37 @@ describe("F.EQV/balancescale.compare.v1 is actually reachable by a real seeded s
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     store.ingest(fmagNonunitBootstrapSession("stu_priya", yesterday.toISOString()));
 
-    return store.belief("stu_priya");
+    return store;
   }
 
   it("stu_priya's F.MAG.NONUNIT crosses the 0.85 p_mastery gate after the bootstrap", () => {
-    const belief = seededPriyaBelief();
-    const fmagNonunit = belief.get("F.MAG.NONUNIT");
+    const fmagNonunit = seededStore().belief("stu_priya").get("F.MAG.NONUNIT");
     expect(fmagNonunit).toBeDefined();
     expect(fmagNonunit!.p_mastery).toBeGreaterThanOrEqual(0.85);
   });
 
-  it("selectNext() actually serves balancescale.compare.v1 for stu_priya, not a hand-written concept list", () => {
-    const belief = seededPriyaBelief();
-    const result = selectNext({
-      studentId: "stu_priya",
-      graph,
-      belief,
-      registry,
-      itemBank,
-      anchors,
-      seed: "test-priya-post-bootstrap",
-    });
-    expect(result.assignment, `stu_priya got no assignment: ${result.reason}`).toBeDefined();
-    expect(result.assignment!.concepts).toContain("F.EQV");
-    expect(result.assignment!.game_id).toBe("balancescale.compare.v1");
+  it("selectNext() actually serves balancescale.compare.v1 (F.EQV items) as some seeded student's next session, not a hand-written concept list", () => {
+    const store = seededStore();
+    const reached: string[] = [];
+    for (const studentId of SEEDED) {
+      const result = selectNext({
+        studentId,
+        graph,
+        belief: store.belief(studentId),
+        registry,
+        itemBank,
+        anchors,
+        seed: `srv:${studentId}:${store.bundlesFor(studentId).length}`, // server/routes.ts nextSessionSeed
+      });
+      const a = result.assignment;
+      if (a?.game_id !== "balancescale.compare.v1") continue;
+      expect(a.concepts).toContain("F.EQV");
+      const adaptive = a.item_specs.filter((i) => !i.is_anchor);
+      expect(adaptive.length).toBeGreaterThan(0);
+      for (const i of adaptive) expect(i.concept_id).toBe("F.EQV");
+      reached.push(studentId);
+    }
+    expect(reached.length, "no seeded student's next session is Balance Scale").toBeGreaterThanOrEqual(2);
   });
 });
 

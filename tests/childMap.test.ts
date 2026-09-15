@@ -331,9 +331,10 @@ describe("GET /api/child/map/:studentId", () => {
     stubBelief(studentId, { "N.COUNT": { status: "EMERGING", p_mastery: Math.min(1, threshold + 0.05) }, "G.PART": { status: "STUCK" } });
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
-    // The engine gates prerequisites on p_mastery, so it would lead with N.ORD; the
-    // status guard rejects that and `next` falls back to the preference rule.
-    expect(engineTop(studentId)).toBe("N.ORD");
+    // The engine now gates prerequisites on the same status rule (exported
+    // prereqsMet), so it no longer leads with N.ORD either; `next` falls back
+    // to the preference rule.
+    expect(engineTop(studentId)).not.toBe("N.ORD");
     const next = body.concepts.filter((c) => c.next);
     expect(next.map((c) => c.concept_id)).toEqual(["N.COUNT"]);
     expect(body.concepts.find((c) => c.concept_id === "N.ORD")!.next).toBe(false);

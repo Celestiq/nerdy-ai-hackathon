@@ -5,13 +5,17 @@ import type { BeliefInternal } from "../src/store/types.js";
 import { WHEEL_SPIN_LIMIT } from "../src/store/types.js";
 import { selectNext } from "../src/engine/engine.js";
 import { assembleAssignment } from "../src/engine/assemble.js";
+import { prereqsMet } from "../src/engine/constraints.js";
 import { numberlineManifest } from "../src/games/numberline/index.js";
 
 /**
  * Cycle 18 B1: assembly serves what the engine chose. Anchors are fixed
  * cohort ITEMS (their concepts don't widen the adaptive tail), a STUCK
  * concept's anchor is skipped, and same-content items are deduped within a
- * session. Uses a fixture item bank (fake item ids, real graph concept ids)
+ * session. Cycle 19 lane G: anchors sit in the back half (never first), the
+ * top chosen concept gets ceil(remaining/2) tail slots and opens the session,
+ * a MASTERED concept never leads while a chosen concept is unmastered, and
+ * the prerequisite gate is status-based. Uses a fixture item bank (fake item ids, real graph concept ids)
  * so these tests don't depend on the live, still-changing item bank.
  */
 
@@ -189,5 +193,100 @@ describe("selectNext: served concepts and the decision log agree", () => {
       const included = a.item_specs.filter((s) => a.concepts.includes(s.concept_id)).length;
       expect(included * 2).toBeGreaterThanOrEqual(a.item_specs.length);
     }
+  });
+});
+
+describe("assembleAssignment: session order (Cycle 19 lane G)", () => {
+  const SEEDS = ["o1", "o2", "o3", "o4", "o5", "o6", "o7", "o8", "o9", "o10"];
+
+  it("never opens with an anchor; anchors land in the back half at seed-chosen positions", () => {
+    const { registry, itemBank } = fixtureRegistry();
+    const positions = new Set<string>();
+    for (const chosen of [["N.ORD"], ["N.COUNT", "N.ORD"], ["D.MAG.CMP", "N.ORD"]]) {
+      for (const seed of SEEDS) {
+        const specs = assembleAssignment(graph, registry, itemBank, chosen, FIXTURE_ANCHORS, seed)!.item_specs;
+        expect(specs[0].is_anchor, `${chosen}/${seed}`).toBe(false);
+        expect(specs[0].concept_id).toBe(chosen[0]);
+        const anchorIdx = specs.flatMap((s, i) => (s.is_anchor ? [i] : []));
+        expect(anchorIdx).toHaveLength(2);
+        for (const i of anchorIdx) expect(i).toBeGreaterThanOrEqual(Math.floor(specs.length / 2));
+        // configured anchor order is preserved
+        expect(specs.filter((s) => s.is_anchor).map((s) => s.item_id)).toEqual(["fx_unit_1", "fx_dm_1"]);
+        positions.add(`${specs.length}:${anchorIdx.join(",")}`);
+      }
+    }
+    expect(positions.size).toBeGreaterThan(3); // seeded, not one fixed slot
+  });
+
+  it("gives the top concept ceil(remaining/2) tail slots, interleaved and leading", () => {
+    const { registry, itemBank } = fixtureRegistry();
+    const remaining = numberlineManifest.items_per_session.max - 2; // two anchors
+    for (const seed of SEEDS) {
+      const specs = assembleAssignment(graph, registry, itemBank, ["N.COUNT", "N.ORD"], FIXTURE_ANCHORS, seed)!.item_specs;
+      const tail = specs.filter((s) => !s.is_anchor).map((s) => s.concept_id);
+      expect(tail.filter((c) => c === "N.COUNT")).toHaveLength(Math.ceil(remaining / 2));
+      expect(tail.filter((c) => c === "N.ORD")).toHaveLength(remaining - Math.ceil(remaining / 2));
+      // interleaved: never two of the same concept in a row while both have items left
+      expect(tail.slice(0, 8)).toEqual(["N.COUNT", "N.ORD", "N.COUNT", "N.ORD", "N.COUNT", "N.ORD", "N.COUNT", "N.ORD"]);
+    }
+  });
+
+  it("caps the top share at its deduped pool and backfills from the other concept", () => {
+    const { registry, itemBank } = fixtureRegistry();
+    for (const seed of SEEDS) {
+      // D.MAG.CMP has 2 servable items (one is the anchor's twin, two share content).
+      const specs = assembleAssignment(graph, registry, itemBank, ["D.MAG.CMP", "N.ORD"], FIXTURE_ANCHORS, seed)!.item_specs;
+      const tail = specs.filter((s) => !s.is_anchor).map((s) => s.concept_id);
+      expect(tail.filter((c) => c === "D.MAG.CMP")).toHaveLength(2);
+      expect(tail.filter((c) => c === "N.ORD")).toHaveLength(4);
+      expect(tail[0]).toBe("D.MAG.CMP");
+    }
+  });
+
+  it("never gives the top concept zero items when another chosen concept has a deep pool", () => {
+    const { registry, itemBank } = fixtureRegistry();
+    for (const seed of SEEDS) {
+      const specs = assembleAssignment(graph, registry, itemBank, ["N.ORD", "N.COUNT"], new Map(), seed)!.item_specs;
+      expect(specs.filter((s) => s.concept_id === "N.ORD").length).toBeGreaterThanOrEqual(3);
+    }
+  });
+});
+
+describe("selectNext: a MASTERED concept never leads while a chosen concept is unmastered", () => {
+  it("puts the unmastered chosen concept first even when the MASTERED one out-scores it", () => {
+    const registry = new GameRegistry();
+    registry.register(numberlineManifest);
+    const itemBank = new ItemBankRegistry();
+    const items = [
+      fx("fx_dn_1", "D.NOTATE", 0.3), fx("fx_dn_2", "D.NOTATE", 0.4), fx("fx_dn_3", "D.NOTATE", 0.5),
+      fx("fx_ord_1", "N.ORD", 0.2), fx("fx_ord_2", "N.ORD", 0.3), fx("fx_ord_3", "N.ORD", 0.4),
+    ];
+    itemBank.register(numberlineManifest.game_id, (ids) => items.filter((i) => ids.includes(i.concept_id)));
+    const b = belief([
+      { concept_id: "N.COUNT", p_mastery: 0.95, status: "MASTERED" },
+      { concept_id: "N.PLACE.HTH", p_mastery: 0.95, status: "MASTERED" },
+      // hysteresis-held: under threshold (so on the frontier), still MASTERED, low confidence -> scores high
+      { concept_id: "D.NOTATE", p_mastery: 0.8, confidence: 0.05, status: "MASTERED" },
+      { concept_id: "N.ORD", p_mastery: 0.5, confidence: 0.95, status: "EMERGING" },
+    ]);
+    for (const seed of ["m1", "m2", "m3"]) {
+      const out = selectNext({ studentId: "stu_fx", graph, belief: b, registry, itemBank, anchors: new Map(), seed });
+      const a = out.assignment!;
+      expect(a, out.reason).toBeDefined();
+      expect(a.concepts).toEqual(["N.ORD", "D.NOTATE"]);
+      expect(a.item_specs[0].concept_id).toBe("N.ORD");
+    }
+  });
+});
+
+describe("prereqsMet: one status-based prerequisite predicate", () => {
+  it("a hard prerequisite is met iff it is MASTERED or DECAYED, regardless of p_mastery", () => {
+    const over = graph.node("N.COUNT")!.mastery_threshold + 0.05;
+    expect(prereqsMet(graph, belief([{ concept_id: "N.COUNT", p_mastery: over, status: "EMERGING" }]), "N.ORD")).toBe(false);
+    expect(prereqsMet(graph, belief([{ concept_id: "N.COUNT", p_mastery: 0.6, status: "DECAYED" }]), "N.ORD")).toBe(true);
+    expect(prereqsMet(graph, belief([{ concept_id: "N.COUNT", p_mastery: 0.8, status: "MASTERED" }]), "N.ORD")).toBe(true);
+    expect(prereqsMet(graph, belief([{ concept_id: "N.COUNT", p_mastery: 0.2, status: "STUCK" }]), "N.ORD")).toBe(false);
+    expect(prereqsMet(graph, new Map(), "N.ORD")).toBe(false);
+    expect(prereqsMet(graph, new Map(), "N.COUNT")).toBe(true); // root
   });
 });

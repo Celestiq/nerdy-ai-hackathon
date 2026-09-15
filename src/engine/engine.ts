@@ -87,7 +87,14 @@ export function selectNext(input: SelectionInput): SelectionOutput {
     return { assignment: undefined, reason: "every candidate was blocked by a hard constraint", escalations, decisionLog };
   }
 
-  const chosenConcepts = allowed.map((a) => a.concept_id);
+  // Never lead with an already-MASTERED concept while any chosen concept is
+  // unmastered: concepts[0] picks the game, opens the session and gets the
+  // largest share, so a hysteresis-held MASTERED concept rides in the tail
+  // (stable reorder; score order otherwise kept).
+  const isMastered = (id: string) => belief.get(id)?.status === "MASTERED";
+  const chosenConcepts = [...allowed.filter((a) => !isMastered(a.concept_id)), ...allowed.filter((a) => isMastered(a.concept_id))].map(
+    (a) => a.concept_id,
+  );
   const assembled = assembleAssignment(graph, registry, itemBank, chosenConcepts, anchors, seed, relaxed, new Set(escalations));
 
   if (!assembled) {
