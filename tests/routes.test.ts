@@ -71,7 +71,7 @@ interface EvidenceResponseBody {
   accepted: boolean;
   duplicate: boolean;
   errors?: string[];
-  newlyMastered: { concept_id: string; label: string }[];
+  newlyMastered: { concept_id: string; label: string; kind: "first" | "rebloom" }[];
 }
 
 async function postEvidence(bundle: EvidenceBundle): Promise<{ status: number; body: EvidenceResponseBody }> {
@@ -430,6 +430,72 @@ describe("GET /api/sessions/:studentId/:sessionId", () => {
   });
 });
 
+// describeResponse for the partition game's F.NOTATE and G.PART.UNEQUAL
+// items (cycle 19 Lane R): these share partitionItems with G.PART, and used
+// to replay as "Which shape shows equal ...?" -- wrong for F.NOTATE, whose
+// question is "Which picture shows N/D?".
+describe("GET /api/sessions/:studentId/:sessionId: partition item labels", () => {
+  function partitionObservation(itemId: string, conceptId: string, value: "a" | "b", target: "a" | "b"): Observation {
+    return buildObservation({
+      item_id: itemId,
+      concept_id: conceptId,
+      difficulty: 0.6,
+      response: { kind: "choice", value, target },
+      verdict: value === target ? "correct" : "incorrect",
+      signature: "UNCLASSIFIED",
+      signature_confidence: 0,
+      startedAtMs: 0,
+      endedAtMs: 2000,
+      attempts: 1,
+    });
+  }
+
+  async function describeOne(obs: Observation): Promise<ObservationDetail> {
+    const studentId = `stu_${rand()}`;
+    const sessionId = `ses_${rand()}`;
+    await postEvidence(evidenceBundle({ student_id: studentId, session_id: sessionId, observations: [obs] }));
+    const res = await fetch(`${baseUrl}/sessions/${studentId}/${sessionId}`);
+    expect(res.status).toBe(200);
+    return ((await res.json()) as SessionDetail).observations[0];
+  }
+
+  it("describes an F.NOTATE complement miss as 'Which picture shows N/D?' with the complement picture named", async () => {
+    // itm_fno_5_6: 5/6, complement distractor (1 of 6 shaded), correct "b".
+    const o = await describeOne(partitionObservation("itm_fno_5_6", "F.NOTATE", "a", "b"));
+    expect(o).toMatchObject({
+      prompt_label: "Which picture shows 5/6?",
+      student_answer_label: "Chose the picture with 1 of 6 shaded",
+      correct_answer_label: "The picture with 5 of 6 shaded",
+    });
+    expect(o.prompt_label).not.toMatch(/equal/i);
+  });
+
+  it("describes an F.NOTATE part-to-part miss with the N of N+D picture named, and a correct pick as N of D", async () => {
+    // itm_fno_1_4: 1/4, partpart distractor (1 of 5 shaded), correct "b".
+    const miss = await describeOne(partitionObservation("itm_fno_1_4", "F.NOTATE", "a", "b"));
+    expect(miss).toMatchObject({
+      prompt_label: "Which picture shows 1/4?",
+      student_answer_label: "Chose the picture with 1 of 5 shaded",
+      correct_answer_label: "The picture with 1 of 4 shaded",
+    });
+    const hit = await describeOne(partitionObservation("itm_fno_1_4", "F.NOTATE", "b", "b"));
+    expect(hit.student_answer_label).toBe("Chose the picture with 1 of 4 shaded");
+  });
+
+  it("describes a G.PART.UNEQUAL pick as the equal parts vs the unequal (offset/strips) cut", async () => {
+    // itm_gpu_thirds_strips: parts 3, strips, correct "b".
+    const miss = await describeOne(partitionObservation("itm_gpu_thirds_strips", "G.PART.UNEQUAL", "a", "b"));
+    expect(miss).toMatchObject({
+      prompt_label: "Which shape shows equal thirds?",
+      student_answer_label: "Chose the unequal (strips) cut",
+      correct_answer_label: "The equal thirds",
+    });
+    // itm_gpu_halves_offset: parts 2, offset, correct "b".
+    const hit = await describeOne(partitionObservation("itm_gpu_halves_offset", "G.PART.UNEQUAL", "b", "b"));
+    expect(hit.student_answer_label).toBe("Chose the equal halves");
+  });
+});
+
 // BACKLOG.md B2 "Mastery Moment": POST /evidence diffs belief before vs.
 // after ingest and reports any concept that flipped to MASTERED in this
 // submission, by concept_id + human label, so the child surface can show a
@@ -474,7 +540,7 @@ describe("POST /api/evidence: newlyMastered (BACKLOG.md B2 Mastery Moment)", () 
     const afterEight = await postEvidence(nextThree);
     expect(afterEight.status).toBe(200);
     expect(afterEight.body.accepted).toBe(true);
-    expect(afterEight.body.newlyMastered).toEqual([{ concept_id: "G.PART", label: graph.node("G.PART")?.label }]);
+    expect(afterEight.body.newlyMastered).toEqual([{ concept_id: "G.PART", label: graph.node("G.PART")?.label, kind: "first" }]);
 
     // Sanity: G.PART really is MASTERED now, via the same /api/belief route
     // the tutor view reads.
@@ -511,5 +577,43 @@ describe("POST /api/evidence: newlyMastered (BACKLOG.md B2 Mastery Moment)", () 
     expect(res.status).toBe(200);
     expect(res.body.accepted).toBe(true);
     expect(res.body.newlyMastered).toEqual([]);
+  });
+
+  // Shared contract (BACKLOG.md cycle 19): kind = "rebloom" iff the
+  // concept's status immediately before this bundle was DECAYED.
+  it("tags a re-mastery of a DECAYED concept as kind 'rebloom'", async () => {
+    const studentId = `stu_${rand()}`;
+    const DAY_MS = 24 * 60 * 60 * 1000;
+    const longAgo = new Date(Date.now() - 120 * DAY_MS).toISOString();
+    const now = new Date().toISOString();
+
+    // A long, clean G.PART session four months ago: MASTERED at the time,
+    // then aged past the 28-day half-life so it reads DECAYED today.
+    const old = await postEvidence(
+      evidenceBundle({
+        student_id: studentId,
+        session_id: `ses_${rand()}_old`,
+        started_at: longAgo,
+        ended_at: longAgo,
+        observations: Array.from({ length: 20 }, () => correctPartitionObservation()),
+      }),
+    );
+    expect(old.body.accepted).toBe(true);
+    const beliefRes = await fetch(`${baseUrl}/belief/${studentId}`);
+    const belief = (await beliefRes.json()) as { concept_id: string; status: string }[];
+    expect(belief.find((b) => b.concept_id === "G.PART")?.status).toBe("DECAYED"); // precondition
+
+    // A fresh clean session today brings the star back.
+    const fresh = await postEvidence(
+      evidenceBundle({
+        student_id: studentId,
+        session_id: `ses_${rand()}_fresh`,
+        started_at: now,
+        ended_at: now,
+        observations: Array.from({ length: 12 }, () => correctPartitionObservation()),
+      }),
+    );
+    expect(fresh.body.accepted).toBe(true);
+    expect(fresh.body.newlyMastered).toEqual([{ concept_id: "G.PART", label: graph.node("G.PART")?.label, kind: "rebloom" }]);
   });
 });

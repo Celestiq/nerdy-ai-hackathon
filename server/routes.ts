@@ -11,7 +11,7 @@ import { EvidenceBundleSchema } from "../src/contracts/schemas.js";
 import type { SignatureCode } from "../src/contracts/signatures.js";
 import { numberlineItems } from "../src/games/numberline/items.js";
 import { classifyPlacement } from "../src/games/numberline/classify.js";
-import { fractionbarsItems, partitionItems } from "../src/games/fractionbars/items.js";
+import { fractionbarsItems, partitionItems, notateDistractor } from "../src/games/fractionbars/items.js";
 import { classifyChoice, classifyPartition } from "../src/games/fractionbars/classify.js";
 import { balancescaleItems } from "../src/games/balancescale/items.js";
 import { classifyTip } from "../src/games/balancescale/classify.js";
@@ -144,12 +144,28 @@ api.post("/games/:gameId/respond", (req, res) => {
 // the store itself stays pedagogy-free (see LearnerStore's own doc
 // comment); same reasoning as why blame() is composed in enrichBelief()
 // below rather than folded into the store.
-function diffNewlyMastered(before: Map<string, BeliefInternal>, after: Map<string, BeliefInternal>): { concept_id: string; label: string }[] {
-  const out: { concept_id: string; label: string }[] = [];
+// `kind` (BACKLOG.md "Shared contract"): "rebloom" when the star had faded
+// (status DECAYED immediately before this bundle) and this bundle brought it
+// back to MASTERED; "first" otherwise. Deliberately a before/after status
+// comparison only -- no evidence-log scan for "was ever MASTERED" (scope
+// guard): a concept that left MASTERED via counter-evidence (EMERGING/STUCK)
+// and re-earns it reads as "first". Clients treat a missing `kind` as "first".
+type MasteryKind = "first" | "rebloom";
+
+function diffNewlyMastered(
+  before: Map<string, BeliefInternal>,
+  after: Map<string, BeliefInternal>,
+): { concept_id: string; label: string; kind: MasteryKind }[] {
+  const out: { concept_id: string; label: string; kind: MasteryKind }[] = [];
   for (const [conceptId, afterBelief] of after) {
     if (afterBelief.status !== "MASTERED") continue;
-    if (before.get(conceptId)?.status === "MASTERED") continue; // already mastered before this submission -- not a new transition
-    out.push({ concept_id: conceptId, label: graph.node(conceptId)?.label ?? conceptId });
+    const beforeStatus = before.get(conceptId)?.status;
+    if (beforeStatus === "MASTERED") continue; // already mastered before this submission -- not a new transition
+    out.push({
+      concept_id: conceptId,
+      label: graph.node(conceptId)?.label ?? conceptId,
+      kind: beforeStatus === "DECAYED" ? "rebloom" : "first",
+    });
   }
   return out;
 }
@@ -482,8 +498,33 @@ function describeResponse(gameId: string, obs: Observation): { prompt_label: str
 
   const partitionItem = partitionItems.find((i) => i.item_id === obs.item_id);
   if (partitionItem) {
-    const word = PARTITION_WORDS[partitionItem.parts] ?? `${partitionItem.parts}ths`;
     const choice = obs.response.value === "a" ? "a" : "b";
+    const distractor = notateDistractor(partitionItem);
+    if (partitionItem.shaded !== undefined && distractor) {
+      // F.NOTATE: "Which picture shows N/D?" -- name each picture by what it
+      // shows, so the tutor can see which misread (complement or
+      // part-to-part) the child picked, not just "shape A/B".
+      const shows = (p: { parts: number; shaded: number }) => `${p.shaded} of ${p.parts} shaded`;
+      const correctPic = shows({ parts: partitionItem.parts, shaded: partitionItem.shaded });
+      const wrongPic = shows(distractor);
+      const picked = choice === partitionItem.correct ? correctPic : wrongPic;
+      return {
+        prompt_label: `Which picture shows ${partitionItem.shaded}/${partitionItem.parts}?`,
+        student_answer_label: `Chose the picture with ${picked}`,
+        correct_answer_label: `The picture with ${correctPic}`,
+      };
+    }
+    const word = PARTITION_WORDS[partitionItem.parts] ?? `${partitionItem.parts}ths`;
+    if (partitionItem.unequalStyle !== undefined) {
+      // G.PART.UNEQUAL: the wrong picture is a subtle cut ("offset"/"strips").
+      const unequal = `the unequal (${partitionItem.unequalStyle}) cut`;
+      const equal = `the equal ${word}`;
+      return {
+        prompt_label: `Which shape shows equal ${word}?`,
+        student_answer_label: `Chose ${choice === partitionItem.correct ? equal : unequal}`,
+        correct_answer_label: `The equal ${word}`,
+      };
+    }
     return {
       prompt_label: `Which shape shows equal ${word}?`,
       student_answer_label: choice === "a" ? "Chose shape A" : "Chose shape B",
