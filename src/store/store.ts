@@ -1,6 +1,6 @@
 import { EvidenceBundleSchema, type EvidenceBundle } from "../contracts/schemas.js";
 import { EvidenceLog } from "./log.js";
-import { project, type ConceptMetaLookup } from "./projector.js";
+import { project, type ConceptMetaLookup, type ProjectorOptions } from "./projector.js";
 import type { BeliefInternal } from "./types.js";
 
 export interface IngestResult {
@@ -17,10 +17,13 @@ export interface IngestResult {
 export class LearnerStore {
   private readonly log: EvidenceLog;
   private readonly metaOf: ConceptMetaLookup;
+  private readonly options: ProjectorOptions;
 
-  constructor(metaOf: ConceptMetaLookup, filePath?: string) {
+  /** `options` (e.g. `isAnchorItem`) is passed straight to the projector; omit it for the default rules. */
+  constructor(metaOf: ConceptMetaLookup, filePath?: string, options: ProjectorOptions = {}) {
     this.log = new EvidenceLog(filePath);
     this.metaOf = metaOf;
+    this.options = options;
   }
 
   ingest(raw: unknown): IngestResult {
@@ -34,7 +37,7 @@ export class LearnerStore {
 
   /** Full rebuild: belief is always a pure projection of the log, so this is just "call project again". */
   belief(studentId: string, now: Date = new Date()): Map<string, BeliefInternal> {
-    return project(studentId, this.log.forStudent(studentId), this.metaOf, now);
+    return project(studentId, this.log.forStudent(studentId), this.metaOf, now, this.options);
   }
 
   beliefFor(studentId: string, conceptId: string, now: Date = new Date()): BeliefInternal | undefined {

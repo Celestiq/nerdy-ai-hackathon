@@ -139,7 +139,10 @@ describe("decay hysteresis", () => {
     const afterGap = beliefOf([barely, session("back", 40, inBand())], 40);
     expect(afterGap.p_mastery).toBeLessThan(THRESHOLD);
     expect(afterGap.p_mastery).toBeGreaterThanOrEqual(EXIT_LINE);
-    expect(afterGap.status).toBe("EMERGING");
+    // Not MASTERED; and since the session is neither re-mastery nor genuine
+    // counter-evidence, the concept is still faded, so it stays DECAYED
+    // (review-due) rather than dropping to EMERGING (Cycle 19 pedagogy review).
+    expect(afterGap.status).toBe("DECAYED");
 
     // Control: the same in-band session with no decay gap is held MASTERED.
     const noGap = beliefOf([barely, session("back", 1, inBand())], 1);

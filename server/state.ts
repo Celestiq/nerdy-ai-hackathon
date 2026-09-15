@@ -83,7 +83,14 @@ export const metaOf: ConceptMetaLookup = (conceptId) => {
 export const dbConfigured = isDbConfigured();
 
 const DATA_DIR = new URL("../.data/", import.meta.url).pathname;
-export const store = dbConfigured ? new LearnerStore(metaOf) : new LearnerStore(metaOf, DATA_DIR + "evidence-log.jsonl");
+// Anchor items (declared below) can't by themselves award MASTERED -- see
+// MIN_NON_ANCHOR_CORRECT_TO_ENTER_MASTERY in src/store/types.ts. Read lazily:
+// the store only projects after this module has finished evaluating.
+const isAnchorItem = (itemId: string): boolean =>
+  [...anchors.values()].some((list) => list.some((a) => a.item_id === itemId));
+export const store = dbConfigured
+  ? new LearnerStore(metaOf, undefined, { isAnchorItem })
+  : new LearnerStore(metaOf, DATA_DIR + "evidence-log.jsonl", { isAnchorItem });
 
 if (dbConfigured) {
   const bundles = await loadAllBundles();

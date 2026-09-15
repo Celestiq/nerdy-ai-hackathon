@@ -78,6 +78,8 @@ export const RECENCY_HALF_LIFE_OBS = 30;
  *  - otherwise Hold (unchanged). Accurate-but-short sessions that haven't
  *    yet accumulated enough evidence to clear the bar must not escalate a
  *    child to STUCK.
+ * Once STUCK, accurate sessions can also clear the counter on their own; see
+ * STUCK_EXIT_CLEAN_SESSIONS below.
  */
 export const WHEEL_SPIN_SESSION_ACCURACY = 0.8;
 
@@ -124,3 +126,43 @@ export const DECAY_MARGIN = 0.15;
 export const MIN_MASTERY_OBS = 4;
 export const MASTERY_RECENT_WINDOW = 3;
 export const MASTERY_RECENT_MIN_CORRECT = 2;
+
+/**
+ * STUCK exit on fresh evidence. Once a concept is STUCK, this many later
+ * sessions that are each accurate on it (>= WHEEL_SPIN_MIN_SESSION_OBS
+ * observations at >= WHEEL_SPIN_SESSION_ACCURACY, counted per session, that
+ * concept only) reset attempts_without_mastery to 0, so the concept reads
+ * EMERGING again -- without needing whole-history p_mastery >= threshold.
+ * A wheel-spin session (the Increment case) in between restarts the count;
+ * short or otherwise Hold sessions neither count nor restart it.
+ *
+ * Why: recency weighting alone still left a child who struggled early pinned
+ * STUCK through dozens of near-perfect answers (Cycle 18 judge: devon, 55
+ * consecutive correct G.PART answers, p 0.817, still STUCK). Accurate
+ * sessions are exactly the evidence that the escalation no longer describes
+ * them. Clearing STUCK does not award MASTERED; that still needs the full bar.
+ *
+ * Why 3, not 2 (pedagogy review; "80% across 3 sessions" is the usual IEP
+ * progress-monitoring bar): chance runs of accurate sessions let a learner
+ * who isn't there yet read non-STUCK. Share of post-STUCK sessions reading
+ * non-STUCK, 200 runs x 40 sessions of 6 items each (5 items in brackets):
+ * 50% learner 2.8% [10.7%] at k=2 vs 0.3% [1.9%] at k=3; 60% learner 13.1%
+ * at k=2 vs 2.9% at k=3; 65% learner [39.8%] vs [20.1%]. None of these
+ * learners reaches MASTERED after going STUCK at either k. (Pedagogy
+ * reviewer's own mixed-length measurement: 60% learner 26% vs 9.9%.)
+ */
+export const STUCK_EXIT_CLEAN_SESSIONS = 3;
+
+/**
+ * Entering MASTERED (first time, or again after leaving it via decay /
+ * counter-evidence / STUCK) additionally needs at least this many correct
+ * observations on NON-anchor items for the concept in the entering session.
+ * Only applies when the store is given an `isAnchorItem` predicate (see
+ * ProjectorOptions in ./projector.ts); holding MASTERED is unaffected.
+ *
+ * Why: anchors are fixed cohort items served regardless of what the engine
+ * chose, so a concept could "master" (and fire the child's celebration) on
+ * one anchor answer per session with its prerequisites unmastered (Cycle 18
+ * judge: devon F.MAG.CMP purely via itm_fb_3_4v2_3).
+ */
+export const MIN_NON_ANCHOR_CORRECT_TO_ENTER_MASTERY = 2;

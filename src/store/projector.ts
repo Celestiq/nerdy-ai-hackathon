@@ -5,8 +5,10 @@ import {
   MASTERY_RECENT_MIN_CORRECT,
   MASTERY_RECENT_WINDOW,
   MIN_MASTERY_OBS,
+  MIN_NON_ANCHOR_CORRECT_TO_ENTER_MASTERY,
   RECENCY_GRACE_OBS,
   RECENCY_HALF_LIFE_OBS,
+  STUCK_EXIT_CLEAN_SESSIONS,
   WHEEL_SPIN_LIMIT,
   WHEEL_SPIN_MIN_SESSION_OBS,
   WHEEL_SPIN_SESSION_ACCURACY,
@@ -25,6 +27,18 @@ export interface ConceptMeta {
   decay_half_life_days: number;
 }
 export type ConceptMetaLookup = (conceptId: string) => ConceptMeta | undefined;
+
+/**
+ * Optional, pedagogy-free knobs supplied by the composition layer.
+ *
+ * `isAnchorItem`: whether an item id is one of the fixed cohort anchor items
+ * (see MIN_NON_ANCHOR_CORRECT_TO_ENTER_MASTERY in ./types.ts). The store
+ * never learns which game an anchor belongs to -- just yes/no per item id.
+ * Absent = no anchor rule (the pre-Cycle-19 behaviour).
+ */
+export interface ProjectorOptions {
+  isAnchorItem?: (itemId: string) => boolean;
+}
 
 const DEFAULT_META: ConceptMeta = { mastery_threshold: 0.85, decay_half_life_days: 28 };
 
@@ -96,6 +110,7 @@ export function project(
   bundles: EvidenceBundle[],
   metaOf: ConceptMetaLookup,
   now: Date = new Date(),
+  options: ProjectorOptions = {},
 ): Map<string, BeliefInternal> {
   const byConcept = new Map<string, TimedObservation[]>();
 
@@ -111,7 +126,7 @@ export function project(
   const result = new Map<string, BeliefInternal>();
   for (const [conceptId, observations] of byConcept) {
     const meta = metaOf(conceptId) ?? DEFAULT_META;
-    result.set(conceptId, projectConcept(studentId, conceptId, observations, meta, now));
+    result.set(conceptId, projectConcept(studentId, conceptId, observations, meta, now, options));
   }
   return result;
 }
@@ -122,6 +137,7 @@ function projectConcept(
   observations: TimedObservation[],
   meta: ConceptMeta,
   now: Date,
+  options: ProjectorOptions,
 ): BeliefInternal {
   // --- p_mastery: Beta(1,1) prior, difficulty- and recency-weighted evidence ---
   const posterior = new RecencyPosterior();
@@ -188,7 +204,18 @@ function projectConcept(
   // full bar and hasn't since left via DECAY_MARGIN hysteresis). Derived
   // purely from replay, not stored.
   let mastered = false;
+  // Whether the concept left MASTERED by fading across an inter-session gap
+  // and hasn't since re-earned mastery or shown genuine counter-evidence.
+  // Such a concept still reads DECAYED (due for review, still a satisfied
+  // prerequisite) through sessions that don't settle it either way -- e.g.
+  // anchor-only answers, which can't re-enter MASTERED on their own.
+  let faded = false;
   let lastSessionAt: string | null = null;
+  // Accurate sessions (>= WHEEL_SPIN_MIN_SESSION_OBS obs at >=
+  // WHEEL_SPIN_SESSION_ACCURACY) since the concept last entered STUCK; see
+  // STUCK_EXIT_CLEAN_SESSIONS in ./types.ts.
+  let cleanSessionsSinceStuck = 0;
+  const isAnchorItem = options.isAnchorItem;
   for (const [, sessionObs] of sessionOrder) {
     const wasStuck = attempts_without_mastery >= WHEEL_SPIN_LIMIT;
     const sessionAt = sessionObs[0].at;
@@ -197,7 +224,10 @@ function projectConcept(
     // mastery and must re-earn the full bar.
     if (mastered && lastSessionAt !== null) {
       const gapDecayed = decayToward(running.mean, daysBetween(lastSessionAt, sessionAt), meta);
-      if (gapDecayed < meta.mastery_threshold - DECAY_MARGIN) mastered = false;
+      if (gapDecayed < meta.mastery_threshold - DECAY_MARGIN) {
+        mastered = false;
+        faded = true;
+      }
     }
     lastSessionAt = sessionAt;
     for (const o of sessionObs) {
@@ -215,13 +245,27 @@ function projectConcept(
     const sessionCorrect = sessionObs.filter((o) => o.verdict === "correct").length;
     const sessionAccuracy = sessionCorrect / sessionObs.length;
     const floorMet = meetsMasteryFloor(replayed);
-    if (runningMastery >= meta.mastery_threshold && floorMet && freshSupport) {
+    // Entering MASTERED (not holding it) needs enough correct answers on
+    // adaptively chosen, non-anchor items in this session, so the fixed
+    // cohort anchors alone can never award or re-award a star.
+    const nonAnchorSupport =
+      mastered ||
+      isAnchorItem === undefined ||
+      sessionObs.filter((o) => o.verdict === "correct" && !isAnchorItem(o.item_id)).length >=
+        MIN_NON_ANCHOR_CORRECT_TO_ENTER_MASTERY;
+    const sessionAccurate =
+      sessionAccuracy >= WHEEL_SPIN_SESSION_ACCURACY && sessionObs.length >= WHEEL_SPIN_MIN_SESSION_OBS;
+    if (runningMastery >= meta.mastery_threshold && floorMet && freshSupport && nonAnchorSupport) {
       mastered = true;
+      faded = false;
     } else if (mastered && (floorMet || runningMastery >= meta.mastery_threshold - DECAY_MARGIN)) {
       // Hysteresis: already MASTERED, and this session is not genuine
       // counter-evidence (needs BOTH a failed floor and p below the band).
     } else {
       mastered = false;
+      // Genuine counter-evidence (same test as the hysteresis exit) ends
+      // "faded": the concept is no longer just due for review.
+      if (!floorMet && runningMastery < meta.mastery_threshold - DECAY_MARGIN) faded = false;
     }
     if (mastered) {
       attempts_without_mastery = 0;
@@ -231,13 +275,26 @@ function projectConcept(
       sessionObs.length >= WHEEL_SPIN_MIN_SESSION_OBS
     ) {
       attempts_without_mastery += 1;
+      // Counter-evidence while STUCK restarts the fresh-evidence exit count.
+      cleanSessionsSinceStuck = 0;
+    } else if (wasStuck && sessionAccurate) {
+      cleanSessionsSinceStuck += 1;
+      if (cleanSessionsSinceStuck >= STUCK_EXIT_CLEAN_SESSIONS) {
+        // Fresh evidence clears the escalation on its own (-> EMERGING),
+        // however heavily the old struggles still weigh in p_mastery.
+        attempts_without_mastery = 0;
+      }
     }
     // Entering STUCK restarts the fresh-evidence count: only
     // observations from sessions after this one can clear the escalation.
-    if (attempts_without_mastery >= WHEEL_SPIN_LIMIT && !wasStuck) obsSinceStuck = 0;
+    if (attempts_without_mastery >= WHEEL_SPIN_LIMIT) faded = false;
+    if (attempts_without_mastery >= WHEEL_SPIN_LIMIT && !wasStuck) {
+      obsSinceStuck = 0;
+      cleanSessionsSinceStuck = 0;
+    }
   }
 
-  const status = deriveStatus(n, p_decayed, attempts_without_mastery, mastered, meta);
+  const status = deriveStatus(n, p_decayed, attempts_without_mastery, mastered, faded, meta);
 
   return {
     student_id: studentId,
@@ -274,13 +331,16 @@ function decayToward(p: number, days: number, meta: ConceptMeta): number {
  * `mastered` is the replay's hysteresis state after the last session (see
  * DECAY_MARGIN in ./types.ts): entering it needs the full bar, leaving it
  * needs genuine counter-evidence, and decay flips it to DECAYED only once
- * p_decayed falls below threshold - DECAY_MARGIN.
+ * p_decayed falls below threshold - DECAY_MARGIN. `faded` (a concept that
+ * decayed out of mastery and has been played since without re-earning it or
+ * showing counter-evidence) also reads DECAYED. STUCK wins over both.
  */
 function deriveStatus(
   n: number,
   p_decayed: number,
   attempts_without_mastery: number,
   mastered: boolean,
+  faded: boolean,
   meta: ConceptMeta,
 ): BeliefStatus {
   if (n === 0) return "UNTESTED";
@@ -288,6 +348,7 @@ function deriveStatus(
   if (mastered) {
     return p_decayed >= meta.mastery_threshold - DECAY_MARGIN ? "MASTERED" : "DECAYED";
   }
+  if (faded) return "DECAYED";
   return "EMERGING";
 }
 
