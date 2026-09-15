@@ -67,6 +67,9 @@ function assertInvariants(map: ChildMap, raw: string, studentId: string) {
   }
   for (const c of map.concepts) {
     expect(Object.keys(c).sort()).toEqual(["concept_id", "next", "strand", "tier"]);
+  }
+  expect(Object.keys(map).sort()).toEqual(["concepts", "edges", "nextKind", "strands", "student_id"]);
+  for (const c of map.concepts) {
     expect(TIERS).toContain(c.tier);
   }
 
@@ -96,20 +99,33 @@ function assertInvariants(map: ChildMap, raw: string, studentId: string) {
 
   // At most one `next`, and it satisfies the status-based eligibility rule
   // (see buildChildMap in server/routes.ts):
-  //   own status in {EMERGING, UNTESTED, DECAYED} (never STUCK/MASTERED),
+  //   own status in {EMERGING, UNTESTED, DECAYED} (never MASTERED),
   //   every hard prerequisite MASTERED or DECAYED, authored, covered.
   // It is the engine's top concept for the student's next session when that
-  // concept is eligible (BACKLOG.md D1: the glowing star is what Play
-  // serves); otherwise the best eligible by preference
-  // EMERGING > DECAYED > UNTESTED. If nothing qualifies there is no `next`.
+  // concept is eligible (the glowing star is what Play serves); otherwise the
+  // best eligible by preference EMERGING > DECAYED > UNTESTED. If nothing
+  // qualifies there is no `next`.
+  // Exception (BACKLOG.md Decision D1): when the engine's top concept is
+  // STUCK (served only through its wheel-spin relaxation), `next` is that
+  // concept with nextKind "practice". Every other `next` is "grow"; nextKind
+  // is null exactly when there is no `next`.
   const nexts = map.concepts.filter((c) => c.next);
   expect(nexts.length).toBeLessThanOrEqual(1);
+  expect(["grow", "practice", null]).toContain(map.nextKind);
+  expect(map.nextKind === null).toBe(nexts.length === 0);
+  const top = engineTop(studentId);
+  if (top !== undefined && statusOf(studentId, top) === "STUCK") {
+    expect(nexts.map((c) => c.concept_id)).toEqual([top]);
+    expect(map.nextKind).toBe("practice");
+    expect(nexts[0].tier).toBe("glow");
+    return;
+  }
+  expect(map.nextKind).not.toBe("practice");
   const eligible = eligibleForNext(studentId);
   if (eligible.length > 0) {
     expect(nexts.length).toBe(1);
     expect(eligible).toContain(nexts[0].concept_id);
     expect(nexts[0].tier).not.toBe("bloom");
-    const top = engineTop(studentId);
     if (top !== undefined && eligible.includes(top)) {
       expect(nexts[0].concept_id).toBe(top);
     } else {
@@ -280,14 +296,18 @@ describe("GET /api/child/map/:studentId", () => {
     expect(visibleish).not.toMatch(/[0-9]/);
   });
 
-  it("a student whose only otherwise-eligible concepts are STUCK gets no `next` at all", () => {
+  it("D1: a student whose only servable concepts are STUCK gets the relaxed concept Play serves as `next`, kind practice", async () => {
     const studentId = `stu_map_${rand()}`;
     // Both roots STUCK; everything above them is UNTESTED, so its hard prerequisites are unmet.
     stubBelief(studentId, { "N.COUNT": { status: "STUCK" }, "G.PART": { status: "STUCK" } });
-    const { raw, body } = localMap(studentId);
+    const served = await getAssignmentTop(studentId);
+    expect(["N.COUNT", "G.PART"]).toContain(served);
+    const { raw, body } = await getMap(studentId);
     assertInvariants(body, raw, studentId);
-    expect(body.concepts.filter((c) => c.next)).toEqual([]);
-    expect(raw).not.toContain('"next":true');
+    expect(body.concepts.filter((c) => c.next).map((c) => c.concept_id)).toEqual([served]);
+    expect(body.nextKind).toBe("practice");
+    // Tiers only: nothing on the payload names the state.
+    expect(raw).not.toMatch(/stuck/i);
   });
 
   it("a DECAYED concept whose hard prerequisites are mastered can be `next`", () => {
@@ -331,29 +351,54 @@ describe("GET /api/child/map/:studentId", () => {
     stubBelief(studentId, { "N.COUNT": { status: "EMERGING", p_mastery: Math.min(1, threshold + 0.05) }, "G.PART": { status: "STUCK" } });
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
-    // The engine now gates prerequisites on the same status rule (exported
-    // prereqsMet), so it no longer leads with N.ORD either; `next` falls back
-    // to the preference rule.
+    // The engine gates prerequisites on the same status rule (exported
+    // prereqsMet), so it doesn't lead with N.ORD either, and neither does the map.
     expect(engineTop(studentId)).not.toBe("N.ORD");
-    const next = body.concepts.filter((c) => c.next);
-    expect(next.map((c) => c.concept_id)).toEqual(["N.COUNT"]);
     expect(body.concepts.find((c) => c.concept_id === "N.ORD")!.next).toBe(false);
+    // Whatever glows is what Play leads with: the relaxed STUCK root
+    // ("practice") if the engine falls back to it, otherwise N.COUNT ("grow").
+    const next = body.concepts.filter((c) => c.next).map((c) => c.concept_id);
+    if (body.nextKind === "practice") {
+      expect(next).toEqual(["G.PART"]);
+      expect(engineTop(studentId)).toBe("G.PART");
+    } else {
+      expect(next).toEqual(["N.COUNT"]);
+    }
   });
 
-  it("never glows a STUCK concept even when its prerequisites are all mastered", () => {
+  it("never glows a STUCK concept Play won't lead with, even when its prerequisites are all mastered (kind grow for the real next)", () => {
     const studentId = `stu_map_${rand()}`;
-    stubBelief(studentId, allMasteredExcept({ "F.EQV": { status: "STUCK" } }));
+    // F.EQV is STUCK, but N.ORD (fading) is servable, so the engine never relaxes F.EQV.
+    stubBelief(studentId, allMasteredExcept({ "F.EQV": { status: "STUCK" }, "N.ORD": { status: "DECAYED" } }));
+    expect(engineTop(studentId)).not.toBe("F.EQV");
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
-    expect(body.concepts.filter((c) => c.next)).toEqual([]);
+    expect(body.concepts.find((c) => c.concept_id === "F.EQV")!.next).toBe(false);
+    expect(body.concepts.filter((c) => c.next)).toHaveLength(1);
+    expect(body.nextKind).toBe("grow");
   });
 
-  it("a relaxed wheel-spin concept the engine would serve (STUCK) still never glows", () => {
+  it("D1: a STUCK concept with every prerequisite mastered, served by Play through relaxation, glows as practice", () => {
     const studentId = `stu_map_${rand()}`;
-    stubBelief(studentId, { "N.COUNT": { status: "STUCK" }, "G.PART": { status: "STUCK" } });
+    stubBelief(studentId, allMasteredExcept({ "F.EQV": { status: "STUCK" } }));
     const top = engineTop(studentId);
-    expect(top === undefined || ["N.COUNT", "G.PART"].includes(top)).toBe(true);
-    expect(buildChildMap(studentId).concepts.some((c) => c.next)).toBe(false);
+    const { raw, body } = localMap(studentId);
+    assertInvariants(body, raw, studentId);
+    expect(top).toBe("F.EQV");
+    expect(body.concepts.filter((c) => c.next).map((c) => c.concept_id)).toEqual(["F.EQV"]);
+    expect(body.nextKind).toBe("practice");
+  });
+
+  it("an ordinary eligible `next` is kind grow, and no `next` means nextKind null", () => {
+    const fresh = `stu_map_${rand()}`;
+    expect(buildChildMap(fresh).nextKind).toBe("grow");
+
+    const doneStudent = `stu_map_${rand()}`;
+    stubBelief(doneStudent, allMasteredExcept({}));
+    const { raw, body } = localMap(doneStudent);
+    assertInvariants(body, raw, doneStudent);
+    expect(body.concepts.some((c) => c.next)).toBe(false);
+    expect(body.nextKind).toBeNull();
   });
 });
 
@@ -394,5 +439,72 @@ describe("D1: map `next` is the top concept of the session Play serves, and peek
     const next = body.concepts.find((c) => c.next)?.concept_id;
     const top = await getAssignmentTop(studentId);
     if (next !== undefined && top !== undefined && eligibleForNext(studentId).includes(top)) expect(next).toBe(top);
+  });
+});
+
+describe("D1 (Cycle 19 lane R): map `next` is never null while GET /assignment serves items", () => {
+  // Measured before this change on a fresh seed, 12 driven sessions x 6 kids:
+  // 5/72 (~85% accuracy) and 4/72 (~45%) served sessions had `next` null, every
+  // one with a relaxed STUCK top concept (devon G.PART / N.ORD).
+  async function servedAndMap(studentId: string) {
+    const res = await fetch(`${baseUrl}/assignment/${studentId}`);
+    const body = (await res.json()) as { assignment?: { concepts: string[]; item_specs: unknown[] } };
+    const map = await getMap(studentId);
+    return { assignment: body.assignment, map };
+  }
+
+  it("real evidence: a child who wheel-spins on both roots gets the relaxed concept Play serves as `next` (practice), session after session", async () => {
+    const studentId = `stu_map_${rand()}`;
+    // Three low-accuracy sessions on each root -> both roots STUCK, nothing above them unlocked.
+    for (let session = 0; session < 3; session++) {
+      const observations = ["G.PART", "N.COUNT"].flatMap((c) =>
+        Array.from({ length: 4 }, (_, i) => obs(`itm_stuck_${c}_${session}_${i}`, c, i, i === 0 ? "correct" : "incorrect")),
+      );
+      await postBundle(studentId, observations);
+    }
+    expect(statusOf(studentId, "G.PART")).toBe("STUCK");
+    expect(statusOf(studentId, "N.COUNT")).toBe("STUCK");
+
+    for (let round = 0; round < 4; round++) {
+      const { assignment, map } = await servedAndMap(studentId);
+      assertInvariants(map.body, map.raw, studentId);
+      expect(assignment?.item_specs.length ?? 0).toBeGreaterThan(0);
+      const top = assignment!.concepts[0];
+      expect(statusOf(studentId, top)).toBe("STUCK");
+      expect(map.body.concepts.filter((c) => c.next).map((c) => c.concept_id)).toEqual([top]);
+      expect(map.body.nextKind).toBe("practice");
+      // Another struggling session on what was served; the concept stays STUCK.
+      await postBundle(studentId, Array.from({ length: 4 }, (_, i) => obs(`itm_stuck_more_${round}_${i}`, top, i, i === 0 ? "correct" : "incorrect")));
+    }
+  });
+
+  it("hand-set cohort shapes: whenever the assignment serves items, `next` is set and is the served top concept's kind", async () => {
+    const shapes: Record<string, { status: BeliefStatus; p_mastery?: number }>[] = [
+      {},
+      { "N.COUNT": { status: "STUCK" }, "G.PART": { status: "STUCK" } },
+      { "N.COUNT": { status: "MASTERED" }, "G.PART": { status: "STUCK" }, "N.ORD": { status: "STUCK" } },
+      { "N.COUNT": { status: "EMERGING" }, "G.PART": { status: "STUCK" } },
+      allMasteredExcept({ "F.EQV": { status: "STUCK" } }),
+      allMasteredExcept({ "F.EQV": { status: "STUCK" }, "N.ORD": { status: "DECAYED" } }),
+      allMasteredExcept({ "N.ORD": { status: "DECAYED" }, "N.MAG": null, "N.PLACE": null }),
+    ];
+    for (const shape of shapes) {
+      const studentId = `stu_map_${rand()}`;
+      stubBelief(studentId, shape);
+      const { assignment, map } = await servedAndMap(studentId);
+      assertInvariants(map.body, map.raw, studentId);
+      if ((assignment?.item_specs.length ?? 0) > 0) {
+        const next = map.body.concepts.filter((c) => c.next);
+        expect(next).toHaveLength(1);
+        const top = assignment!.concepts[0];
+        if (statusOf(studentId, top) === "STUCK") {
+          expect(next[0].concept_id).toBe(top);
+          expect(map.body.nextKind).toBe("practice");
+        } else {
+          expect(map.body.nextKind).toBe("grow");
+        }
+      }
+      vi.restoreAllMocks();
+    }
   });
 });

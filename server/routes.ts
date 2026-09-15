@@ -2,7 +2,7 @@ import { Router } from "express";
 import { graph, registry, itemBank, store, anchors, directory, cohortMembers, studentName, dbConfigured } from "./state.js";
 import { checkDbConnection, persistBundle } from "./db.js";
 import { selectNext } from "../src/engine/engine.js";
-import { isCovered } from "../src/engine/candidates.js";
+import { isCovered, prereqsMet } from "../src/engine/index.js";
 import { blame, type BlameSuspect } from "../src/graph/query.js";
 import { buildTutorReport, type CohortMember } from "../src/analytics/index.js";
 import { buildObservation } from "../src/sdk/observation.js";
@@ -313,10 +313,19 @@ api.get("/belief/:studentId", (req, res) => {
 // concept of the same selectNext() call GET /assignment makes (same
 // per-student seed, see nextSessionSeed), as long as that concept also
 // passes the status-based eligibility rule below. When it doesn't (the
-// engine found nothing, or its top concept fails the status guard, e.g. a
-// prerequisite over the p threshold but still EMERGING), `next` falls back
-// to the best eligible concept by the preference rule, and only then may
-// Play lead with something else.
+// engine found nothing, or its top concept fails the status guard), `next`
+// falls back to the best eligible concept by the preference rule, and only
+// then may Play lead with something else.
+//
+// `nextKind` (BACKLOG.md Decision D1, user-approved 2026-09-15) says how the
+// glowing star should read: "grow" for an ordinary eligible `next`;
+// "practice" when Play will lead with a STUCK concept whose wheel-spin block
+// the engine relaxed because nothing else was servable. Before D1 the map
+// showed no star at all (or a different one) while Play served that concept
+// -- measured on a fresh seed, 12 sessions x 6 kids: 5/72 served sessions at
+// ~85% accuracy and 4/72 at ~45% had `next` null, all with a relaxed STUCK
+// top concept. A tier word only, never a probability or "stuck". null when
+// there is no `next`.
 
 export type StarTier = "seed" | "glow" | "bloom" | "fading";
 
@@ -326,6 +335,8 @@ export interface ChildMapConcept {
   tier: StarTier;
   next: boolean;
 }
+
+export type NextKind = "grow" | "practice";
 
 export interface ChildMapStrand {
   strand: string;
@@ -340,6 +351,8 @@ export interface ChildMap {
   strands: ChildMapStrand[];
   concepts: ChildMapConcept[];
   edges: { from: string; to: string; strength: "hard" | "supporting" }[];
+  /** How the `next` star reads (D1); null exactly when no concept has `next: true`. */
+  nextKind: NextKind | null;
 }
 
 function starTier(belief: BeliefInternal | undefined): StarTier {
@@ -354,12 +367,13 @@ function starTier(belief: BeliefInternal | undefined): StarTier {
 // `next` eligibility is decided by belief *status*, not raw p_mastery, so it
 // agrees with the mastery gate in src/store/projector.ts (p over threshold
 // alone is not mastery -- the recent-evidence floor must also hold).
-//   - the concept itself is EMERGING, UNTESTED or DECAYED. STUCK never
-//     glows: it is escalated to a person and the engine hard-blocks it, so
-//     a glow would promise "ready to grow" and Play would serve something
-//     else. MASTERED never glows.
+//   - the concept itself is EMERGING, UNTESTED or DECAYED. MASTERED never
+//     glows. STUCK never glows as "grow": it is escalated to a person and the
+//     engine blocks it -- the one exception is D1 above, when the engine
+//     relaxes that block and Play will actually serve it ("practice").
 //   - every hard prerequisite is MASTERED or DECAYED (a prerequisite still
-//     EMERGING, even over the p threshold, blocks its successor).
+//     EMERGING, even over the p threshold, blocks its successor). This is
+//     the engine's own exported prereqsMet(), so map and Play share one rule.
 //   - authored, and some registered game can actually serve it.
 // Among eligible concepts the engine's top concept wins (see above). Fallback
 // preference, only when it isn't eligible: keep growing started work (EMERGING), then refresh a fading
@@ -368,7 +382,6 @@ function starTier(belief: BeliefInternal | undefined): StarTier {
 // frontier() in src/graph/query.ts is deliberately not used here: it is
 // p_mastery-based and the engine depends on it as-is.
 const NEXT_PREFERENCE: Partial<Record<BeliefInternal["status"], number>> = { EMERGING: 0, DECAYED: 1, UNTESTED: 2 };
-const PREREQ_SATISFIED: ReadonlySet<BeliefInternal["status"]> = new Set(["MASTERED", "DECAYED"]);
 
 export function buildChildMap(studentId: string): ChildMap {
   const belief = store.belief(studentId);
@@ -410,11 +423,7 @@ export function buildChildMap(studentId: string): ChildMap {
   const statusOf = (id: string): BeliefInternal["status"] => belief.get(id)?.status ?? "UNTESTED";
   const eligible = authoredNodes
     .filter((n) => NEXT_PREFERENCE[statusOf(n.concept_id)] !== undefined)
-    .filter((n) =>
-      graph.data.requires
-        .filter((e) => e.from === n.concept_id && e.strength === "hard")
-        .every((e) => PREREQ_SATISFIED.has(statusOf(e.to))),
-    )
+    .filter((n) => prereqsMet(graph, belief, n.concept_id))
     .filter((n) => isCovered(graph, registry, itemBank, n.concept_id))
     .sort(
       (a, b) =>
@@ -425,13 +434,21 @@ export function buildChildMap(studentId: string): ChildMap {
   // Prefer the engine's own top concept for the next session (a pure read,
   // nothing is incremented), guarded by the status rule above.
   const engineTop = peekNext(studentId, belief).assignment?.concepts[0];
-  const nextId = eligible.find((n) => n.concept_id === engineTop)?.concept_id ?? eligible[0]?.concept_id ?? null;
+  // D1: the engine only ever serves a STUCK concept through its wheel-spin
+  // relaxation (STUCK is exactly attempts_without_mastery >= WHEEL_SPIN_LIMIT,
+  // the block it relaxes), so a STUCK top concept is the relaxed one.
+  const practiceId =
+    engineTop !== undefined && statusOf(engineTop) === "STUCK" && authoredIds.has(engineTop) && prereqsMet(graph, belief, engineTop)
+      ? engineTop
+      : null;
+  const nextId = practiceId ?? eligible.find((n) => n.concept_id === engineTop)?.concept_id ?? eligible[0]?.concept_id ?? null;
+  const nextKind: NextKind | null = nextId === null ? null : nextId === practiceId ? "practice" : "grow";
 
   const concepts: ChildMapConcept[] = strands.flatMap((s) =>
     s.concept_ids.map((id) => ({ concept_id: id, strand: s.strand, tier: starTier(belief.get(id)), next: id === nextId })),
   );
 
-  return { student_id: studentId, strands, concepts, edges };
+  return { student_id: studentId, strands, concepts, edges, nextKind };
 }
 
 api.get("/child/map/:studentId", (req, res) => {
