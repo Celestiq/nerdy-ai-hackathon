@@ -11,7 +11,7 @@ import "dotenv/config";
 import { graph, registry, itemBank, store, metaOf, directory, dbConfigured } from "../server/state.js";
 import { persistBundle, closeDb } from "../server/db.js";
 import { runCohort } from "../src/simulation/cohortRunner.js";
-import { competent, misconceptionHolder, strugglesOn, decayer } from "../src/simulation/profiles.js";
+import { competent, misconceptionHolder, strugglesOn, decayer, type LearnerProfile } from "../src/simulation/profiles.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { EvidenceBundle } from "../src/contracts/schemas.js";
 
@@ -26,49 +26,98 @@ async function persistIfAccepted(accepted: boolean, bundle: EvidenceBundle): Pro
 
 const [maya, devon, priya, jonah, amara, leo] = directory.map((d) => d.student_id);
 
-console.log("Running base cohort simulation against the real engine (in-memory store)...");
-const { trace, store: simStore } = runCohort({
-  graph,
-  registry,
-  itemBank,
-  metaOf,
-  students: [
-    // Whole-number bias only shows up once they're actually comparing
-    // fraction magnitudes (F.MAG.CMP/F.MAG.NONUNIT, the two concepts the
-    // graph's `explains` edges name for this signature) -- elsewhere they're
-    // competent, same as any other learner, so they progress through the
-    // roots and one-hop concepts instead of stalling on either before ever
-    // reaching a fraction. See BACKLOG.md dead-end fix: the old uniform
-    // 0.55 correctness on *everything served* wheel-spin-blocked both roots
-    // before mastery, regardless of the misconception being fraction-specific.
-    { id: maya, profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
-    // Genuinely never masters G.PART (demonstrates the wheel-spin/escalation
-    // path live in the tutor view) but is competent everywhere else, so
-    // N.COUNT and its whole downstream chain stay open. A uniform
-    // `wheelSpinner` here dead-ends the entire session once *both* roots
-    // wheel-spin-block, which is a real risk on a two-root graph -- see
-    // BACKLOG.md dead-end fix.
-    { id: devon, profile: strugglesOn(["G.PART"]) },
-    { id: priya, profile: competent },
-    { id: jonah, profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
-    { id: amara, profile: decayer },
-    { id: leo, profile: competent },
-  ],
-  rounds: 18,
-  seed: "seed-cohort-v1",
-});
-console.log(`Simulated ${trace.length} session attempts.`);
+// Seed timeline (Cycle 19 seed-recency lane). Each student's simulated
+// history is its own runCohort call with its own length, spacing and
+// last-session offset. Students are independent in runCohort (per-student
+// belief and rng seed), so splitting them changes nothing else.
+//
+// The old shared timeline (cohortRunner defaults: 18 rounds 3 days apart,
+// last round 12 days before now) left 7-11 of 15 stars faded per kid and
+// maya/devon/jonah with 1 MASTERED once 3ee00e2 sped up concept progress.
+// A shared 18-round, 2-day, 3-days-ago timeline fixed that but overshot:
+// priya/amara/leo at 11-12 of 15 MASTERED, so live Play hit "All done for
+// now" after ~4 sessions. The targets these numbers were tuned against, on a
+// fresh seed, per kid: >=2 MASTERED at +0/+2/+4 days and >=10 of 12
+// back-to-back live sessions served ("served/12" below: 12 sessions 10 min
+// apart, the kid's own profile, the server's srv:<id>:<count> seed); plus
+// >=2 kids whose next session is Balance Scale (priya via the F.MAG.NONUNIT
+// bootstrap below, and amara), and the tutor diagnosis story: "needs extra
+// support" with maya F.MAG.CMP, jonah F.MAG.CMP + F.MAG.NONUNIT and devon
+// G.PART, and BOTH WHOLE_NUMBER_BIAS clusters (F.MAG.CMP, F.MAG.NONUNIT) for
+// [maya, jonah]. maya/jonah need the full 18 rounds to reach fractions and
+// get stuck there; being stuck on fractions keeps them in work, so their
+// higher MASTERED count doesn't exhaust Play. Competent kids get short
+// histories so they are mid-journey rather than nearly done.
+// Measured (M at +0/+2/+4, faded at +0, served/12):
+//   maya  18 rounds 2d apart, 3d ago:  9/9/9, 3, 12 (STUCK F.MAG.CMP)
+//   devon 10 rounds 2d apart, 3d ago:  5/5/5, 0, 12 (STUCK G.PART)
+//   priya  4 rounds 2d apart, 3d ago:  3/3/3, 0, 11 (next: Balance Scale)
+//   jonah 18 rounds 2d apart, 3d ago:  8/6/6, 2, 12 (STUCK F.MAG.CMP, F.MAG.NONUNIT)
+//   amara 16 rounds 5d apart, 2d ago:  4/4/4, 8, 12 (next: Balance Scale)
+//   leo    8 rounds 2d apart, 3d ago:  5/5/5, 0, 12
+// amara (the "decayer" profile) is the one deep, well-reviewed history:
+// reaching F.EQV takes nearly the whole graph, and the only way to keep 10+
+// live sessions of work at that depth is faded stars to refresh. Her result
+// holds for last-session offsets 1-3 days; priya's for 1-6.
+// cohortRunner's own default (REVIEW_MARGIN_DAYS) is untouched -- the
+// simulation/starvation tests depend on it.
+const WNB = misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] });
+const SEED_TIMELINE: Array<{ id: string; profile: LearnerProfile; rounds: number; dayStepDays: number; lastSessionDaysAgo: number }> = [
+  // Whole-number bias only shows up once they're actually comparing
+  // fraction magnitudes (F.MAG.CMP/F.MAG.NONUNIT, the two concepts the
+  // graph's `explains` edges name for this signature) -- elsewhere they're
+  // competent, same as any other learner, so they progress through the
+  // roots and one-hop concepts instead of stalling on either before ever
+  // reaching a fraction. See BACKLOG.md dead-end fix: the old uniform
+  // 0.55 correctness on *everything served* wheel-spin-blocked both roots
+  // before mastery, regardless of the misconception being fraction-specific.
+  { id: maya, profile: WNB, rounds: 18, dayStepDays: 2, lastSessionDaysAgo: 3 },
+  // Genuinely never masters G.PART (demonstrates the wheel-spin/escalation
+  // path live in the tutor view) but is competent everywhere else, so
+  // N.COUNT and its whole downstream chain stay open. A uniform
+  // `wheelSpinner` here dead-ends the entire session once *both* roots
+  // wheel-spin-block, which is a real risk on a two-root graph -- see
+  // BACKLOG.md dead-end fix.
+  { id: devon, profile: strugglesOn(["G.PART"]), rounds: 10, dayStepDays: 2, lastSessionDaysAgo: 3 },
+  { id: priya, profile: competent, rounds: 4, dayStepDays: 2, lastSessionDaysAgo: 3 },
+  { id: jonah, profile: WNB, rounds: 18, dayStepDays: 2, lastSessionDaysAgo: 3 },
+  { id: amara, profile: decayer, rounds: 16, dayStepDays: 5, lastSessionDaysAgo: 2 },
+  { id: leo, profile: competent, rounds: 8, dayStepDays: 2, lastSessionDaysAgo: 3 },
+];
 
+function seedStartDate(rounds: number, dayStepDays: number, lastSessionDaysAgo: number): Date {
+  const now = new Date();
+  const todayUtc9am = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + 9 * 3_600_000;
+  return new Date(todayUtc9am - (lastSessionDaysAgo + (rounds - 1) * dayStepDays) * 86_400_000);
+}
+
+console.log("Running base cohort simulation against the real engine (in-memory store)...");
 // runCohort works against its own in-memory store; replay its evidence log
 // into the real file-backed server store so the demo persists across
 // restarts (ingest is idempotent per session_id, so re-running seed.ts
 // against an already-seeded .data/ dir just skips duplicates).
+let simulated = 0;
 let persisted = 0;
-for (const b of simStore.allBundles()) {
-  const { accepted } = store.ingest(b);
-  if (accepted) persisted++;
-  await persistIfAccepted(accepted, b);
+for (const s of SEED_TIMELINE) {
+  const { trace, store: simStore } = runCohort({
+    graph,
+    registry,
+    itemBank,
+    metaOf,
+    students: [{ id: s.id, profile: s.profile }],
+    rounds: s.rounds,
+    seed: "seed-cohort-v1",
+    dayStepDays: s.dayStepDays,
+    startDate: seedStartDate(s.rounds, s.dayStepDays, s.lastSessionDaysAgo),
+  });
+  simulated += trace.length;
+  for (const b of simStore.allBundles()) {
+    const { accepted } = store.ingest(b);
+    if (accepted) persisted++;
+    await persistIfAccepted(accepted, b);
+  }
 }
+console.log(`Simulated ${simulated} session attempts.`);
 console.log(`Persisted ${persisted} new evidence bundles to the server store.`);
 
 // Hand-authored evidence reproducing the architecture doc's own worked
@@ -171,8 +220,9 @@ function masteryBootstrapSession(studentId: string, startedAt: string): Evidence
   // this student (belief is a full replay over every bundle, not just this
   // one). A second pass pushes p_mastery, and therefore p_decayed, further
   // above threshold -- verified empirically against the real printed
-  // output below, not assumed. (Cycle 18 re-measure, fresh seed: stu_devon's
-  // N.COUNT ends at p_mastery 0.941 / p_decayed 0.935 over 26 obs.)
+  // output below, not assumed. (Cycle 19 re-measure, fresh seed with
+  // SEED_TIMELINE: stu_devon's N.COUNT ends at p_mastery 0.919 / p_decayed
+  // 0.913, 9 simulated obs + these 8.)
   const rounds = [...items, ...items];
 
   return {
@@ -201,10 +251,12 @@ console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryR
 // Hand-authored bootstrap unblocking F.EQV/balancescale.compare.v1's live
 // reachability (BACKLOG.md "Balance Scale" item, part a): F.EQV hard-requires
 // F.MAG.NONUNIT >= 0.85 p_mastery (strand-magnitude-fractions.json), and no
-// seeded student naturally crosses that gate -- stu_priya (competent
-// profile) is closest, at a stochastic p_mastery ~0.80 / p_decayed ~0.72
-// after the base cohort simulation above (Cycle 18 re-measure; originally
-// 0.798 / 0.671). Same discipline as
+// seeded student naturally crosses that gate without it. With SEED_TIMELINE's
+// short 4-round history, stu_priya (competent profile) has no simulated
+// F.MAG.NONUNIT evidence at all -- this bundle is her entire evidence for
+// it, which is also what makes Balance Scale her next session. (Under the
+// old 18-round shared history she reached ~0.80 / 0.72 on her own.) Same
+// discipline as
 // masteryBootstrapSession: real, already-authored F.MAG.NONUNIT items (only
 // two exist today, src/games/numberline/items.ts), verdict "correct"
 // responses placed exactly at each item's target, decoupled from
@@ -215,12 +267,12 @@ console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryR
 // status (EMERGING/MASTERED) on the tutor/child surfaces.
 //
 // Sizing, verified empirically against this script's own printed belief
-// snapshot below (not assumed): stu_priya carries some real observations
-// toward F.MAG.NONUNIT from the base simulation (4 when sized; 9 as of Cycle
-// 18). Repeating the 2 real items as 8 full passes (16 additional correct
-// observations) landed at p_mastery 0.940 / p_decayed 0.929 when sized, and
-// 0.914 / 0.903 as of Cycle 18 (recency-weighted p_mastery, src/store/types.ts
-// RECENCY_GRACE_OBS) -- both comfortably clear of the 0.85
+// snapshot below (not assumed): 8 full passes over the 2 real items (16
+// correct observations) landed at p_mastery 0.940 / p_decayed 0.929 when
+// sized (with 4 simulated obs), 0.914 / 0.903 in Cycle 18 (9 simulated obs,
+// recency-weighted p_mastery, src/store/types.ts RECENCY_GRACE_OBS), and
+// 0.926 / 0.915 in Cycle 19 with SEED_TIMELINE (0 simulated obs, bundle
+// only; dated yesterday) -- all comfortably clear of the 0.85
 // gate (a smaller 2-pass bundle only reached 0.873/0.864 when sized, too thin a margin
 // to survive any future retuning of the decay/confidence constants, per the
 // exact regression class BACKLOG.md's Cycle 9 hit).

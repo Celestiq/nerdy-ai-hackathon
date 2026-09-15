@@ -4,7 +4,7 @@ import { assembleAssignment } from "../src/engine/assemble.js";
 import { selectNext } from "../src/engine/engine.js";
 import { LearnerStore } from "../src/store/store.js";
 import { runCohort } from "../src/simulation/cohortRunner.js";
-import { competent, misconceptionHolder, strugglesOn, decayer } from "../src/simulation/profiles.js";
+import { competent, misconceptionHolder, strugglesOn, decayer, type LearnerProfile } from "../src/simulation/profiles.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { EvidenceBundle } from "../src/contracts/schemas.js";
 import { GameRegistry } from "../src/registry/index.js";
@@ -90,14 +90,13 @@ describe("Balance Scale registration order", () => {
  *
  * The demo guarantee is "Balance Scale is reachable by a seeded student on a
  * fresh seed", not "by stu_priya specifically": which competent student gets
- * there depends on how fast the engine moves them (Cycle 19 lane G's larger
- * top-concept share lets simulated stu_priya master F.EQV inside the seeded
- * history itself, so her next session is something else). Asserted as: at
- * least one seeded student's first live assignment -- seeded with the
+ * there depends on each seeded student's history length (scripts/seed.ts
+ * SEED_TIMELINE; today stu_priya and stu_amara). Asserted as: at
+ * least two seeded students' first live assignments -- seeded with the
  * server's own `srv:<student>:<own bundle count>` rotation seed -- is
  * balancescale.compare.v1 serving F.EQV items.
  *
- * Mirrors scripts/seed.ts's base cohort simulation (profiles/seed/rounds)
+ * Mirrors scripts/seed.ts's base cohort simulation (profiles/seed/rounds/timeline)
  * plus its stu_priya F.MAG.NONUNIT bootstrap bundle exactly (seed.ts's other
  * hand-authored bundles -- devon's N.COUNT bootstrap, maya/jonah's
  * whole-number-bias sessions -- aren't mirrored; they don't touch F.EQV's
@@ -142,27 +141,40 @@ describe("F.EQV/balancescale.compare.v1 is actually reachable by a real seeded s
 
   const SEEDED = ["stu_maya", "stu_devon", "stu_priya", "stu_jonah", "stu_amara", "stu_leo"];
 
-  function seededStore() {
-    const { trace, store: simStore } = runCohort({
-      graph,
-      registry,
-      itemBank,
-      metaOf,
-      students: [
-        { id: "stu_maya", profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
-        { id: "stu_devon", profile: strugglesOn(["G.PART"]) },
-        { id: "stu_priya", profile: competent },
-        { id: "stu_jonah", profile: misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] }) },
-        { id: "stu_amara", profile: decayer },
-        { id: "stu_leo", profile: competent },
-      ],
-      rounds: 18,
-      seed: "seed-cohort-v1",
-    });
-    expect(trace.length).toBeGreaterThan(0);
+  // scripts/seed.ts's SEED_TIMELINE: one runCohort per student, each with its
+  // own rounds / spacing / last-session offset (see the comment there).
+  const wnb = misconceptionHolder("WHOLE_NUMBER_BIAS", { targetConcepts: ["F.MAG.CMP", "F.MAG.NONUNIT"] });
+  const SEED_TIMELINE: Array<{ id: string; profile: LearnerProfile; rounds: number; dayStepDays: number; lastSessionDaysAgo: number }> = [
+    { id: "stu_maya", profile: wnb, rounds: 18, dayStepDays: 2, lastSessionDaysAgo: 3 },
+    { id: "stu_devon", profile: strugglesOn(["G.PART"]), rounds: 10, dayStepDays: 2, lastSessionDaysAgo: 3 },
+    { id: "stu_priya", profile: competent, rounds: 4, dayStepDays: 2, lastSessionDaysAgo: 3 },
+    { id: "stu_jonah", profile: wnb, rounds: 18, dayStepDays: 2, lastSessionDaysAgo: 3 },
+    { id: "stu_amara", profile: decayer, rounds: 16, dayStepDays: 5, lastSessionDaysAgo: 2 },
+    { id: "stu_leo", profile: competent, rounds: 8, dayStepDays: 2, lastSessionDaysAgo: 3 },
+  ];
+  function seedStartDate(rounds: number, dayStepDays: number, lastSessionDaysAgo: number): Date {
+    const now = new Date();
+    const todayUtc9am = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()) + 9 * 3_600_000;
+    return new Date(todayUtc9am - (lastSessionDaysAgo + (rounds - 1) * dayStepDays) * 86_400_000);
+  }
 
+  function seededStore() {
     const store = new LearnerStore(metaOf);
-    for (const b of simStore.allBundles()) store.ingest(b);
+    for (const s of SEED_TIMELINE) {
+      const { trace, store: simStore } = runCohort({
+        graph,
+        registry,
+        itemBank,
+        metaOf,
+        students: [{ id: s.id, profile: s.profile }],
+        rounds: s.rounds,
+        seed: "seed-cohort-v1",
+        dayStepDays: s.dayStepDays,
+        startDate: seedStartDate(s.rounds, s.dayStepDays, s.lastSessionDaysAgo),
+      });
+      expect(trace.length).toBeGreaterThan(0);
+      for (const b of simStore.allBundles()) store.ingest(b);
+    }
     const yesterday = new Date();
     yesterday.setUTCDate(yesterday.getUTCDate() - 1);
     store.ingest(fmagNonunitBootstrapSession("stu_priya", yesterday.toISOString()));
