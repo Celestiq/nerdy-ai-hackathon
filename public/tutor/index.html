@@ -373,6 +373,9 @@
   .stub-list .mono-chip { color: var(--soft); background: transparent; border: 1px solid var(--rule); max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
   .strand-empty { font-size: var(--text-sm); color: var(--soft); margin-bottom: var(--sp-3); }
 
+  /* Static one-liner above the legend: p_mastery is recency-weighted. --soft is 7.54:1 on paper. */
+  .recency-note { margin-top: 16px; font-size: var(--text-xs); color: var(--soft); line-height: var(--lh-normal); }
+  .recency-note + .legend { margin-top: 8px; }
   .legend { display: flex; gap: 18px; flex-wrap: wrap; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--rule-lite); font-size: var(--text-xs); color: var(--soft); }
   .legend .item { display: flex; align-items: center; gap: 6px; }
   .legend .sw { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }

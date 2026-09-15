@@ -454,13 +454,33 @@ function pulseStatTile(iconName, tint, value, label) {
   ]);
 }
 
+// Labels spell out that the gauge and the two amber/purple counts are
+// CONCEPT counts (report.stuck / report.retention are per child-per-concept
+// rows), not counts of children -- "5 decayed since mastery" next to "6
+// children in cohort" read as five children.
 function pulseCol() {
-  const { report } = cache;
+  const { report, beliefByStudent } = cache;
+  const total = authoredCount();
+  const stuckN = filteredStuck().length;
+  const fadedN = filteredRetention().length;
+  let gaugeLabel;
+  let stuckLabel;
+  let fadedLabel;
+  if (selectedStudentId) {
+    const masteredN = (beliefByStudent.get(selectedStudentId) ?? []).filter((b) => b.status === "MASTERED").length;
+    gaugeLabel = `${masteredN} of ${total} mastered`;
+    stuckLabel = `of ${total} concepts need support`;
+    fadedLabel = `of ${total} concepts faded`;
+  } else {
+    gaugeLabel = "mastered, avg per child";
+    stuckLabel = `stuck ${stuckN === 1 ? "concept" : "concepts"}, all children`;
+    fadedLabel = `faded ${fadedN === 1 ? "concept" : "concepts"}, all children`;
+  }
   return el("div", { class: "pulse-col" }, [
-    gaugeTile(cohortMasteryPct(), selectedStudentId ? "mastery — this child" : "cohort mastery"),
+    gaugeTile(cohortMasteryPct(), gaugeLabel),
     pulseStatTile("users", "moss", report.cohort_size, "children in cohort"),
-    pulseStatTile("support", "amber", filteredStuck().length, "needs extra support"),
-    pulseStatTile("trendDown", "purple", filteredRetention().length, "decayed since mastery"),
+    pulseStatTile("support", "amber", stuckN, stuckLabel),
+    pulseStatTile("trendDown", "purple", fadedN, fadedLabel),
   ]);
 }
 
@@ -665,6 +685,21 @@ function needsHumanBlock() {
 // exact original string is always shown underneath as well, so nothing the
 // engine actually said is hidden.
 function humanizeReason(reason) {
+  // Anchor items (src/engine/engine.ts ANCHOR_REASON, assemble.ts): a small
+  // fixed set every child in the cohort gets, so the cohort view isn't
+  // computed only on what adaptive routing happened to send each child.
+  if (reason === "anchor (fixed cohort item)") {
+    return "Included as a shared check-in question: every child in the group gets this same item, so the group view stays fair -- it was not picked by the adaptive routing.";
+  }
+  const anchorOverride = reason.match(/^anchor \(fixed cohort item\); not chosen adaptively -- (.+)$/);
+  if (anchorOverride) {
+    const inner = humanizeReason(anchorOverride[1])
+      .replace(/^(Blocked|Not chosen this round|Not chosen|Selected|Re-served anyway): /, "");
+    return `Included as a shared check-in question every child in the group gets. Adaptive routing on its own would have left it out: ${inner}`;
+  }
+  if (reason === "anchor skipped: stuck") {
+    return "Shared check-in question skipped for this child: they're currently stuck on this concept (flagged for extra support), so the shared question on it is left out this round.";
+  }
   if (reason.includes("wheel-spin relaxed")) {
     return "Re-served anyway: every other option was blocked this round, so this concept's \"stuck\" block was relaxed rather than leaving the child with nothing to do.";
   }
@@ -712,6 +747,23 @@ function decisionRow(entry, conceptById) {
     el("div", { class: "decision-reason" }, humanizeReason(entry.reason)),
     el("div", { class: "decision-reason-raw" }, entry.reason),
   ]);
+}
+
+// Display-only: the engine's decision_log can carry two lines for one concept
+// (e.g. a STUCK concept re-served via "wheel-spin relaxed" AND an "anchor
+// skipped: stuck" line for its anchor item). A tutor should see each concept
+// once, so keep the included line when there is one; among excluded-only
+// lines, prefer the more specific non-anchor reason. The engine's log itself
+// is untouched.
+function dedupeDecisionLog(log) {
+  const byConcept = new Map();
+  for (const entry of log) {
+    const prev = byConcept.get(entry.concept_id);
+    if (!prev) { byConcept.set(entry.concept_id, entry); continue; }
+    if (prev.included) continue;
+    if (entry.included || prev.reason === "anchor skipped: stuck") byConcept.set(entry.concept_id, entry);
+  }
+  return [...byConcept.values()];
 }
 
 // One-line teaser shown in the collapsed header so the panel isn't literally
@@ -768,8 +820,9 @@ function whyNextBlock() {
   if (log.length === 0) {
     body.appendChild(el("div", { class: "empty" }, "No routing decision available right now."));
   } else {
-    const included = log.filter((d) => d.included).sort((a, b) => b.score - a.score);
-    const excluded = log.filter((d) => !d.included).sort((a, b) => b.score - a.score);
+    const deduped = dedupeDecisionLog(log);
+    const included = deduped.filter((d) => d.included).sort((a, b) => b.score - a.score);
+    const excluded = deduped.filter((d) => !d.included).sort((a, b) => b.score - a.score);
     if (included.length > 0) {
       body.appendChild(el("div", { class: "why-group-label" }, "Included — what the child gets next"));
       for (const d of included) body.appendChild(decisionRow(d, conceptById));
@@ -1024,6 +1077,12 @@ function conceptMapBlock() {
   }
   block.appendChild(grid);
   if (stubs.length > 0) block.appendChild(stubRow(stubs));
+  // Static explainer for p_mastery's recency weighting (src/store/projector.ts
+  // RecencyPosterior: the newest 10 answers per concept count fully, older
+  // ones fade with a 30-answer half-life).
+  block.appendChild(
+    el("div", { class: "recency-note" }, "Mastery (p) weighs a child's recent answers more than older ones, so early struggles fade once they start getting it right."),
+  );
   block.appendChild(legend());
   return block;
 }
