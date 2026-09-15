@@ -26,13 +26,32 @@ motion feels (hop / cheer, nothing else).
 .wrap                        <- one flex column, owns the full 100dvh
   #app                       <- flex:1, swapped wholesale on every render()
     .screen                  <- flex:1 column; every top-level view uses this
-      .topbar (flex:0)       <- who's playing (session views only)
+      .topbar (flex:0)       <- who's playing + Home (session views only)
       .stage (flex:1)        <- THE ONLY PLACE A NEW GAME'S MARKUP GOES
       .path-wrap (flex:0)    <- Fizz + the path track (session views only)
-  .foot-link (flex:0)        <- "tutor view", always last: a quiet small text
-                                link in the bottom-right corner, never a
-                                pill/panel (it once read as an input field)
 ```
+
+**There is no link to the tutor view on any child screen**, picker included
+(user decision 2026-09-15: one tap reached classmates' names and stuck flags).
+Tutors open `/tutor/` directly. Don't add one back.
+
+### Leaving and finishing a session
+
+- Every in-session screen (item and between-item feedback) uses
+  `sessionTopbar()`: the player on the left, a `Home` pill (`.session-home`,
+  ≥44px tall) on the right. `quitSession()` goes straight back to the Star
+  Path if nothing has been answered; with at least one answer it calls
+  `finishSession(false)` (or `finishSession(true)` if every item was already
+  answered), which posts an abandoned bundle (`completed:false`,
+  `abandoned_at` set) so those answers still count, then returns to the map
+  (no end card). A Home tap while an answer is still being sent waits for it.
+- `finishSession()` builds the bundle once and `postBundle()` shows the shared
+  spinner ("Saving your answers...") while it posts. A failed post shows a
+  friendly retry card ("Oops, that didn't send" / "Try again"), never a
+  frozen screen; after a second failure it also offers "Back to my stars".
+  `api()` throws on any non-2xx response, so errors never render as data.
+- Any delayed callback that can re-render (feedback timeout, balance-scale
+  settle) must check `state.phase === "playing"` first.
 
 `showItem()` in `child.js` is the pattern to copy: build your game's markup as
 an array of elements returned from a `renderYourGame(item, startedAtMs)`
@@ -87,7 +106,7 @@ this file:**
 |---|---|---|---|
 | idle | *(base `.fizz` class — always on)* | alive, resting | every Fizz, continuously |
 | hop | `fizz-hop` | one step of progress, or "I noticed that" | the path track, on every advance; the Star Path narrator, when a star is tapped (it hops *behind* its own speech bubble, which sits at `z-index: 2`) |
-| cheer | `fizz-cheer` | a bigger moment, still not a score | mastery-beat end card |
+| cheer | `fizz-cheer` | a bigger moment, still never a result | mastery-beat end card |
 
 "Idle" isn't a neutral no-op — it's a continuous, slow (`fizz-idle`, 3s loop)
 bob-and-tilt every Fizz plays all the time, so the mascot never looks like a
@@ -100,9 +119,12 @@ instant a hop or cheer finishes. If you add a fourth pose, keep this same
 Fizz motionless while it plays.
 
 There is deliberately no "wrong answer" pose. This engine never tells a
-child their answer was incorrect (see `submitAndAdvance`'s fixed "Nice — next
-one" — every response advances the same way), so Fizz never has a sad/error
-state. If a future game type needs to represent a *stuck* or *escalated*
+child their answer was incorrect (every response advances the same way, with
+one line picked at random from `ACK_LINES` in `child.js`, never the same one
+twice in a row), so Fizz never has a sad/error state. Every line in
+`ACK_LINES` must make sense after *any* answer (including the last item, so
+no "next one"), and the choice must never
+depend on correctness, a streak, or a count. If a future game type needs to represent a *stuck* or *escalated*
 state, that already has its own honest treatment (`showEmpty`'s pause/
 hourglass icons) — don't invent a Fizz mood for it without a kid-ux pass.
 
@@ -129,10 +151,13 @@ Rules for extending it, not replacing it:
 - Node states are exactly two: not-yet-reached (dashed outline, reusing the
   star map's own "seed" convention) and done (`--status-mastered` solid).
   There is no third "wrong" state — see Fizz's poses above for why.
-- The chip below the track ("N to go — not a score") is the one place a
-  number is allowed on this whole surface, and only because it's paired with
-  its own denial that it's a score. Don't add a second number anywhere else
-  without the same pairing, and run it past kid-ux regardless.
+- **Nothing is written under the track.** The nodes and Fizz's position are
+  the whole progress signal. The old "N to go" chip (with its score disclaimer) was
+  removed: it put a digit on every question screen, and the disclaimer
+  mostly taught a child that scores exist. No counts, digits, or disclaimers
+  in session chrome or on end/empty cards. Numbers that are part of the
+  *question itself* (number-line end labels, fraction labels) are content,
+  not chrome, and are fine.
 
 ## The picker — "Who's playing?"
 
@@ -158,7 +183,8 @@ small roster never leaves most of the screen empty.
 
 `showConstellation(student, hue)` in `child.js` is the screen a child lands on
 after picking their name, and the screen every session returns to ("See my
-stars" on the end card, "Back to my stars" on the empty card). Play starts
+stars" on the end card, "Back to my stars" on the empty card, the in-session
+`Home` button). Play starts
 only from here. Layout inside one `.screen--map`: a `.topbar`, then
 `.map-layout`, a CSS grid with three areas:
 
@@ -270,6 +296,26 @@ screen wants Fizz to talk, reuse this element rather than inventing a second
 bubble, and keep it next to the one Fizz on that screen (never two Fizzes on
 one screen).
 
+## Item widgets
+
+- **Number line** (`renderNumberline`): place, adjust, then lock in. A tap or
+  press-and-drag on the line moves the marker as often as the child likes;
+  nothing is sent until the `Lock it in` button (`.line-lock`, disabled until
+  a spot is placed). Don't go back to submit-on-first-tap: it punished a
+  slipped finger as a misconception.
+- **Fraction bars** (`renderCompare`): each bar is one whole of the same
+  length, drawn as `denominator` equal `.bar-cell`s with `numerator` shaded,
+  not a single fill width. It uses only the item's `numerator`/`denominator`.
+- **Partition** (`renderPartition`): the prompt word comes from the
+  `PARTITION_WORDS` lookup (halves … sixths, mirroring `server/routes.ts`).
+  An unknown part count says "equal parts", never a digit.
+- **End card**: "Thanks for playing!", any mastery beats, "See my stars". A
+  mastery beat names the concept with `CHILD_LABEL[concept_id]` only, never
+  the server's `label` (tutor-facing, can contain "1/n").
+- **Empty card** copy is written for a 6-8 year old reader: short sentences,
+  three different messages (done for now / a teacher is helping / new things
+  are coming).
+
 ## Type & color
 
 - `--display` (Baloo 2) is for the handful of big, game-y moments: the
@@ -340,10 +386,10 @@ constraints: stays behind `.wrap`, moves slowly, stays out of `.stage`.
 
 ## Guardrails (from `SWARM.md` — non-negotiable)
 
-- **No score, leaderboard, or comparison, ever.** The path track's "N to go"
-  chip is deliberately paired with "— not a score" for exactly this reason;
-  don't add a raw number anywhere without the same treatment, and don't add
-  any UI that lets one child's progress be compared to another's.
+- **Never a score, leaderboard, or comparison.** No digits or counts in
+  session chrome, end cards, or empty cards (see "The path track"), no score
+  disclaimers, and no UI that lets one child's progress be compared to
+  another's (which is also why there is no tutor-view link here).
 - **This surface is observation-only.** Fizz reacts to what already
   happened; it never decides what happens next (what to show, whether an
   answer was "right") — that judgment stays server-side in the engine.

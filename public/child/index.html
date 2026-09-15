@@ -146,19 +146,6 @@
   #app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-4); }
   .screen--center { align-items: center; justify-content: center; overflow-y: auto; }
-  /* The tutor link is for grown-ups: a quiet text link tucked in the bottom
-     corner, deliberately NOT a pill/panel (a full-width white pill read as
-     an input field and competed with the child's own controls). */
-  .foot-link {
-    flex: 0 0 auto; align-self: flex-end;
-    display: inline-flex; align-items: center; gap: var(--sp-1);
-    padding: 2px var(--sp-2); border-radius: var(--r-sm);
-    font-size: var(--text-xs); font-weight: var(--fw-medium); color: var(--soft); text-decoration: none;
-    opacity: 0.8;
-    transition: color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
-  }
-  .foot-link:hover, .foot-link:focus-visible { color: var(--ink); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
-  .foot-link svg { width: 12px; height: 12px; }
 
   /* -------------------- "Who's playing?" picker --------------------
      Fizz greets the child (lg, with the shared .speech-bubble) above a grid
@@ -226,6 +213,10 @@
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex: 0 0 auto; }
   .topbar .who { display: flex; align-items: center; gap: 9px; font-size: var(--text-md); font-weight: var(--fw-semibold); }
   .topbar .avatar { width: 30px; height: 30px; font-size: var(--text-xs); }
+  /* In-session Home: back to the Star Path (child.js quitSession). A kid-
+     sized pill, not the shared 34px .pill-link height. */
+  .session-home { min-height: 44px; font-size: var(--text-md); font-weight: var(--fw-semibold); color: var(--ink); cursor: pointer; }
+  .session-home .icon { width: 18px; height: 18px; }
 
   .stage {
     background: var(--panel); border: 1px solid var(--rule-lite); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
@@ -248,7 +239,16 @@
   .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
   .line-tick { stroke: var(--rule); stroke-width: 2; }
   .line-tick-label { font-family: var(--mono); font-size: var(--text-xs); fill: var(--soft); }
-  .line-marker { fill: var(--play); transition: cx var(--dur-base) var(--ease-out); }
+  .line-marker { fill: var(--play); stroke: var(--panel); stroke-width: 3; transition: cx var(--dur-fast) var(--ease-out); }
+  .line-area svg { cursor: pointer; }
+  /* While dragging, the marker follows the finger with no easing lag. */
+  .line-area svg.is-dragging .line-marker { transition: none; }
+  .line-area svg.is-locked { cursor: default; }
+  /* "Lock it in" (numberline): disabled until a spot is placed. */
+  .line-lock { margin-top: 0; min-width: clamp(160px, 24vw, 220px); font-family: var(--display); font-size: var(--text-xl); font-weight: 700; }
+  .btn-primary:disabled { opacity: 0.45; cursor: default; box-shadow: none; }
+  .btn-primary:disabled:hover { background: var(--play); }
+  .btn-primary:disabled:active { transform: none; }
 
   .choice-row { display: flex; gap: clamp(var(--sp-4), 3vw, var(--sp-9)); width: 100%; justify-content: center; flex-wrap: wrap; }
   .choice-card {
@@ -269,8 +269,11 @@
   .choice-card[data-hue="2"]:hover { border-color: var(--hue-2); }
   .choice-card:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
   .bar-outer { width: 100%; height: clamp(28px, 5vh, 56px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
-  .bar-fill { background: var(--status-mastered); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
-  .bar-empty { background: var(--rule-lite); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
+  /* Fraction bars: every bar is one whole of the same length, cut into
+     `denominator` equal cells with `numerator` of them shaded (renderCompare). */
+  .bar-cell { flex: 1; height: 100%; background: var(--rule-lite); border-right: 1.5px solid var(--ink); }
+  .bar-cell:last-child { border-right: none; }
+  .bar-cell.fill { background: var(--status-mastered); }
   .bar-label { font-family: var(--mono); font-size: clamp(var(--text-sm), 1.8vw, var(--text-xl)); color: var(--soft); }
 
   .partition-shape { width: 100%; height: clamp(60px, 12vh, 150px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
@@ -754,6 +757,8 @@
     .partition-shape { height: clamp(44px, 11vh, 100px); }
     .choice-card { min-height: 70px; }
     .balance-choice { min-height: 44px; }
+    .line-lock { min-height: 40px; padding-block: var(--sp-1); font-size: var(--text-lg); }
+    .session-home { min-height: 38px; }
     /* Picker: Fizz shrinks and cards go horizontal (avatar beside name). */
     .picker-head { padding-top: 0; }
     .picker-head .fizz--lg { width: 44px; height: 44px; }
@@ -789,10 +794,6 @@
 <span class="bg-blob bg-blob--4" aria-hidden="true"></span>
 <div class="wrap">
   <div id="app"></div>
-  <a class="foot-link" href="#" id="tutorLink" target="_blank">
-    tutor view
-    <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
-  </a>
 </div>
 <script type="module" src="./child.js"></script>
 </body>

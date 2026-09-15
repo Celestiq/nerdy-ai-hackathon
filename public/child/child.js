@@ -1,5 +1,7 @@
 const app = document.getElementById("app");
-document.getElementById("tutorLink").href = "/tutor/";
+// No link to the tutor view anywhere on this surface (user decision
+// 2026-09-15): one tap from a child screen reached classmates' names and
+// stuck flags. Tutors open /tutor/ directly.
 
 const state = {
   student: null,
@@ -15,10 +17,24 @@ const state = {
   // completes and the next item renders. See roadmap.html C9 "Adversarial:
   // Rapid tapping".
   busy: false,
+  // Session lifecycle: "playing" while items are on screen, "finishing" once
+  // the bundle is being posted (or the child tapped Home), "idle" otherwise.
+  // Every delayed callback (the feedback-note timeout, the balance scale's
+  // settle delay) checks it, so nothing can re-render an item on top of the
+  // map after the child has left the session.
+  phase: "idle",
+  // True only while a POST /respond is in flight. A Home tap during that
+  // window is deferred until the observation lands, so it isn't lost.
+  responding: false,
+  quitRequested: false,
 };
 
+// Throws on a non-2xx response (and on a network failure, which fetch
+// already rejects), so callers can show a retry instead of treating an error
+// body as data.
 async function api(path, opts) {
   const res = await fetch(`/api${path}`, opts);
+  if (!res.ok) throw new Error(`${opts?.method ?? "GET"} /api${path} failed with ${res.status}`);
   return res.json();
 }
 
@@ -54,6 +70,8 @@ const ICONS = {
   // end -- see finishSession(). Same hand-authored stroke style as the icons
   // above (no icon-library dependency): a five-point star outline.
   star: '<path d="M12 3.5l2.47 5.18 5.65.68-4.15 3.95 1.09 5.6L12 16.15l-5.06 2.76 1.09-5.6-4.15-3.95 5.65-.68z"/>',
+  // The in-session Home button (back to the Star Path).
+  home: '<path d="M4 11l8-7 8 7"/><path d="M6 10v10h12V10"/>',
 };
 // Filled four-point sparkle, used only as decoration on bloom/fading stars
 // (see .star-sparkle in index.html). Not an ICONS entry: it's a fill shape,
@@ -329,11 +347,14 @@ async function startSession(student, hue = 0) {
   state.sessionStartedAt = new Date().toISOString();
   state.observations = [];
   state.busy = false;
+  state.responding = false;
+  state.quitRequested = false;
   state.index = 0;
 
   const ids = state.assignment.item_specs.map((s) => s.item_id).join(",");
   state.items = await api(`/items/${state.assignment.game_id}?ids=${ids}`);
 
+  state.phase = "playing";
   showItem();
 }
 
@@ -361,17 +382,20 @@ function showEmpty(result) {
   const isHardBlocked = hasEscalations || !GENUINELY_DONE_REASON.test(reason);
 
   let heading, message, iconName;
+  // Copy is written for a 6-8 year old reader: short sentences, no dashes,
+  // no "isn't the same as". The three states still say three different
+  // things: finished for now / a grown-up is helping / new things are coming.
   if (!isHardBlocked) {
-    heading = "All done";
-    message = "You're all caught up for now. Come back soon!";
+    heading = "All done for now!";
+    message = "You played everything that's ready. Come back soon for more!";
     iconName = "hourglass";
   } else if (hasEscalations) {
-    heading = "Taking a break from this one";
-    message = "Nothing to play right now -- your teacher's got this one. Check back after class!";
+    heading = "Time for a little break";
+    message = "Your teacher is going to help you with this one. Come back later to play!";
     iconName = "pause";
   } else {
-    heading = "Nothing lined up right now";
-    message = "This isn't the same as being done -- come back in a bit and there should be something new to try.";
+    heading = "Nothing to play just yet";
+    message = "New things to play are on the way. Come back in a little while!";
     iconName = "pause";
   }
 
@@ -421,14 +445,44 @@ function pathTrack(total, index, { justAdvanced = false } = {}) {
   const { x: fx, y: fy } = posFor(fizzIndex);
   const fizzNode = el("div", { class: "path-fizz", style: `left:${fx}%; top:${fy}%` }, [fizz("md", justAdvanced ? "hop" : "")]);
 
-  const remaining = Math.max(total - index, 0);
-  return el("div", { class: "path-wrap" }, [
-    el("div", { class: "path-track" }, [...nodes, fizzNode]),
-    el("span", { class: "chip chip--neutral" }, remaining > 0 ? `${remaining} to go — not a score` : "That's the set — not a score"),
+  // No text under the track: the nodes and Fizz's position are the whole
+  // progress signal. (A "N to go" chip used to sit here; it was the one digit
+  // in a session and was removed -- see DESIGN_LANGUAGE.md "The path track".)
+  return el("div", { class: "path-wrap" }, [el("div", { class: "path-track", "aria-hidden": "true" }, [...nodes, fizzNode])]);
+}
+
+// The topbar every in-session screen shares: who's playing, and a Home
+// button back to the Star Path (see quitSession).
+function sessionTopbar() {
+  return el("div", { class: "topbar" }, [
+    el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
+    el("button", { type: "button", class: "pill-link session-home", onclick: quitSession }, [icon("home"), "Home"]),
   ]);
 }
 
+// Home mid-session. With nothing answered yet there's no evidence to keep,
+// so it just goes back to the map. With at least one answer, the partial
+// session is posted as an abandoned bundle (completed:false) first, so the
+// answers the child did give still count. A tap while an answer is still
+// being sent waits for it to land (see submitAndAdvance).
+function quitSession() {
+  if (state.phase !== "playing") return;
+  if (state.responding) {
+    state.quitRequested = true;
+    return;
+  }
+  if (state.observations.length === 0) {
+    state.phase = "idle";
+    showConstellation(state.student, state.studentHue);
+    return;
+  }
+  // Tapped during the last item's feedback beat: every item was answered, so
+  // it's a completed session, not an abandoned one.
+  finishSession(state.index >= state.assignment.item_specs.length);
+}
+
 function showItem() {
+  if (state.phase !== "playing") return;
   const item = currentItem();
   if (!item) {
     finishSession(true);
@@ -449,10 +503,7 @@ function showItem() {
 
   render(
     el("div", { class: "screen" }, [
-      el("div", { class: "topbar" }, [
-        el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
-        el("div", {}),
-      ]),
+      sessionTopbar(),
       el("div", { class: "stage" }, stage),
       pathTrack(state.assignment.item_specs.length, state.index),
     ]),
@@ -499,35 +550,71 @@ function renderNumberline(item, startedAtMs) {
   hiLabel.textContent = String(hi);
   svg.appendChild(hiLabel);
 
+  // Place -> adjust -> lock in. A tap (or press-and-drag) anywhere on the
+  // line places the marker and moves it as often as the child likes; nothing
+  // is sent until "Lock it in". The observation's timing still spans from the
+  // item appearing to the lock-in tap.
   let marker = null;
+  let value = null;
+  let dragging = false;
+  let locked = false;
 
-  function handlePlace(clientX) {
+  function placeAt(clientX) {
     const rect = svg.getBoundingClientRect();
     const scaleX = width / rect.width;
     const localX = (clientX - rect.left) * scaleX;
-    const value = Math.max(0, Math.min(1, (localX - margin) / (width - 2 * margin)));
+    value = Math.max(0, Math.min(1, (localX - margin) / (width - 2 * margin)));
 
     if (!marker) {
       marker = document.createElementNS(svg.namespaceURI, "circle");
-      marker.setAttribute("r", 9);
+      marker.setAttribute("r", 11);
       marker.setAttribute("cy", trackY);
       marker.setAttribute("class", "line-marker");
       svg.appendChild(marker);
     }
     marker.setAttribute("cx", margin + value * (width - 2 * margin));
-
-    submitAndAdvance({ item_id: item.item_id, value, startedAtMs, endedAtMs: Date.now() });
+    lockBtn.disabled = false;
   }
 
-  svg.addEventListener("click", (e) => handlePlace(e.clientX));
+  svg.addEventListener("pointerdown", (e) => {
+    if (locked) return;
+    dragging = true;
+    svg.classList.add("is-dragging");
+    svg.setPointerCapture?.(e.pointerId);
+    placeAt(e.clientX);
+  });
+  svg.addEventListener("pointermove", (e) => {
+    if (dragging && !locked) placeAt(e.clientX);
+  });
+  const endDrag = () => {
+    dragging = false;
+    svg.classList.remove("is-dragging");
+  };
+  svg.addEventListener("pointerup", endDrag);
+  svg.addEventListener("pointercancel", endDrag);
+
+  const lockBtn = el("button", { type: "button", class: "btn-primary line-lock", disabled: "" }, "Lock it in");
+  lockBtn.addEventListener("click", () => {
+    if (locked || value == null) return;
+    locked = true;
+    lockBtn.disabled = true;
+    svg.classList.add("is-locked");
+    submitAndAdvance({ item_id: item.item_id, value, startedAtMs, endedAtMs: Date.now() }).catch(() => {
+      // The answer didn't reach the server: unlock so the child can try again.
+      locked = false;
+      lockBtn.disabled = false;
+      svg.classList.remove("is-locked");
+    });
+  });
 
   const lineArea = el("div", { class: "line-area" }, []);
   lineArea.appendChild(svg);
 
   return [
     el("div", { class: "prompt" }, item.prompt),
-    el("div", { class: "subprompt" }, "Tap the line where it belongs"),
+    el("div", { class: "subprompt" }, "Tap the line. Move it if you want, then lock it in."),
     lineArea,
+    lockBtn,
   ];
 }
 
@@ -538,17 +625,18 @@ function renderCompare(item, startedAtMs) {
   // independent of `side`.
   function card(side) {
     const f = item[side];
-    const pct = Math.round((f.numerator / f.denominator) * 100);
+    // An area model, not a progress bar: both bars are the same total length
+    // (one whole), cut into `denominator` equal cells with the first
+    // `numerator` shaded. The child has to see how big each piece is and how
+    // many are shaded, rather than reading off a single fill width.
+    const cells = [];
+    for (let i = 0; i < f.denominator; i++) {
+      cells.push(el("div", { class: "bar-cell" + (i < f.numerator ? " fill" : "") }));
+    }
     return el(
       "div",
       { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
-      [
-        el("div", { class: "bar-outer" }, [
-          el("div", { class: "bar-fill", style: `width:${pct}%` }),
-          el("div", { class: "bar-empty", style: `width:${100 - pct}%` }),
-        ]),
-        el("div", { class: "bar-label" }, `${f.numerator}/${f.denominator}`),
-      ],
+      [el("div", { class: "bar-outer" }, cells), el("div", { class: "bar-label" }, `${f.numerator}/${f.denominator}`)],
     );
   }
   return [el("div", { class: "prompt" }, "Which is bigger?"), el("div", { class: "choice-row" }, [card("a"), card("b")])];
@@ -564,9 +652,9 @@ function renderCompare(item, startedAtMs) {
 // actually tests. On resolution the beam settles to the *true* physical
 // relationship (level if the two fractions are truly equal, tipped toward
 // the larger one otherwise) -- a balance scale showing its own honest
-// physics is part of the visual metaphor, not a score/leaderboard readout;
+// physics is part of the visual metaphor, never a result/leaderboard readout;
 // the child still never sees a correct/incorrect label anywhere (see
-// submitAndAdvance's fixed "Nice — next one" note, unchanged by this).
+// submitAndAdvance's answer-independent ACK_LINES).
 function renderBalanceScale(item, startedAtMs) {
   const width = 560;
   const height = 230;
@@ -683,92 +771,162 @@ function renderPartition(item, startedAtMs) {
       [el("div", { class: "partition-shape" }, slices)],
     );
   }
-  return [el("div", { class: "prompt" }, `Which shows equal ${item.parts === 2 ? "halves" : item.parts === 3 ? "thirds" : "fourths"}?`), el("div", { class: "choice-row" }, [shape("a"), shape("b")])];
+  const word = PARTITION_WORDS[item.parts];
+  return [el("div", { class: "prompt" }, word ? `Which shows equal ${word}?` : "Which shows equal parts?"), el("div", { class: "choice-row" }, [shape("a"), shape("b")])];
+}
+
+// Mirrors PARTITION_WORDS in server/routes.ts (the tutor's replay labels).
+// A part count missing here falls back to "equal parts" rather than the
+// server's `${n}ths`, which would put a digit on the child surface.
+const PARTITION_WORDS = { 2: "halves", 3: "thirds", 4: "fourths", 5: "fifths", 6: "sixths" };
+
+// What the child sees between items, whatever the answer was. Picked at
+// random (never twice in a row) so it doesn't read as a canned beep, but
+// never tied to correctness, a streak, or a count -- every line must be one
+// a child could hear after any answer, including the last one (so no "next one").
+const ACK_LINES = ["Nice!", "Got it!", "Thanks!", "Okay!", "On we go!"];
+let lastAck = -1;
+function nextAck() {
+  let i = Math.floor(Math.random() * ACK_LINES.length);
+  if (i === lastAck) i = (i + 1) % ACK_LINES.length;
+  lastAck = i;
+  return ACK_LINES[i];
 }
 
 async function submitAndAdvance(payload) {
+  if (state.phase !== "playing") return; // e.g. a balance-scale settle delay firing after Home
   if (state.busy) return; // a tap is already in flight for this item -- ignore extra taps
   state.busy = true;
+  state.responding = true;
+  let observation;
   try {
-    const observation = await api(`/games/${state.assignment.game_id}/respond`, {
+    observation = await api(`/games/${state.assignment.game_id}/respond`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ ...payload, attempts: 1 }),
     });
-    state.observations.push(observation);
-    state.index += 1;
-    render(
-      el("div", { class: "screen" }, [
-        el("div", { class: "topbar" }, [
-          el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
-          el("div", {}),
-        ]),
-        el("div", { class: "stage" }, [
-          el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), "Nice — next one"]),
-        ]),
-        pathTrack(state.assignment.item_specs.length, state.index, { justAdvanced: true }),
-      ]),
-    );
-    setTimeout(() => {
-      state.busy = false;
-      showItem();
-    }, 420);
   } catch (err) {
+    state.responding = false;
     state.busy = false;
+    if (state.quitRequested) {
+      // Home was tapped while this (failed) answer was on its way: leave
+      // anyway with whatever was already kept.
+      state.quitRequested = false;
+      quitSession();
+      return;
+    }
     throw err;
   }
+  state.responding = false;
+  state.observations.push(observation);
+  state.index += 1;
+  if (state.quitRequested) {
+    // Home was tapped while this answer was on its way; it's kept now.
+    state.quitRequested = false;
+    state.busy = false;
+    quitSession();
+    return;
+  }
+  render(
+    el("div", { class: "screen" }, [
+      sessionTopbar(),
+      el("div", { class: "stage" }, [el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), nextAck()])]),
+      pathTrack(state.assignment.item_specs.length, state.index, { justAdvanced: true }),
+    ]),
+  );
+  setTimeout(() => {
+    state.busy = false;
+    showItem();
+  }, 420);
 }
 
-// Turns a list of { concept_id, label } into one plain-language beat per
+// Turns the server's newlyMastered list into one plain-language beat per
 // concept -- never a count ("2 concepts mastered"), never a rate or streak,
-// and never a grammatical join of two labels into one sentence (concept
-// labels are authored as standalone tutor-facing descriptions -- some are
-// short noun phrases, some are full sentences, e.g. F.MAG.UNIT's "A unit
-// fraction 1/n is one of n equal parts of a whole" -- joining two of them
-// with "and"/comma logic produces a run-on with a mid-sentence capital).
+// and never a join of two names into one sentence. The name is ALWAYS the
+// kid-voice CHILD_LABEL for the concept_id; the server's `label` field is the
+// graph's tutor-facing label (e.g. "A unit fraction 1/n is one of n equal
+// parts of a whole") and must never be rendered here. An authored concept
+// missing from CHILD_LABEL gets a generic line rather than a leaked label.
 // See BACKLOG.md B2 "Mastery Moment": this only ever reflects a same-session
 // transition the server already diffed (newlyMastered on the /evidence
 // response), so it's a one-time reward tied to the belief model, not a
 // client-side counter or a display of standing status.
-// Returns an array of one independently-complete string per concept, e.g.
-// ["You've got it — Partition a whole into equal parts!",
-//  "You've got it — A unit fraction 1/n is one of n equal parts of a whole!"]
-// -- callers render each entry as its own element rather than joining them.
+// Returns an array of one independently-complete string per concept -- callers
+// render each entry as its own element rather than joining them.
 function masteryBeatText(newlyMastered) {
-  // Em dash (not a colon) to match the app's existing feedback voice
-  // ("Nice — next one") and because concept labels sometimes contain their
-  // own colon (e.g. "Fraction notation: numerator and denominator meaning"),
-  // which would otherwise read as a jarring double colon.
-  return newlyMastered.map((m) => `You've got it — ${m.label}!`);
+  return newlyMastered.map((m) => {
+    const name = CHILD_LABEL[m?.concept_id];
+    return name ? `You've got it — ${name}!` : "You've got it — a new star is shining!";
+  });
 }
 
-async function finishSession(completed) {
+// Builds the session's evidence bundle once (so a retry re-sends the exact
+// same bundle, same session_id and timestamps) and posts it. `completed:false`
+// is the Home-button path: a valid abandoned bundle (abandoned_at set,
+// ended_at never before started_at) the tutor lists as "abandoned".
+function finishSession(completed) {
+  state.phase = "finishing";
+  const now = new Date().toISOString();
   const bundle = {
     session_id: state.sessionId,
     student_id: state.student.student_id,
     assignment_id: state.assignment.assignment_id,
     game_id: state.assignment.game_id,
     started_at: state.sessionStartedAt,
-    ended_at: new Date().toISOString(),
-    observations: state.observations,
-    engagement: { completed, abandoned_at: completed ? null : new Date().toISOString(), idle_ms: 0 },
+    ended_at: now,
+    observations: state.observations.slice(),
+    engagement: { completed, abandoned_at: completed ? null : now, idle_ms: 0 },
   };
-  const result = await api("/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bundle) });
-  const newlyMastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered : [];
+  postBundle(bundle, 0);
+}
 
+// Spinner while the bundle is sent; a friendly retry card if it fails,
+// never a frozen screen. A resend of a bundle the server already stored
+// comes back 200 with duplicate:true, which is treated as success. After a
+// second failure the card also offers the way home, so a child is never
+// trapped on it (the answers from that session are then not kept).
+async function postBundle(bundle, failures) {
+  render(loadingCard("Saving your answers..."));
+  let result;
+  try {
+    result = await api("/evidence", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(bundle) });
+  } catch (err) {
+    console.error("posting evidence failed:", err);
+    showSaveRetry(bundle, failures + 1);
+    return;
+  }
+  state.phase = "idle";
+  if (!bundle.engagement.completed) {
+    showConstellation(state.student, state.studentHue);
+    return;
+  }
+  showEndCard(Array.isArray(result?.newlyMastered) ? result.newlyMastered : []);
+}
+
+function showSaveRetry(bundle, failures) {
+  render(
+    el("div", { class: "screen screen--center" }, [
+      el("div", { class: "empty-card" }, [
+        el("div", { class: "icon-wrap" }, [fizz("sm")]),
+        el("h2", {}, "Oops, that didn't send"),
+        el("p", {}, "Let's try that again."),
+        el("button", { type: "button", class: "btn-primary", onclick: () => postBundle(bundle, failures) }, "Try again"),
+        failures >= 2
+          ? el("button", { type: "button", class: "pill-link", onclick: () => { state.phase = "idle"; showConstellation(state.student, state.studentHue); } }, "Back to my stars")
+          : null,
+      ]),
+    ]),
+  );
+}
+
+function showEndCard(newlyMastered) {
   // A mastery beat gets its own celebratory icon/animation (see
   // .icon-wrap--mastery / pop-in-mastery in index.html) -- one distinct
   // treatment for the whole moment, not per concept, and not driven by any
   // client-side count (newlyMastered.length only ever gates which *branch*
-  // renders, it's never displayed). A routine end-of-session (no mastery)
-  // keeps the exact same icon-wrap/pop-in/check markup as before this change.
-  // Fizz closes out the session too, not just the ones in between -- a
-  // routine end gets an idle Fizz in the plain icon-wrap (unchanged
-  // circle/pop-in from before), a mastery beat gets Fizz mid-cheer inside
-  // the existing icon-wrap--mastery treatment (unchanged pulse ring). The
-  // check/star glyphs this replaced were also fine on their own, but this
-  // is the moment the report called out explicitly: the character should
-  // show up at the edges of a session, not only mid-question.
+  // renders, it's never displayed). A routine end gets an idle Fizz in the
+  // plain icon-wrap; a mastery beat gets Fizz mid-cheer inside
+  // icon-wrap--mastery (pulse ring). No digits anywhere on this card.
   const justMastered = newlyMastered.length > 0;
   const endIconWrap = justMastered
     ? el("div", { class: "icon-wrap icon-wrap--mastery" }, [fizz("md", "cheer")])
@@ -778,10 +936,9 @@ async function finishSession(completed) {
     el("div", { class: "screen screen--center" }, [
       el("div", { class: "end-card" }, [
         endIconWrap,
-        el("h2", {}, "What you built today"),
-        el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
+        el("h2", {}, "Thanks for playing!"),
         ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
-        el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
+        el("p", {}, "Let's go look at your stars."),
         el("button", { class: "btn-primary", onclick: () => showConstellation(state.student, state.studentHue) }, "See my stars"),
       ]),
     ]),
