@@ -6,7 +6,7 @@ import { isCovered } from "../src/engine/candidates.js";
 import { blame, type BlameSuspect } from "../src/graph/query.js";
 import { buildTutorReport, type CohortMember } from "../src/analytics/index.js";
 import { buildObservation } from "../src/sdk/observation.js";
-import type { BeliefState, SignatureRecord as ContractSignatureRecord, Observation } from "../src/contracts/schemas.js";
+import type { BeliefState, EvidenceBundle, SignatureRecord as ContractSignatureRecord, Observation } from "../src/contracts/schemas.js";
 import { EvidenceBundleSchema } from "../src/contracts/schemas.js";
 import type { SignatureCode } from "../src/contracts/signatures.js";
 import { numberlineItems } from "../src/games/numberline/items.js";
@@ -154,6 +154,64 @@ function diffNewlyMastered(before: Map<string, BeliefInternal>, after: Map<strin
   return out;
 }
 
+// "Pattern cracked" (BACKLOG.md E2, IDEAS B3): a misconception the child had
+// already shown on a concept stops showing up in a session where they worked
+// that concept and mostly got it right. Same composition-layer reasoning as
+// diffNewlyMastered above -- "this recovery is reward-worthy" is a
+// pedagogical call, so it lives here, not in src/store.
+//
+// Signature strength/count never decrease (they're tallies over the whole
+// log), so this can't be a before/after diff of belief. Instead, for concept
+// C and signature S, the submitted bundle "cracks" S when:
+//   - beliefBefore[C] already carries S with count >= PATTERN_MIN_PRIOR_COUNT
+//     (a real, repeated pattern -- not a one-off slip), and
+//   - the bundle has >= PATTERN_MIN_SESSION_OBS observations on C, none of
+//     them signature S, and more than half of them correct, and
+//   - no earlier bundle since S was last seen on C already cracked it. This
+//     keeps the beat one-shot: a child isn't told they figured out the same
+//     tricky thing after every clean session. If S shows up again later and
+//     is then cleared again, that is a new crack.
+// A duplicate re-send (already in the log) never cracks anything.
+//
+// The returned `code` is for tests and server-side callers only. The HTTP
+// response strips it: the child surface is never told which misconception
+// it was, only which concept (and names that with its own kid label).
+export const PATTERN_MIN_PRIOR_COUNT = 2;
+export const PATTERN_MIN_SESSION_OBS = 2;
+
+function cracksOn(observations: Observation[], conceptId: string, code: string): boolean {
+  const onConcept = observations.filter((o) => o.concept_id === conceptId);
+  if (onConcept.length < PATTERN_MIN_SESSION_OBS) return false;
+  if (onConcept.some((o) => o.signature === code)) return false;
+  const correct = onConcept.filter((o) => o.verdict === "correct").length;
+  return correct * 2 > onConcept.length;
+}
+
+export function diffPatternsCracked(
+  beliefBefore: Map<string, BeliefInternal>,
+  priorBundles: readonly EvidenceBundle[],
+  bundle: EvidenceBundle,
+): { concept_id: string; code: string }[] {
+  const out: { concept_id: string; code: string }[] = [];
+  const conceptIds = [...new Set(bundle.observations.map((o) => o.concept_id))];
+  for (const conceptId of conceptIds) {
+    const before = beliefBefore.get(conceptId);
+    if (!before) continue; // first-ever evidence on this concept: nothing to crack
+    for (const sig of before.signatures) {
+      if (sig.code === "UNCLASSIFIED" || sig.count < PATTERN_MIN_PRIOR_COUNT) continue;
+      if (!cracksOn(bundle.observations, conceptId, sig.code)) continue;
+      let lastSeen = -1;
+      priorBundles.forEach((b, i) => {
+        if (b.observations.some((o) => o.concept_id === conceptId && o.signature === sig.code)) lastSeen = i;
+      });
+      const alreadyCracked = priorBundles.slice(lastSeen + 1).some((b) => cracksOn(b.observations, conceptId, sig.code));
+      if (alreadyCracked) continue;
+      out.push({ concept_id: conceptId, code: sig.code });
+    }
+  }
+  return out;
+}
+
 api.post("/evidence", async (req, res) => {
   const parsed = EvidenceBundleSchema.safeParse(req.body);
   if (!parsed.success) {
@@ -164,8 +222,15 @@ api.post("/evidence", async (req, res) => {
   // src/store/store.ts), so "before" is just calling belief() prior to the
   // log append -- no snapshot machinery needed.
   const beliefBefore = store.belief(parsed.data.student_id);
+  const priorBundles = store.bundlesFor(parsed.data.student_id);
   const result = store.ingest(parsed.data);
   const beliefAfter = store.belief(parsed.data.student_id);
+  // One entry per concept, concept_id only: the signature code never leaves
+  // the server on this response (see diffPatternsCracked).
+  const patternsCracked =
+    result.accepted && !result.duplicate
+      ? [...new Set(diffPatternsCracked(beliefBefore, priorBundles, parsed.data).map((p) => p.concept_id))].map((concept_id) => ({ concept_id }))
+      : [];
 
   // Write-through to the durable store (see server/db.ts). The in-memory
   // store above is already the source of truth for this running process --
@@ -184,7 +249,7 @@ api.post("/evidence", async (req, res) => {
     }
   }
 
-  res.json({ ...result, ...(dbPersisted !== undefined ? { dbPersisted } : {}), newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter) });
+  res.json({ ...result, ...(dbPersisted !== undefined ? { dbPersisted } : {}), newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter), patternsCracked });
 });
 
 // A concept the student has already MASTERED can't be the live root cause
@@ -366,7 +431,7 @@ const SIGNATURE_MEANINGS: Record<SignatureCode, string> = {
   WHOLE_NUMBER_BIAS:
     "Reasons about the fraction like a whole number -- treating a bigger numerator or denominator as simply \"bigger\" rather than working out the value it represents.",
   LOG_COMPRESSION:
-    "Treats the line as if equal ratios (not equal amounts) get equal space, so larger numbers get squeezed too close to the low end instead of spread out to their true position.",
+    "Treats the line as if equal ratios (not equal amounts) get equal space, so small numbers are placed too far to the right and larger numbers get squeezed together near the high end instead of spread out to their true positions.",
   LONGER_IS_LARGER:
     "Judges a decimal's size by how many digits it has (e.g. thinks 0.125 is bigger than 0.7 because \"125\" looks bigger than \"7\").",
   LANDMARK_ONLY:

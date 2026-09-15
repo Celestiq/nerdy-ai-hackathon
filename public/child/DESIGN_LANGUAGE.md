@@ -106,7 +106,7 @@ this file:**
 |---|---|---|---|
 | idle | *(base `.fizz` class — always on)* | alive, resting | every Fizz, continuously |
 | hop | `fizz-hop` | one step of progress, or "I noticed that" | the path track, on every advance; the Star Path narrator, when a star is tapped (it hops *behind* its own speech bubble, which sits at `z-index: 2`) |
-| cheer | `fizz-cheer` | a bigger moment, still never a result | mastery-beat end card |
+| cheer | `fizz-cheer` | a bigger moment, still never a result | the celebration screen; the Star Path narrator when the map opens from it |
 
 "Idle" isn't a neutral no-op — it's a continuous, slow (`fizz-idle`, 3s loop)
 bob-and-tilt every Fizz plays all the time, so the mascot never looks like a
@@ -131,10 +131,11 @@ hourglass icons) — don't invent a Fizz mood for it without a kid-ux pass.
 Sizes: `fizz--sm` (28px, headers/inline), `fizz--md` (46px, the path track,
 end-card icon-wraps), `fizz--lg` (76px base; the "Fizz is talking to you"
 size). `fizz--lg` is used wherever Fizz is the narrator of a whole screen —
-the picker greeting and the Star Path — and those two screens scale it with
-a `clamp()` on their own container (`.picker-head .fizz--lg`,
-`.map-fizz .fizz--lg`: up to ~128px / ~200px on tall windows, down to
-40-60px on phones and short windows) rather than adding a fourth size class.
+the picker greeting, the Star Path and the celebration — and those screens
+scale it with a `clamp()` on their own container (`.picker-head .fizz--lg`,
+`.map-fizz .fizz--lg`, `.celebrate-fizz`: up to ~128px / ~200px / ~190px on
+tall windows, down to 40-60px on phones and short windows) rather than
+adding a fourth size class.
 One Fizz per screen, always.
 
 ## The path track — the one progress mechanic
@@ -269,10 +270,23 @@ Rules:
   about *soon*: "I think this one is ready to grow soon!" (for a fading
   `next`, the fading note is used instead). If `next` is ever made to match
   the session the engine will serve, this copy can get bolder.
+- **Arriving from the celebration** (`state.justBloomed`, set by "See your
+  star map" and cleared the moment the map reads it, so it plays once):
+  every star that just bloomed gets `.const-star--just-bloomed` — a copy of
+  the glow tier (`.star-was-glow`) sits over the bloom star and melts away
+  while the star swells once and throws one teal ring, so the child watches
+  glow turn into bloom. The highlight only plays if the server's map says the
+  star is `bloom`. A star whose pattern was cracked keeps its own tier and
+  gets `.const-star--just-cracked` (a teal ring, twice). Fizz cheers and the
+  bubble names the first such star ("Look, your star just bloomed!" / "You
+  figured out a tricky part here!"); it is marked selected and scrolled into
+  view inside `.const-scroll`, never by scrolling the page.
 - **Motion budget on the map:** the pop-in cascade (one-shot), bloom
-  sparkles (one-shot), Fizz idle/hop, and the `next` halo + ripple (the only
-  loop). Under `prefers-reduced-motion` all of it stops: the `next` halo
-  stays visible and static, and the ripple is hidden.
+  sparkles (one-shot), the just-bloomed/just-cracked highlight (one-shot),
+  Fizz idle/hop/cheer, and the `next` halo + ripple (the only loop). Under
+  `prefers-reduced-motion` all of it stops: the `next` halo stays visible
+  and static, the ripple and the glow overlay are hidden, and a just-bloomed
+  star simply shows as bloom.
 - **Names are kid-voice only**, from `CHILD_LABEL` in `child.js`: short,
   concrete, **no digits, no fraction glyphs, no "1/n"**. The graph's own
   labels are tutor-facing and never reach this screen. A new authored
@@ -309,9 +323,38 @@ one screen).
 - **Partition** (`renderPartition`): the prompt word comes from the
   `PARTITION_WORDS` lookup (halves … sixths, mirroring `server/routes.ts`).
   An unknown part count says "equal parts", never a digit.
-- **End card**: "Thanks for playing!", any mastery beats, "See my stars". A
-  mastery beat names the concept with `CHILD_LABEL[concept_id]` only, never
-  the server's `label` (tutor-facing, can contain "1/n").
+- **End card** (`showEndCard`): the routine finish only. "Thanks for
+  playing!", "See my stars". No beats on it any more.
+- **Celebration** (`showCelebration`): replaces the end card when `POST
+  /api/evidence` returns a non-empty `newlyMastered` or `patternsCracked`.
+  Full screen, centred, no page scroll: a big Fizz mid-cheer inside the teal
+  pulse ring (`.celebrate-fizz`, pop-in plus two ring pulses, three sparkles
+  that burst once), a heading ("Your star is shining!" if anything bloomed,
+  else "Wow, look at you!"), **at most two lines**, and "See your star
+  map". Lines: the first bloomed concept gets "You've got it — <name>!"
+  (teal, the reward colour); the first cracked concept gets "You figured out
+  a tricky part — <name>!" (plain `--ink`). Both use the same
+  "<lead> — <name>!" shape because the labels are noun phrases. A concept in
+  both lists gets the bloom line only. Names come from
+  `CHILD_LABEL[concept_id]` only, never the server's `label` (tutor-facing,
+  can contain "1/n").
+  - **Never a stack of lines.** One line per concept grew into a "look how
+    many" tally in review (two teal lines plus one more). Any further
+    bloomed/cracked stars are shown by their highlight on the map, not listed
+    here.
+  - **The cracked line is never `--play` orange.** Orange on this surface
+    means Play and the `next` star ("ready to grow soon"), so an orange line
+    reads as "go fix this one". It isn't mastery either, so it isn't teal:
+    plain ink, carried by the teal ring and Fizz's cheer around it.
+  - **Never name or hint at the misconception.** The server sends only
+    `concept_id` for a cracked pattern; don't add copy like "you stopped
+    thinking bigger numbers mean bigger fractions".
+  - **No counts**: never "new stars!" with a number, and the list lengths
+    only pick which branch renders.
+  - Both lists are server judgements (belief diff and the evidence log). A
+    client-side streak or tally must never trigger this screen.
+  - An abandoned (Home) session goes straight to the map and never shows it.
+  - Reduced motion: Fizz, ring and sparkles are static.
 - **Empty card** copy is written for a 6-8 year old reader: short sentences,
   three different messages (done for now / a teacher is helping / new things
   are coming).
@@ -428,9 +471,6 @@ constraints: stays behind `.wrap`, moves slowly, stays out of `.stage`.
   directly to the engine's own signal instead of being purely decorative.
   Needs a belief fetch on the session screen that doesn't exist yet — don't
   fake it with a client-side counter in the meantime.
-- **A dedicated full-screen celebration.** `fizz--lg` is now used by the
-  picker and Star Path narrators; a celebration card (BACKLOG #3) should
-  reuse that size in the `cheer` pose rather than adding a bigger one.
 - **A "walked" trail.** Drawing a strand's road solid up to its last
   non-seed star (dashed beyond) would make trails feel more like a journey,
   but it adds a new progress meaning per strand. Needs a kid-ux pass before

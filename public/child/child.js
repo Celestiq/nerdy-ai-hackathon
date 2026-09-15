@@ -27,6 +27,11 @@ const state = {
   // window is deferred until the observation lands, so it isn't lost.
   responding: false,
   quitRequested: false,
+  // One-shot hand-off from the celebration screen to the Star Path: which
+  // stars just bloomed / cracked a pattern this session (server-reported),
+  // so the map can play their highlight once. showConstellation() reads and
+  // clears it, so a later visit to the map is a normal one.
+  justBloomed: null,
 };
 
 // Throws on a non-2xx response (and on a network failure, which fetch
@@ -203,6 +208,9 @@ const TIER_NOTE = {
 // kid-ux spot check found it differed for most seeded students). "Soon" and
 // Fizz's "I think" keep it a hint, not a promise about the next Play.
 const NEXT_NOTE = "I think this one is ready to grow soon!";
+// Fizz's line when the map opens from the celebration screen.
+const JUST_BLOOMED_NOTE = "Look, your star just bloomed!";
+const JUST_CRACKED_NOTE = "You figured out a tricky part here!";
 
 const TIER_A11Y = { seed: "seed star", glow: "growing star", bloom: "shining star", fading: "star to revisit" };
 
@@ -213,8 +221,13 @@ const TIER_A11Y = { seed: "seed star", glow: "growing star", bloom: "shining sta
 async function showConstellation(student, hue = 0) {
   state.student = student;
   state.studentHue = hue;
+  const justBloomed = state.justBloomed;
+  state.justBloomed = null;
   render(loadingCard());
   const map = await api(`/child/map/${student.student_id}`);
+  const bloomedIds = new Set(justBloomed?.bloomed ?? []);
+  const crackedIds = new Set(justBloomed?.cracked ?? []);
+  const focusButton = { current: null };
   const conceptById = new Map(map.concepts.map((c) => [c.concept_id, c]));
 
   // Fizz narrates from one fixed spot above the scroll area, so the bubble
@@ -252,7 +265,13 @@ async function showConstellation(student, hue = 0) {
       const row = [];
       s.concept_ids.forEach((id, i) => {
         if (i > 0) row.push(trailStep(i % 2 === 1 ? "down" : "up"));
-        row.push(starNode(conceptById.get(id), starIndex++, onStarTap, slotFor(i)));
+        const concept = conceptById.get(id);
+        // The just-bloomed highlight only plays if the server's map agrees
+        // the star is bloom now; a cracked pattern pops the star in its tier.
+        const highlight = bloomedIds.has(id) && concept?.tier === "bloom" ? "bloomed" : crackedIds.has(id) || bloomedIds.has(id) ? "cracked" : null;
+        const button = starNode(concept, starIndex++, onStarTap, slotFor(i), highlight);
+        if (id === justBloomed?.focus) focusButton.current = button;
+        row.push(button);
       });
       if (s.hasComingLater) {
         const n = s.concept_ids.length;
@@ -290,6 +309,25 @@ async function showConstellation(student, hue = 0) {
       ]),
     ]),
   );
+
+  // Arriving from the celebration: Fizz cheers and names the star, which is
+  // marked selected and brought into view inside the map card (the map's
+  // own internal scroll, never the page).
+  if (justBloomed && focusButton.current) {
+    const concept = conceptById.get(justBloomed.focus);
+    const b = focusButton.current;
+    selected = b;
+    b.classList.add("const-star--selected");
+    say(childLabel(justBloomed.focus), justBloomed.focusKind === "bloomed" && concept?.tier === "bloom" ? JUST_BLOOMED_NOTE : JUST_CRACKED_NOTE);
+    fizzSlot.replaceChildren(fizz("lg", "cheer"));
+    const scroller = app.querySelector(".const-scroll");
+    if (scroller) {
+      const sr = scroller.getBoundingClientRect();
+      const br = b.getBoundingClientRect();
+      scroller.scrollTop += br.top - sr.top - (sr.height - br.height) / 2;
+      scroller.scrollLeft += br.left - sr.left - (sr.width - br.width) / 2;
+    }
+  }
 }
 
 const slotFor = (i) => (i % 2 === 0 ? "trail-slot--up" : "trail-slot--down");
@@ -307,11 +345,15 @@ function trailStep(dir, fade = false) {
   });
 }
 
-function starNode(concept, index, onTap, slotClass = "") {
+// `highlight` is the one-shot arrival from the celebration screen:
+// "bloomed" plays glow -> bloom (a glow-tier overlay that melts away), and
+// "cracked" plays a single teal pulse on the star as it is.
+function starNode(concept, index, onTap, slotClass = "", highlight = null) {
   const tier = concept?.tier ?? "seed";
   // Cascading entrance delay, capped so the whole map twinkles in quickly.
   const delayMs = Math.min(index * 40, 560);
-  const cls = `const-star const-star--${tier}${concept?.next ? " const-star--next" : ""} ${slotClass}`.trim();
+  const highlightClass = highlight === "bloomed" ? " const-star--just-bloomed" : highlight === "cracked" ? " const-star--just-cracked" : "";
+  const cls = `const-star const-star--${tier}${concept?.next ? " const-star--next" : ""}${highlightClass} ${slotClass}`.trim();
   const button = el(
     "button",
     {
@@ -321,6 +363,7 @@ function starNode(concept, index, onTap, slotClass = "") {
       "aria-label": `${childLabel(concept?.concept_id)}, ${TIER_A11Y[tier]}`,
     },
     [
+      highlight === "bloomed" ? el("span", { class: "star-was-glow", "aria-hidden": "true" }, [icon("star")]) : null,
       icon("star"),
       // Bloom gets two sparkles; fading keeps a softer one (CSS hides the
       // second) so it reads as the same star gone quiet, not a broken one.
@@ -900,7 +943,16 @@ async function postBundle(bundle, failures) {
     showConstellation(state.student, state.studentHue);
     return;
   }
-  showEndCard(Array.isArray(result?.newlyMastered) ? result.newlyMastered : []);
+  const mastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered.filter((m) => m?.concept_id) : [];
+  // A concept that both bloomed and cracked a pattern gets the bigger beat
+  // only (one line per concept, never two).
+  const masteredIds = new Set(mastered.map((m) => m.concept_id));
+  const cracked = Array.isArray(result?.patternsCracked) ? result.patternsCracked.filter((p) => p?.concept_id && !masteredIds.has(p.concept_id)) : [];
+  if (mastered.length > 0 || cracked.length > 0) {
+    showCelebration(mastered, cracked);
+    return;
+  }
+  showEndCard();
 }
 
 function showSaveRetry(bundle, failures) {
@@ -919,27 +971,73 @@ function showSaveRetry(bundle, failures) {
   );
 }
 
-function showEndCard(newlyMastered) {
-  // A mastery beat gets its own celebratory icon/animation (see
-  // .icon-wrap--mastery / pop-in-mastery in index.html) -- one distinct
-  // treatment for the whole moment, not per concept, and not driven by any
-  // client-side count (newlyMastered.length only ever gates which *branch*
-  // renders, it's never displayed). A routine end gets an idle Fizz in the
-  // plain icon-wrap; a mastery beat gets Fizz mid-cheer inside
-  // icon-wrap--mastery (pulse ring). No digits anywhere on this card.
-  const justMastered = newlyMastered.length > 0;
-  const endIconWrap = justMastered
-    ? el("div", { class: "icon-wrap icon-wrap--mastery" }, [fizz("md", "cheer")])
-    : el("div", { class: "icon-wrap" }, [fizz("sm")]);
-
+// The routine session end: nothing bloomed and no pattern was cracked. Any
+// session with a server-reported beat goes to showCelebration() instead.
+// No digits anywhere on this card.
+function showEndCard() {
   render(
     el("div", { class: "screen screen--center" }, [
       el("div", { class: "end-card" }, [
-        endIconWrap,
+        el("div", { class: "icon-wrap" }, [fizz("sm")]),
         el("h2", {}, "Thanks for playing!"),
-        ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
         el("p", {}, "Let's go look at your stars."),
         el("button", { class: "btn-primary", onclick: () => showConstellation(state.student, state.studentHue) }, "See my stars"),
+      ]),
+    ]),
+  );
+}
+
+// "Pattern cracked" line (BACKLOG.md E2). Names only the concept, with its
+// kid label. The server never sends which misconception it was, and this
+// line must never hint at one ("you stopped thinking bigger numbers..."):
+// the child just hears they figured out something tricky. Same
+// "<lead> — <name>!" shape as the bloom line, so a noun-phrase label reads
+// naturally (read aloud: "You figured out a tricky part: Several equal pieces!").
+function crackedBeatText(patternsCracked) {
+  return patternsCracked.map((p) => {
+    const name = CHILD_LABEL[p?.concept_id];
+    return name ? `You figured out a tricky part — ${name}!` : "You figured out a tricky part!";
+  });
+}
+
+// Full-screen celebration (BACKLOG.md E2), shown instead of the end card
+// when POST /evidence reports newlyMastered or patternsCracked. Both lists
+// are server-side belief/log judgements; this only renders them. Never a
+// count ("new stars!" with a number). At most TWO lines: the first bloomed
+// concept and the first cracked one. A stack of one line per concept reads
+// as a tally ("look how many"); every other star still gets its highlight on
+// the map, which is where "more" belongs. Fizz is the one big narrator,
+// mid-cheer, inside the teal pulse ring.
+function showCelebration(mastered, cracked) {
+  const lines = [
+    ...masteryBeatText(mastered.slice(0, 1)).map((text) => el("p", { class: "celebrate-line celebrate-line--bloom" }, text)),
+    ...crackedBeatText(cracked.slice(0, 1)).map((text) => el("p", { class: "celebrate-line" }, text)),
+  ];
+  // The map highlights every star that just bloomed (one-shot glow -> bloom)
+  // and gently pops a cracked one; Fizz names the first of them.
+  const focus = mastered[0]?.concept_id ?? cracked[0]?.concept_id;
+  const openMap = () => {
+    state.justBloomed = {
+      bloomed: mastered.map((m) => m.concept_id),
+      cracked: cracked.map((p) => p.concept_id),
+      focus,
+      focusKind: mastered.length > 0 ? "bloomed" : "cracked",
+    };
+    showConstellation(state.student, state.studentHue);
+  };
+  const sparkle = (cls) => el("span", { class: `celebrate-sparkle ${cls}`, "aria-hidden": "true", html: SPARKLE_SVG });
+  render(
+    el("div", { class: "screen screen--celebrate" }, [
+      el("div", { class: "celebrate", role: "status", "aria-live": "polite" }, [
+        el("div", { class: "celebrate-fizz" }, [
+          sparkle("celebrate-sparkle--a"),
+          sparkle("celebrate-sparkle--b"),
+          sparkle("celebrate-sparkle--c"),
+          fizz("lg", "cheer"),
+        ]),
+        el("h1", { class: "celebrate-title" }, mastered.length > 0 ? "Your star is shining!" : "Wow, look at you!"),
+        el("div", { class: "celebrate-lines" }, lines),
+        el("button", { type: "button", class: "btn-primary celebrate-go", onclick: openMap }, [icon("star"), "See your star map"]),
       ]),
     ]),
   );

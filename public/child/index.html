@@ -347,42 +347,68 @@
   .end-card { text-align: center; padding: var(--sp-6) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
   .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in var(--dur-slow) var(--ease-bounce); }
 
-  /* Distinct celebratory treatment for a mastery-beat session end only --
-     additive on top of .icon-wrap/pop-in above, which stays untouched so a
-     routine (no newlyMastered) session end renders pixel-identical to
-     before. Bigger overshoot pop plus a brief pulse ring, no new
-     copy/numbers/sound. See finishSession() in child.js.
-     Pulse color is the existing --status-mastered teal (same reward color
-     already used for the mastered chip/check/meter fill everywhere else),
-     not a new hue: an amber/gold pulse was tried first but rejected on
-     kid-ux review -- this app's shared token legend (styles.css) already
-     reserves amber for "stuck/needs-human", and a gold ring around a star
-     reads too much like a coin/trophy-collection token rather than a
-     personal aha moment. Reusing teal keeps one consistent "reward" color
-     across the whole app instead of introducing a second one. */
+  /* Overshoot pop for the celebration screen's Fizz circle (below).
+     Its pulse ring is the existing --status-mastered teal, not a new hue: an
+     amber/gold pulse was tried first but rejected on kid-ux review -- the
+     shared token legend (styles.css) reserves amber for "stuck/needs-human",
+     and a gold ring around a star reads like a coin/trophy token rather than
+     a personal aha moment. One reward colour across the whole app. */
   @keyframes pop-in-mastery {
     0% { opacity: 0; transform: scale(0.3) rotate(-10deg); }
     60% { opacity: 1; transform: scale(1.35) rotate(6deg); }
     80% { transform: scale(0.92) rotate(-2deg); }
     100% { opacity: 1; transform: scale(1) rotate(0deg); }
   }
-  /* Ring color derived via color-mix from --status-mastered (not a fixed
-     rgba(14,124,130,...)) so the celebration still reads correctly in dark
-     mode, where --status-mastered is a lighter teal (#35D6C3) -- the old
-     hardcoded light-mode-only rgba would have rendered a near-invisible,
-     wrong-hue ring against a dark panel. */
-  @keyframes mastery-pulse-ring {
-    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-mastered) 45%, transparent); }
-    70% { box-shadow: 0 0 0 16px transparent; }
-    100% { box-shadow: 0 0 0 16px transparent; }
-  }
-  .end-card .icon-wrap--mastery {
-    width: 64px; height: 64px;
-    animation: pop-in-mastery var(--dur-celebrate) var(--ease-bounce), mastery-pulse-ring var(--dur-pulse) var(--ease-out) var(--dur-celebrate);
-  }
   .end-card h2 { font-family: var(--display); font-size: clamp(var(--text-xl), 2.4vw, 32px); font-weight: 700; margin: 0; }
   .end-card p { color: var(--soft); max-width: 44ch; margin: 0; line-height: var(--lh-relaxed); }
-  .end-card p.mastery-beat { color: var(--status-mastered); font-weight: var(--fw-semibold); max-width: 40ch; }
+  /* -------- the celebration screen (BACKLOG.md E2) --------
+     showCelebration() in child.js: shown instead of the end card only when
+     POST /evidence reports newlyMastered or patternsCracked. One big Fizz
+     mid-cheer inside the teal pulse ring (the one reward colour), three
+     teal sparkles that burst once, a heading, one line per concept, and the
+     "See your star map" button. Centred in the screen, sized with clamp()s
+     so it never scrolls the page. No digits, no counts. */
+  .screen--celebrate { align-items: center; justify-content: center; overflow: hidden; }
+  .celebrate {
+    display: flex; flex-direction: column; align-items: center; text-align: center;
+    gap: clamp(var(--sp-2), 1.6vh, var(--sp-4)); padding: var(--sp-4) 10px; max-width: 40rem; min-height: 0;
+    animation: fade-up var(--dur-base) var(--ease-out);
+  }
+  .celebrate-fizz {
+    position: relative; display: flex; align-items: center; justify-content: center;
+    width: clamp(112px, 32vh, 260px); height: clamp(112px, 32vh, 260px); border-radius: 50%;
+    background: radial-gradient(closest-side, var(--panel) 30%, var(--status-mastered-bg) 100%);
+    animation: pop-in-mastery var(--dur-celebrate) var(--ease-bounce), celebrate-ring 1.4s var(--ease-out) var(--dur-celebrate) 2;
+  }
+  .celebrate-fizz .fizz--lg { width: 72%; height: 72%; }
+  @keyframes celebrate-ring {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-mastered) 45%, transparent); }
+    75%, 100% { box-shadow: 0 0 0 clamp(16px, 4vh, 34px) transparent; }
+  }
+  .celebrate-sparkle { position: absolute; color: var(--status-mastered); pointer-events: none; animation: sparkle-once 900ms var(--ease-out) 500ms backwards; }
+  .celebrate-sparkle svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+  .celebrate-sparkle--a { width: 22%; height: 22%; top: 2%; right: 2%; }
+  .celebrate-sparkle--b { width: 14%; height: 14%; top: 26%; left: -2%; animation-delay: 700ms; }
+  .celebrate-sparkle--c { width: 16%; height: 16%; bottom: 4%; right: -4%; animation-delay: 880ms; }
+  .celebrate-title { margin: 0; font-family: var(--display); font-size: clamp(var(--text-2xl), 4.4vh, 44px); font-weight: 700; line-height: var(--lh-tight); color: var(--ink); }
+  .celebrate-lines { display: flex; flex-direction: column; gap: var(--sp-1); min-height: 0; }
+  .celebrate-line { margin: 0; max-width: 36ch; font-family: var(--display); font-size: clamp(var(--text-lg), 3vh, var(--text-2xl)); font-weight: 600; line-height: var(--lh-snug); color: var(--ink); }
+  /* Bloom line is teal (the reward colour = bloom tier). The cracked line is
+     plain ink: never --play orange, which on this surface means "Play / the
+     next star", and would read as "go fix this one". */
+  .celebrate-line--bloom { color: var(--status-mastered); }
+  .celebrate-go { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 56px; font-family: var(--display); font-size: var(--text-xl); font-weight: 700; box-shadow: 0 6px 0 var(--play-ink), var(--shadow-md); }
+  .celebrate-go .icon { width: 22px; height: 22px; }
+  .celebrate-go:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--play-ink), var(--shadow-sm); }
+  @media (prefers-reduced-motion: reduce) {
+    .celebrate, .celebrate-fizz, .celebrate-sparkle { animation: none; }
+  }
+  @media (max-height: 480px) {
+    .celebrate { padding: var(--sp-2) 10px; gap: var(--sp-1); }
+    .celebrate-fizz { width: clamp(64px, 24vh, 112px); height: clamp(64px, 24vh, 112px); }
+    .celebrate-go { min-height: 48px; margin-top: var(--sp-1); }
+  }
+
   .btn-primary {
     margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-7); min-height: 48px; border-radius: var(--r-pill); border: none;
     background: var(--play); color: var(--play-on); font-size: var(--text-base); font-weight: var(--fw-semibold); box-shadow: var(--shadow-sm);
@@ -667,8 +693,42 @@
   .map-play:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--play-ink), var(--shadow-sm); }
   .map-play .icon { width: 22px; height: 22px; }
 
+  /* JUST BLOOMED -- one-shot arrival from the celebration screen. A copy of
+     the glow tier (.star-was-glow: blue ring, half-filled star) sits over
+     the bloom star and melts away after the pop-in cascade, while the star
+     itself swells once and throws a single teal ring: glow -> bloom, once.
+     JUST CRACKED -- the star keeps its own tier and gets one teal ring only.
+     Neither loops; the `next` star stays the map's only continuous motion. */
+  .star-was-glow {
+    position: absolute; inset: -2px; z-index: 3; border-radius: 50%; pointer-events: none;
+    display: flex; align-items: center; justify-content: center;
+    border: 2.5px solid var(--status-emerging); color: var(--status-emerging);
+    background: radial-gradient(circle at 50% 38%, var(--panel) 0%, var(--status-emerging-bg) 70%);
+    opacity: 0; animation: star-glow-melt 1100ms var(--ease-out) 650ms backwards;
+  }
+  .star-was-glow .icon { width: 50%; height: 50%; }
+  .star-was-glow .icon svg { fill: currentColor; fill-opacity: 0.35; stroke-width: 1.8; }
+  @keyframes star-glow-melt {
+    0%, 30% { opacity: 1; transform: scale(0.88); }
+    100% { opacity: 0; transform: scale(1.3); }
+  }
+  .const-star--just-bloomed { animation: pop-in var(--dur-slow) var(--ease-bounce) backwards, star-bloom-swell 900ms var(--ease-bounce) 900ms, star-bloom-ring 1200ms var(--ease-out) 1000ms; }
+  .const-star--just-bloomed .star-sparkle { animation-delay: 1300ms; }
+  .const-star--just-bloomed .star-sparkle--b { animation-delay: 1450ms; }
+  .const-star--just-cracked { animation: pop-in var(--dur-slow) var(--ease-bounce) backwards, star-bloom-ring 1200ms var(--ease-out) 800ms 2; }
+  @keyframes star-bloom-swell {
+    0% { transform: scale(0.9); }
+    50% { transform: scale(1.28); }
+    100% { transform: scale(1); }
+  }
+  @keyframes star-bloom-ring {
+    0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--status-mastered) 55%, transparent); }
+    100% { box-shadow: 0 0 0 22px transparent; }
+  }
+
   @media (prefers-reduced-motion: reduce) {
     .const-star, .const-star--bloom .star-sparkle, .const-scroll, .speech-bubble { animation: none; }
+    .star-was-glow { display: none; }
     .const-star--next::after { animation: none; opacity: 1; }
     .const-star--next::before { animation: none; opacity: 0; }
     .const-star:hover { transform: none; }
