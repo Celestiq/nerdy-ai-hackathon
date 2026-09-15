@@ -94,7 +94,8 @@ describe("projection", () => {
   it("attempts_without_mastery reaches the wheel-spin limit and status becomes STUCK", () => {
     const store = new LearnerStore(metaOf);
     for (let i = 0; i < WHEEL_SPIN_LIMIT; i++) {
-      store.ingest(bundle({ session_id: `sp_${i}`, observations: [obs("N.MAG", "incorrect")] }));
+      // WHEEL_SPIN_MIN_SESSION_OBS: a session needs >= 3 obs on the concept to count as a wheel-spin
+      store.ingest(bundle({ session_id: `sp_${i}`, observations: [obs("N.MAG", "incorrect"), obs("N.MAG", "incorrect"), obs("N.MAG", "incorrect")] }));
     }
     const belief = store.beliefFor("stu_test", "N.MAG")!;
     expect(belief.attempts_without_mastery).toBeGreaterThanOrEqual(WHEEL_SPIN_LIMIT);

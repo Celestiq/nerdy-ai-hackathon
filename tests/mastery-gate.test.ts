@@ -57,7 +57,9 @@ describe("mastery evidence floor", () => {
   // (The Cycle 16 devon shape -- all-correct 2-item sessions -- is no longer
   // STUCK at all; see the wheel-spin describe block below.)
   const stuckHistory = [
-    session("s0", 0, Array.from({ length: 20 }, () => obs("correct", 1))),
+    // s0 ends on two easy misses so the opening never itself earns MASTERED
+    // (DECAY_MARGIN hysteresis would otherwise keep it mastered through s1-s3).
+    session("s0", 0, [...Array.from({ length: 30 }, () => obs("correct", 1)), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s1", 1, [obs("correct", 1), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s2", 3, [obs("correct", 1), obs("incorrect", 0), obs("incorrect", 0)]),
     session("s3", 6, [obs("incorrect", 0), obs("incorrect", 0), obs("correct", 1)]),
@@ -106,15 +108,17 @@ describe("mastery evidence floor", () => {
     expect(enough.status).toBe("MASTERED");
   });
 
-  it("is not MASTERED when the most recent observations are mostly incorrect, despite a high p_mastery", () => {
+  it("does not first reach MASTERED when the most recent observations are mostly incorrect, despite a high p_mastery", () => {
+    // Entering MASTERED still needs the floor; (staying mastered through a
+    // slip is the hysteresis suite in tests/decay-hysteresis.test.ts).
     const bundles = [
-      session("strong", 0, Array.from({ length: 20 }, () => obs("correct", 1))),
-      session("slip", 1, [obs("incorrect", 1), obs("incorrect", 1)]),
+      session("strong", 0, [...Array.from({ length: 20 }, () => obs("correct", 1)), obs("incorrect", 1), obs("incorrect", 1)]),
     ];
-    const belief = beliefOf(bundles, 1);
+    const belief = beliefOf(bundles, 0);
     expect(belief.p_mastery).toBeGreaterThanOrEqual(REAL_THRESHOLD);
     expect(belief.status).toBe("EMERGING");
-    expect(belief.attempts_without_mastery).toBe(1);
+    // 20/22 accurate: Hold, not a wheel-spin.
+    expect(belief.attempts_without_mastery).toBe(0);
   });
 
   it("judges 'most recent' in replay (started_at) order, not log insertion order", () => {
@@ -167,7 +171,7 @@ describe("wheel-spin counter: reset / increment / hold", () => {
   });
 
   it("an accurate below-bar session holds an existing escalation rather than clearing or deepening it", () => {
-    const erring = Array.from({ length: 3 }, (_, i) => session(`e${i}`, i, [obs("correct", 0.5), obs("incorrect", 0.5)]));
+    const erring = Array.from({ length: 3 }, (_, i) => session(`e${i}`, i, [obs("correct", 0.5), obs("incorrect", 0.5), obs("incorrect", 0.5)]));
     const stuck = beliefOf(erring, 2);
     expect(stuck.status).toBe("STUCK");
     expect(stuck.attempts_without_mastery).toBe(WHEEL_SPIN_LIMIT);

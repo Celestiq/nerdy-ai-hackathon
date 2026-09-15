@@ -1,10 +1,12 @@
 import type { EvidenceBundle, Observation } from "../contracts/schemas.js";
 import type { BeliefInternal, BeliefStatus, SignatureRecord } from "./types.js";
 import {
+  DECAY_MARGIN,
   MASTERY_RECENT_MIN_CORRECT,
   MASTERY_RECENT_WINDOW,
   MIN_MASTERY_OBS,
   WHEEL_SPIN_LIMIT,
+  WHEEL_SPIN_MIN_SESSION_OBS,
   WHEEL_SPIN_SESSION_ACCURACY,
 } from "./types.js";
 
@@ -108,7 +110,7 @@ function projectConcept(
   // --- last_observed / p_decayed ---
   const lastObservedIso = observations.reduce((latest, o) => (o.at > latest ? o.at : latest), observations[0].at);
   const daysSince = daysBetween(lastObservedIso, nowIso);
-  const p_decayed = clamp01(0.5 + (p_mastery - 0.5) * Math.pow(0.5, daysSince / meta.decay_half_life_days));
+  const p_decayed = decayToward(p_mastery, daysSince, meta);
 
   // --- signatures ---
   const sigMap = new Map<string, { count: number; last_seen: string }>();
@@ -144,8 +146,22 @@ function projectConcept(
   let attempts_without_mastery = 0;
   const replayed: TimedObservation[] = [];
   let obsSinceStuck = 0;
+  // Whether the concept currently holds MASTERED in the replay (earned the
+  // full bar and hasn't since left via DECAY_MARGIN hysteresis). Derived
+  // purely from replay, not stored.
+  let mastered = false;
+  let lastSessionAt: string | null = null;
   for (const [, sessionObs] of sessionOrder) {
     const wasStuck = attempts_without_mastery >= WHEEL_SPIN_LIMIT;
+    const sessionAt = sessionObs[0].at;
+    // Decay across the gap since the previous session: if the concept had
+    // already faded to DECAYED before this session began, it has left
+    // mastery and must re-earn the full bar.
+    if (mastered && lastSessionAt !== null) {
+      const gapDecayed = decayToward(runAlpha / (runAlpha + runBeta), daysBetween(lastSessionAt, sessionAt), meta);
+      if (gapDecayed < meta.mastery_threshold - DECAY_MARGIN) mastered = false;
+    }
+    lastSessionAt = sessionAt;
     for (const o of sessionObs) {
       const w = difficultyWeight(o.difficulty);
       if (o.verdict === "correct") runAlpha += w;
@@ -162,9 +178,22 @@ function projectConcept(
     // holds the counter (neither resets an escalation nor adds to it).
     const sessionCorrect = sessionObs.filter((o) => o.verdict === "correct").length;
     const sessionAccuracy = sessionCorrect / sessionObs.length;
-    if (runningMastery >= meta.mastery_threshold && meetsMasteryFloor(replayed) && freshSupport) {
+    const floorMet = meetsMasteryFloor(replayed);
+    if (runningMastery >= meta.mastery_threshold && floorMet && freshSupport) {
+      mastered = true;
+    } else if (mastered && (floorMet || runningMastery >= meta.mastery_threshold - DECAY_MARGIN)) {
+      // Hysteresis: already MASTERED, and this session is not genuine
+      // counter-evidence (needs BOTH a failed floor and p below the band).
+    } else {
+      mastered = false;
+    }
+    if (mastered) {
       attempts_without_mastery = 0;
-    } else if (sessionAccuracy < WHEEL_SPIN_SESSION_ACCURACY) {
+    } else if (
+      sessionAccuracy < WHEEL_SPIN_SESSION_ACCURACY &&
+      // A 1-of-2 slip is not wheel-spinning: too few in-session obs Holds.
+      sessionObs.length >= WHEEL_SPIN_MIN_SESSION_OBS
+    ) {
       attempts_without_mastery += 1;
     }
     // Entering STUCK restarts the fresh-evidence count: only
@@ -172,7 +201,7 @@ function projectConcept(
     if (attempts_without_mastery >= WHEEL_SPIN_LIMIT && !wasStuck) obsSinceStuck = 0;
   }
 
-  const status = deriveStatus(n, p_mastery, p_decayed, attempts_without_mastery, meetsMasteryFloor(replayed), meta);
+  const status = deriveStatus(n, p_decayed, attempts_without_mastery, mastered, meta);
 
   return {
     student_id: studentId,
@@ -200,18 +229,28 @@ function meetsMasteryFloor(chronological: readonly Observation[]): boolean {
   return correct >= MASTERY_RECENT_MIN_CORRECT;
 }
 
+/** Ages a mastery estimate toward the 0.5 prior by the concept's half-life. */
+function decayToward(p: number, days: number, meta: ConceptMeta): number {
+  return clamp01(0.5 + (p - 0.5) * Math.pow(0.5, days / meta.decay_half_life_days));
+}
+
+/**
+ * `mastered` is the replay's hysteresis state after the last session (see
+ * DECAY_MARGIN in ./types.ts): entering it needs the full bar, leaving it
+ * needs genuine counter-evidence, and decay flips it to DECAYED only once
+ * p_decayed falls below threshold - DECAY_MARGIN.
+ */
 function deriveStatus(
   n: number,
-  p_mastery: number,
   p_decayed: number,
   attempts_without_mastery: number,
-  floorMet: boolean,
+  mastered: boolean,
   meta: ConceptMeta,
 ): BeliefStatus {
   if (n === 0) return "UNTESTED";
   if (attempts_without_mastery >= WHEEL_SPIN_LIMIT) return "STUCK";
-  if (p_mastery >= meta.mastery_threshold && floorMet) {
-    return p_decayed >= meta.mastery_threshold ? "MASTERED" : "DECAYED";
+  if (mastered) {
+    return p_decayed >= meta.mastery_threshold - DECAY_MARGIN ? "MASTERED" : "DECAYED";
   }
   return "EMERGING";
 }
