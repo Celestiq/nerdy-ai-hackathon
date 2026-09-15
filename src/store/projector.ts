@@ -1,6 +1,12 @@
 import type { EvidenceBundle, Observation } from "../contracts/schemas.js";
 import type { BeliefInternal, BeliefStatus, SignatureRecord } from "./types.js";
-import { MASTERY_RECENT_MIN_CORRECT, MASTERY_RECENT_WINDOW, MIN_MASTERY_OBS, WHEEL_SPIN_LIMIT } from "./types.js";
+import {
+  MASTERY_RECENT_MIN_CORRECT,
+  MASTERY_RECENT_WINDOW,
+  MIN_MASTERY_OBS,
+  WHEEL_SPIN_LIMIT,
+  WHEEL_SPIN_SESSION_ACCURACY,
+} from "./types.js";
 
 /**
  * The projector never imports the graph module. It receives concept
@@ -149,9 +155,16 @@ function projectConcept(
     }
     const runningMastery = runAlpha / (runAlpha + runBeta);
     const freshSupport = !wasStuck || obsSinceStuck >= MASTERY_RECENT_WINDOW;
+    // Reset / Increment / Hold. A session that doesn't meet the mastery bar
+    // only counts as a wheel-spin if the child actually struggled in it: a
+    // short, easy, all-correct session can leave running mastery below the
+    // threshold, and that is not evidence of being stuck. Such a session
+    // holds the counter (neither resets an escalation nor adds to it).
+    const sessionCorrect = sessionObs.filter((o) => o.verdict === "correct").length;
+    const sessionAccuracy = sessionCorrect / sessionObs.length;
     if (runningMastery >= meta.mastery_threshold && meetsMasteryFloor(replayed) && freshSupport) {
       attempts_without_mastery = 0;
-    } else {
+    } else if (sessionAccuracy < WHEEL_SPIN_SESSION_ACCURACY) {
       attempts_without_mastery += 1;
     }
     // Entering STUCK restarts the fresh-evidence count: only

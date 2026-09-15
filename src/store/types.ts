@@ -29,6 +29,18 @@ export interface BeliefInternal {
 export const WHEEL_SPIN_LIMIT = 3;
 
 /**
+ * Wheel-spin counter rule, per session on a concept (replay order):
+ *  - Reset to 0 if the session leaves the concept meeting the mastery bar
+ *    (running p_mastery >= threshold plus the evidence floor below);
+ *  - otherwise Increment only if that session's own raw accuracy on the
+ *    concept is below WHEEL_SPIN_SESSION_ACCURACY;
+ *  - otherwise Hold (unchanged). Accurate-but-short sessions that haven't
+ *    yet accumulated enough evidence to clear the bar must not escalate a
+ *    child to STUCK.
+ */
+export const WHEEL_SPIN_SESSION_ACCURACY = 0.8;
+
+/**
  * Mastery evidence floor. p_mastery >= threshold alone is not enough to call
  * a concept MASTERED (or DECAYED) or to reset attempts_without_mastery:
  *  - at least MIN_MASTERY_OBS observations on the concept in total, and
