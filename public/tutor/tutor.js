@@ -133,9 +133,9 @@ let openSessionId = null;
 // src/engine/engine.ts), fetched live per-student on demand, same caching
 // shape as sessionsByStudent above. GET /api/assignment/:studentId is a
 // side-effect-free read of current belief state; it does not consume or
-// advance the assignment itself, but it does bump the server's in-memory
-// sessionCounter (used only to vary assignment_id/seed), same as any other
-// dashboard poll would. Collapsed by default -- this is supplementary
+// advance the assignment itself -- the rotation seed is derived from the
+// student's own stored bundle count, so this peek never shifts what the
+// child is served next. Collapsed by default -- this is supplementary
 // diagnostic detail, not the primary thing a tutor scans.
 const assignmentByStudent = new Map(); // student_id -> SelectionOutput | "loading"
 let whyOpen = false;

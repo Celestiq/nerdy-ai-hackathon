@@ -4,9 +4,10 @@ import type { Server } from "node:http";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { api, buildChildMap, type ChildMap } from "../server/routes.js";
-import { graph, registry, itemBank, store } from "../server/state.js";
+import { api, buildChildMap, nextSessionSeed, type ChildMap } from "../server/routes.js";
+import { graph, registry, itemBank, anchors, store } from "../server/state.js";
 import { isCovered } from "../src/engine/candidates.js";
+import { selectNext } from "../src/engine/engine.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { EvidenceBundle, Observation } from "../src/contracts/schemas.js";
 import type { BeliefInternal, BeliefStatus } from "../src/store/types.js";
@@ -97,8 +98,10 @@ function assertInvariants(map: ChildMap, raw: string, studentId: string) {
   // (see buildChildMap in server/routes.ts):
   //   own status in {EMERGING, UNTESTED, DECAYED} (never STUCK/MASTERED),
   //   every hard prerequisite MASTERED or DECAYED, authored, covered.
-  // It is the best by preference EMERGING > DECAYED > UNTESTED; if nothing
-  // qualifies there is no `next` at all.
+  // It is the engine's top concept for the student's next session when that
+  // concept is eligible (BACKLOG.md D1: the glowing star is what Play
+  // serves); otherwise the best eligible by preference
+  // EMERGING > DECAYED > UNTESTED. If nothing qualifies there is no `next`.
   const nexts = map.concepts.filter((c) => c.next);
   expect(nexts.length).toBeLessThanOrEqual(1);
   const eligible = eligibleForNext(studentId);
@@ -106,8 +109,13 @@ function assertInvariants(map: ChildMap, raw: string, studentId: string) {
     expect(nexts.length).toBe(1);
     expect(eligible).toContain(nexts[0].concept_id);
     expect(nexts[0].tier).not.toBe("bloom");
-    const best = Math.min(...eligible.map((id) => PREFERENCE[statusOf(studentId, id)]!));
-    expect(PREFERENCE[statusOf(studentId, nexts[0].concept_id)]).toBe(best);
+    const top = engineTop(studentId);
+    if (top !== undefined && eligible.includes(top)) {
+      expect(nexts[0].concept_id).toBe(top);
+    } else {
+      const best = Math.min(...eligible.map((id) => PREFERENCE[statusOf(studentId, id)]!));
+      expect(PREFERENCE[statusOf(studentId, nexts[0].concept_id)]).toBe(best);
+    }
   } else {
     expect(nexts.length).toBe(0);
   }
@@ -117,6 +125,19 @@ const PREFERENCE: Partial<Record<BeliefStatus, number>> = { EMERGING: 0, DECAYED
 
 function statusOf(studentId: string, conceptId: string): BeliefStatus {
   return store.belief(studentId).get(conceptId)?.status ?? "UNTESTED";
+}
+
+/** The top concept of the session GET /api/assignment would serve right now (same seed, same belief). */
+function engineTop(studentId: string): string | undefined {
+  return selectNext({ studentId, graph, belief: store.belief(studentId), registry, itemBank, anchors, seed: nextSessionSeed(studentId) }).assignment
+    ?.concepts[0];
+}
+
+async function getAssignmentTop(studentId: string): Promise<string | undefined> {
+  const res = await fetch(`${baseUrl}/assignment/${studentId}`);
+  expect(res.status).toBe(200);
+  const body = (await res.json()) as { assignment?: { concepts: string[]; assignment_id: string } };
+  return body.assignment?.concepts[0];
 }
 
 function eligibleForNext(studentId: string): string[] {
@@ -269,7 +290,17 @@ describe("GET /api/child/map/:studentId", () => {
     expect(raw).not.toContain('"next":true');
   });
 
-  it("a DECAYED concept whose hard prerequisites are mastered can be `next`, ahead of fresh seeds", () => {
+  it("a DECAYED concept whose hard prerequisites are mastered can be `next`", () => {
+    const studentId = `stu_map_${rand()}`;
+    stubBelief(studentId, allMasteredExcept({ "N.ORD": { status: "DECAYED" } }));
+    const { raw, body } = localMap(studentId);
+    assertInvariants(body, raw, studentId);
+    const next = body.concepts.find((c) => c.next)!;
+    expect(next.concept_id).toBe("N.ORD");
+    expect(next.tier).toBe("fading");
+  });
+
+  it("with several eligible stars (DECAYED and fresh seeds), `next` follows the engine's top concept, not a map-only preference", () => {
     const studentId = `stu_map_${rand()}`;
     // N.ORD fading; N.MAG and N.PLACE are UNTESTED and also eligible (a DECAYED prereq counts as satisfied).
     stubBelief(
@@ -285,11 +316,11 @@ describe("GET /api/child/map/:studentId", () => {
       }),
     );
     expect(eligibleForNext(studentId)).toEqual(expect.arrayContaining(["N.ORD", "N.MAG", "N.PLACE"]));
+    const top = engineTop(studentId);
+    expect(eligibleForNext(studentId)).toContain(top);
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
-    const next = body.concepts.find((c) => c.next)!;
-    expect(next.concept_id).toBe("N.ORD");
-    expect(next.tier).toBe("fading");
+    expect(body.concepts.find((c) => c.next)!.concept_id).toBe(top);
   });
 
   it("an EMERGING prerequisite over the p threshold still blocks its successor from glowing", () => {
@@ -300,6 +331,9 @@ describe("GET /api/child/map/:studentId", () => {
     stubBelief(studentId, { "N.COUNT": { status: "EMERGING", p_mastery: Math.min(1, threshold + 0.05) }, "G.PART": { status: "STUCK" } });
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
+    // The engine gates prerequisites on p_mastery, so it would lead with N.ORD; the
+    // status guard rejects that and `next` falls back to the preference rule.
+    expect(engineTop(studentId)).toBe("N.ORD");
     const next = body.concepts.filter((c) => c.next);
     expect(next.map((c) => c.concept_id)).toEqual(["N.COUNT"]);
     expect(body.concepts.find((c) => c.concept_id === "N.ORD")!.next).toBe(false);
@@ -311,5 +345,53 @@ describe("GET /api/child/map/:studentId", () => {
     const { raw, body } = localMap(studentId);
     assertInvariants(body, raw, studentId);
     expect(body.concepts.filter((c) => c.next)).toEqual([]);
+  });
+
+  it("a relaxed wheel-spin concept the engine would serve (STUCK) still never glows", () => {
+    const studentId = `stu_map_${rand()}`;
+    stubBelief(studentId, { "N.COUNT": { status: "STUCK" }, "G.PART": { status: "STUCK" } });
+    const top = engineTop(studentId);
+    expect(top === undefined || ["N.COUNT", "G.PART"].includes(top)).toBe(true);
+    expect(buildChildMap(studentId).concepts.some((c) => c.next)).toBe(false);
+  });
+});
+
+describe("D1: map `next` is the top concept of the session Play serves, and peeking never shifts it", () => {
+  it("a new student's map `next` equals GET /assignment's top concept, across repeated map, tutor-peek and other-student calls", async () => {
+    const studentId = `stu_map_${rand()}`;
+    const other = `stu_map_${rand()}`;
+    const first = (await getMap(studentId)).body.concepts.find((c) => c.next)?.concept_id;
+    expect(first).toBeDefined();
+    type Served = { assignment: { assignment_id: string; item_specs: unknown[] } };
+    const firstAssignment = (await (await fetch(`${baseUrl}/assignment/${studentId}`)).json()) as Served;
+    for (let i = 0; i < 4; i++) {
+      await getMap(studentId);
+      await getAssignmentTop(studentId); // the tutor's "Why this next" call
+      await getAssignmentTop(other); // another child's Play
+      await getMap(other);
+    }
+    expect((await getMap(studentId)).body.concepts.find((c) => c.next)?.concept_id).toBe(first);
+    expect(await getAssignmentTop(studentId)).toBe(first);
+    const again = (await (await fetch(`${baseUrl}/assignment/${studentId}`)).json()) as Served;
+    expect(again.assignment.assignment_id).toBe(firstAssignment.assignment.assignment_id);
+    expect(again.assignment.item_specs).toEqual(firstAssignment.assignment.item_specs);
+  });
+
+  it("the rotation seed advances only when that student submits evidence", async () => {
+    const studentId = `stu_map_${rand()}`;
+    const other = `stu_map_${rand()}`;
+    const before = nextSessionSeed(studentId);
+    await getAssignmentTop(studentId);
+    await postBundle(other, [obs(`itm_gp_seed_${rand()}`, "G.PART", 0, "correct")]);
+    expect(nextSessionSeed(studentId)).toBe(before);
+    await postBundle(studentId, [obs(`itm_gp_seed_${rand()}`, "G.PART", 0, "correct")]);
+    expect(nextSessionSeed(studentId)).not.toBe(before);
+
+    // Still in agreement after real evidence moved belief.
+    const { raw, body } = await getMap(studentId);
+    assertInvariants(body, raw, studentId);
+    const next = body.concepts.find((c) => c.next)?.concept_id;
+    const top = await getAssignmentTop(studentId);
+    if (next !== undefined && top !== undefined && eligibleForNext(studentId).includes(top)) expect(next).toBe(top);
   });
 });

@@ -19,26 +19,28 @@ import type { BeliefInternal } from "../src/store/types.js";
 
 export const api = Router();
 
-let sessionCounter = 0;
-
 api.get("/directory", (_req, res) => {
   res.json(directory.map((d) => ({ student_id: d.student_id, name: d.name, cohort_id: d.cohort_id })));
 });
 
+// Rotation seed for a student's NEXT session (BACKLOG.md D1). It is keyed on
+// that student's own stored bundle count, so it only moves when that child
+// actually submits evidence. It used to be one process-global counter bumped
+// by every GET /assignment, so any call (another child's Play, the tutor's
+// "Why this next" panel, a map load) shifted every child's rotation and no
+// peek could be trusted. Now selecting is a pure read: the child map, the
+// tutor panel and Play all compute the same assignment until the next
+// bundle lands. A reload before submitting re-serves the same session.
+export function nextSessionSeed(studentId: string): string {
+  return `srv:${studentId}:${store.bundlesFor(studentId).length}`;
+}
+
+function peekNext(studentId: string, belief: Map<string, BeliefInternal> = store.belief(studentId)) {
+  return selectNext({ studentId, graph, belief, registry, itemBank, anchors, seed: nextSessionSeed(studentId) });
+}
+
 api.get("/assignment/:studentId", (req, res) => {
-  const studentId = req.params.studentId;
-  const belief = store.belief(studentId);
-  sessionCounter += 1;
-  const result = selectNext({
-    studentId,
-    graph,
-    belief,
-    registry,
-    itemBank,
-    anchors,
-    seed: `srv:${studentId}:${sessionCounter}`,
-  });
-  res.json(result);
+  res.json(peekNext(req.params.studentId));
 });
 
 // Item content lives with the game, same as it would in a client bundle --
@@ -226,9 +228,14 @@ api.get("/belief/:studentId", (req, res) => {
 // star. The judgement of "which tier" and "which star glows" lives here so
 // the child client never sees a probability and never works anything out.
 //
-// `next` is a map highlight only. The session Play actually starts still
-// comes from selectNext() (with its own counter seed), so it may land on a
-// different concept -- child copy must never promise otherwise.
+// `next` is the concept the child's next Play session leads with: the top
+// concept of the same selectNext() call GET /assignment makes (same
+// per-student seed, see nextSessionSeed), as long as that concept also
+// passes the status-based eligibility rule below. When it doesn't (the
+// engine found nothing, or its top concept fails the status guard, e.g. a
+// prerequisite over the p threshold but still EMERGING), `next` falls back
+// to the best eligible concept by the preference rule, and only then may
+// Play lead with something else.
 
 export type StarTier = "seed" | "glow" | "bloom" | "fading";
 
@@ -273,7 +280,8 @@ function starTier(belief: BeliefInternal | undefined): StarTier {
 //   - every hard prerequisite is MASTERED or DECAYED (a prerequisite still
 //     EMERGING, even over the p threshold, blocks its successor).
 //   - authored, and some registered game can actually serve it.
-// Preference: keep growing started work (EMERGING), then refresh a fading
+// Among eligible concepts the engine's top concept wins (see above). Fallback
+// preference, only when it isn't eligible: keep growing started work (EMERGING), then refresh a fading
 // star (DECAYED), then a fresh seed (UNTESTED); ties by shallower depth,
 // then graph order. If nothing qualifies there is no `next` at all.
 // frontier() in src/graph/query.ts is deliberately not used here: it is
@@ -333,7 +341,10 @@ export function buildChildMap(studentId: string): ChildMap {
         depth(a.concept_id) - depth(b.concept_id) ||
         graphOrder.get(a.concept_id)! - graphOrder.get(b.concept_id)!,
     );
-  const nextId = eligible[0]?.concept_id ?? null;
+  // Prefer the engine's own top concept for the next session (a pure read,
+  // nothing is incremented), guarded by the status rule above.
+  const engineTop = peekNext(studentId, belief).assignment?.concepts[0];
+  const nextId = eligible.find((n) => n.concept_id === engineTop)?.concept_id ?? eligible[0]?.concept_id ?? null;
 
   const concepts: ChildMapConcept[] = strands.flatMap((s) =>
     s.concept_ids.map((id) => ({ concept_id: id, strand: s.strand, tier: starTier(belief.get(id)), next: id === nextId })),
