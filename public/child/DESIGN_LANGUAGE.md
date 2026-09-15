@@ -29,7 +29,9 @@ motion feels (hop / cheer, nothing else).
       .topbar (flex:0)       <- who's playing (session views only)
       .stage (flex:1)        <- THE ONLY PLACE A NEW GAME'S MARKUP GOES
       .path-wrap (flex:0)    <- Fizz + the path track (session views only)
-  .foot-link (flex:0)        <- "tutor view", always last
+  .foot-link (flex:0)        <- "tutor view", always last: a quiet small text
+                                link in the bottom-right corner, never a
+                                pill/panel (it once read as an input field)
 ```
 
 `showItem()` in `child.js` is the pattern to copy: build your game's markup as
@@ -44,7 +46,7 @@ to prevent.
 A K-5 player should never discover a scrollbar mid-question — `html`/`body`
 are pinned to `100dvh` and every screen fills it via the flex chain above.
 Two views are the deliberate exception: the student roster (`.picker-scroll`)
-and the star map (`.const-scroll`) can be genuinely longer than one screen, so
+and the Star Path's trails (`.const-scroll`) can be genuinely longer than one screen, so
 *they* get an internal scroll region rather than clipping content — the page
 itself still never scrolls. A new game's `.stage` content should never need
 this escape hatch; if it does, that's a signal the game has too many rows
@@ -84,7 +86,7 @@ this file:**
 | Pose | Class | Means | Used at |
 |---|---|---|---|
 | idle | *(base `.fizz` class — always on)* | alive, resting | every Fizz, continuously |
-| hop | `fizz-hop` | one step of progress | the path track, on every advance |
+| hop | `fizz-hop` | one step of progress, or "I noticed that" | the path track, on every advance; the Star Path narrator, when a star is tapped (it hops *behind* its own speech bubble, which sits at `z-index: 2`) |
 | cheer | `fizz-cheer` | a bigger moment, still not a score | mastery-beat end card |
 
 "Idle" isn't a neutral no-op — it's a continuous, slow (`fizz-idle`, 3s loop)
@@ -105,8 +107,13 @@ state, that already has its own honest treatment (`showEmpty`'s pause/
 hourglass icons) — don't invent a Fizz mood for it without a kid-ux pass.
 
 Sizes: `fizz--sm` (28px, headers/inline), `fizz--md` (46px, the path track,
-end-card icon-wraps), `fizz--lg` (76px, reserved for a future full-screen
-celebration — nothing uses it yet).
+end-card icon-wraps), `fizz--lg` (76px base; the "Fizz is talking to you"
+size). `fizz--lg` is used wherever Fizz is the narrator of a whole screen —
+the picker greeting and the Star Path — and those two screens scale it with
+a `clamp()` on their own container (`.picker-head .fizz--lg`,
+`.map-fizz .fizz--lg`: up to ~128px / ~200px on tall windows, down to
+40-60px on phones and short windows) rather than adding a fourth size class.
+One Fizz per screen, always.
 
 ## The path track — the one progress mechanic
 
@@ -126,6 +133,142 @@ Rules for extending it, not replacing it:
   number is allowed on this whole surface, and only because it's paired with
   its own denial that it's a score. Don't add a second number anywhere else
   without the same pairing, and run it past kid-ux regardless.
+
+## The picker — "Who's playing?"
+
+`showPicker()` is the first screen. Fizz (`lg`) greets the child with the
+shared `.speech-bubble` (the `h1` "Who's playing?" plus a one-line note),
+above a grid of big avatar cards (`.picker-play`, one `<button>` per
+player). The head and grid are centred **as one group** in the screen, so a
+small roster never leaves most of the screen empty.
+
+- Cards are vertical (big avatar with a white ring, name in `--display`
+  below): 3 columns on desktop, 2 at ≤640px wide, and horizontal
+  (avatar beside name) at ≤480px tall.
+- Each card is washed in **that player's own avatar hue** via `data-hue`
+  → `--card-hue` (a top-to-bottom tint plus a matching border). This is the
+  one place `--hue-1` teal appears as decoration, because it *is* that
+  player's avatar identity color from `shared/styles.css`, not a reward cue.
+- Cards fade up in a short capped stagger (one-shot), lift on hover, and the
+  avatar tilts slightly. No motion under `prefers-reduced-motion`.
+- `.picker-scroll` is the roster's only scroll region and only takes the
+  height it needs.
+
+## The Star Path — the child's home
+
+`showConstellation(student, hue)` in `child.js` is the screen a child lands on
+after picking their name, and the screen every session returns to ("See my
+stars" on the end card, "Back to my stars" on the empty card). Play starts
+only from here. Layout inside one `.screen--map`: a `.topbar`, then
+`.map-layout`, a CSS grid with three areas:
+
+```
+wide (>=760px)                              narrow (<760px)
++-------------+--------------------+        .map-head      Fizz + bubble (row)
+| .map-head   | .const-scroll      |        .const-scroll  the trails
+|  bubble     |  one .trail per    |        .map-play-row  Play
+|  Fizz (lg)  |  authored strand   |
++-------------+  (the only         |
+| Play        |   internal scroll) |
++-------------+--------------------+
+```
+
+On wide screens the narrator column (bubble above a big Fizz, Play below)
+gives Fizz real presence and hands the rest of the width to the map. The
+bubble is top-aligned with the map card (centring it left a tall empty band
+above it). The step length between stars is sized off the map card's width
+(`container-type: inline-size` on `.const-scroll`, `cqi` in `--step`, with
+the longest trail's star/step counts passed in as `--stars`/`--steps`), so
+the longest trail fills the card instead of leaving its right third empty. The
+bubble has a `min-height` sized for its longest content so swapping its text
+on a tap never makes Fizz jump. The trails sit on one opaque white "map"
+card (`.const-scroll`, with a faint sand dot grid) — the same role `.stage`
+plays for a question, so the background blobs never show behind a star.
+At ≤480px tall and ≥760px wide each strand's signpost moves beside its
+trail instead of above it.
+
+Rules:
+- **All judgement comes from `GET /api/child/map/:studentId`.** It returns
+  authored concepts only, a `tier` per concept (`seed | glow | bloom |
+  fading`), the prerequisite edges, per-strand `hasComingLater`, and at most
+  one `next: true`. The client never fetches `/api/belief` (that carries
+  probabilities) and never works out a tier or "what's next" itself.
+- **Trails, not grids.** Each strand is one short, *winding* row of stars
+  in prerequisite order (server-sorted) under a small sand signpost
+  (`.const-strand-title`). Stars alternate a little above/below the row's
+  midline (`.trail-slot--up/--down`, via `top`, never `transform`, so hover
+  and pop-in still work) and each neighbouring pair is joined by a
+  `.trail-step`: a tiny SVG S-curve drawn as a soft sand "road" with a
+  dotted footstep line on top. Geometry is derived from `--star` (`--wave`
+  = the offset, a step is exactly `2 * --wave` tall), so it holds at every
+  width. The trail is **one neutral sand material for every strand** on
+  purpose: blue, purple and teal already mean glow/fading/bloom here, so
+  strand-coloured trails would muddy the tiers. Stub concepts are never
+  drawn as stars. A strand with stubs ends in a fading step
+  (`.trail-step--fade`) into three soft `.trail-more` dots; strands with no
+  authored content collapse into one `.trail-coming` sentence, "More star
+  trails coming soon!", with no list of strand names (a 1st grader can't
+  read "Patterns & algebra", and it's a list of things they can't do).
+- **Tiers — size, fill and ring all change, so they never read as one shape
+  in three tints** (`--k` scales the star; every tier stays ≥42px):
+  - *seed* (`--k` 0.84): hollow dashed grey outline on a sunk fill, faint
+    outline star. Clearly "not yet".
+  - *glow* (1.0): solid `--status-emerging` ring, star half filled.
+    EMERGING and STUCK share it — STUCK never looks alarming.
+  - *bloom* (1.14): **solid** `--status-mastered` disc, bright white filled
+    star, pale teal halo ring and two teal `.star-sparkle`s that twinkle
+    once after the map loads, then rest. Unmistakably earned; still the one
+    reward color, nothing gold.
+  - *fading* (1.0): the same filled-star-with-a-sparkle shape as bloom,
+    softened into lavender (`--status-decayed` mixed toward white, one
+    sparkle). It reads as "a star gone quiet", not broken or empty. **It
+    is static.** A seeded student has 5-8 of these, and pulsing them all
+    at once was too busy, so the old `star-remember` breathe was removed.
+    Its copy is framed as care: "This one would love to see you again."
+- **The `next` star is the map's focal point and its only continuously
+  animated element** (`.const-star--next`, `--k` 1.34): the largest star,
+  a thick `--play` coral ring on a warm fill with a filled coral star, a
+  soft halo that breathes (`::after`) and a ring that ripples outward
+  (`::before`). Never teal. It **overrides the underlying tier's look**. A
+  fading star can be `next` (the server allows it), and its sparkle is
+  hidden so the two treatments never fight. Fizz's bubble still names the
+  real tier when tapped. The server may send **no** `next` star (e.g. every
+  candidate is escalated), and then the map simply has no coral star. Copy
+  about it must **not** say or imply that Play goes there: the engine picks
+  the actual session, and it usually differs (a kid-ux spot check on the
+  seeded roster found the session's concepts missed the `next` star for four
+  of six students). The star shares the Play button's coral, so the copy
+  does the de-coupling: the opening bubble never points at it ("Tap a star.
+  I'll tell you its name!"), and its tapped note is Fizz's hedged opinion
+  about *soon*: "I think this one is ready to grow soon!" (for a fading
+  `next`, the fading note is used instead). If `next` is ever made to match
+  the session the engine will serve, this copy can get bolder.
+- **Motion budget on the map:** the pop-in cascade (one-shot), bloom
+  sparkles (one-shot), Fizz idle/hop, and the `next` halo + ripple (the only
+  loop). Under `prefers-reduced-motion` all of it stops: the `next` halo
+  stays visible and static, and the ripple is hidden.
+- **Names are kid-voice only**, from `CHILD_LABEL` in `child.js`: short,
+  concrete, **no digits, no fraction glyphs, no "1/n"**. The graph's own
+  labels are tutor-facing and never reach this screen. A new authored
+  concept needs a `CHILD_LABEL` entry in the same change (the fallback is a
+  generic "A brand-new star").
+- **Zero digits in the rendered map** — text and aria-labels alike.
+- Stars are real `<button>`s (≥42px, 44-60px normally) with an aria-label of
+  "name, tier word". Tapping one marks it `--selected`, makes Fizz hop, and
+  swaps the bubble text.
+
+### The speech bubble
+
+`.speech-bubble` is Fizz talking: a white rounded panel with a soft shadow
+and a tail pointing at the Fizz beside it, holding an optional `.speech-name`
+line (display face; the picker uses its `h1` here) and a `.speech-note` line
+(soft sans). By default the tail points left (Fizz to the bubble's left: the
+picker and the narrow Star Path). The wide Star Path stacks the bubble above
+Fizz and flips the tail to point down. On the Star Path it is
+`aria-live="polite"`. The picker and the Star Path both use it. If another
+screen wants Fizz to talk, reuse this element rather than inventing a second
+bubble, and keep it next to the one Fizz on that screen (never two Fizzes on
+one screen).
 
 ## Type & color
 
@@ -239,6 +382,10 @@ constraints: stays behind `.wrap`, moves slowly, stays out of `.stage`.
   directly to the engine's own signal instead of being purely decorative.
   Needs a belief fetch on the session screen that doesn't exist yet — don't
   fake it with a client-side counter in the meantime.
-- **`fizz--lg` / a dedicated full-screen celebration.** Reserved but unused;
-  don't reach for it until there's an actual moment that warrants going
-  bigger than the current end-card treatment.
+- **A dedicated full-screen celebration.** `fizz--lg` is now used by the
+  picker and Star Path narrators; a celebration card (BACKLOG #3) should
+  reuse that size in the `cheer` pose rather than adding a bigger one.
+- **A "walked" trail.** Drawing a strand's road solid up to its last
+  non-seed star (dashed beyond) would make trails feel more like a journey,
+  but it adds a new progress meaning per strand. Needs a kid-ux pass before
+  anyone builds it.

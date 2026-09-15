@@ -55,6 +55,10 @@ const ICONS = {
   // above (no icon-library dependency): a five-point star outline.
   star: '<path d="M12 3.5l2.47 5.18 5.65.68-4.15 3.95 1.09 5.6L12 16.15l-5.06 2.76 1.09-5.6-4.15-3.95 5.65-.68z"/>',
 };
+// Filled four-point sparkle, used only as decoration on bloom/fading stars
+// (see .star-sparkle in index.html). Not an ICONS entry: it's a fill shape,
+// not the stroke style icon() draws.
+const SPARKLE_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5C12.9 8.4 15.6 11.1 22.5 12 15.6 12.9 12.9 15.6 12 22.5 11.1 15.6 8.4 12.9 1.5 12 8.4 11.1 11.1 8.4 12 1.5Z"/></svg>';
 function icon(name, cls = "icon") {
   return el("span", { class: cls, html: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${ICONS[name] ?? ""}</svg>` });
 }
@@ -119,132 +123,196 @@ const STRAND_LABEL = {
 
 // -------------------- picker --------------------
 
+// Picking a player opens their Star Path (the map is home); Play starts
+// from there.
 async function showPicker() {
   const directory = await api("/directory");
-  const rows = directory.map((d, i) =>
-    el("div", { class: "picker-row" }, [
-      el("button", { class: "picker-play", "data-hue": String(i % 6), onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
-      el(
-        "button",
-        { class: "picker-map", onclick: () => showConstellation(d, i), "aria-label": `${d.name}'s star map` },
-        [icon("star")],
-      ),
-    ]),
+  // Big avatar cards, fading up in a quick stagger (capped, one-shot).
+  const cards = directory.map((d, i) =>
+    el(
+      "button",
+      { type: "button", class: "picker-play", "data-hue": String(i % 6), style: `animation-delay: ${Math.min(i * 50, 400)}ms`, onclick: () => showConstellation(d, i) },
+      [avatar(d.name, i, "picker-avatar"), el("span", { class: "picker-name" }, d.name)],
+    ),
   );
   render(
-    el("div", { class: "screen" }, [
-      el("div", { class: "picker-head" }, [fizz("md"), el("h1", {}, "Who's playing?")]),
-      el("div", { class: "picker-scroll" }, [el("div", { class: "picker" }, rows)]),
+    el("div", { class: "screen screen--picker" }, [
+      el("div", { class: "picker-head" }, [
+        fizz("lg"),
+        el("div", { class: "speech-bubble" }, [el("h1", {}, "Who's playing?"), el("span", { class: "speech-note" }, "Tap your name to visit your stars.")]),
+      ]),
+      el("div", { class: "picker-scroll" }, [el("div", { class: "picker" }, cards)]),
     ]),
   );
 }
 
-// -------------------- constellation (persistent, cross-session progress) --------------------
+// -------------------- Star Path (the child's home map) --------------------
 
-// Wordless-by-design (IDEAS.md B1 "Concept Constellation"): a passive view a
-// child can visit between sessions, generated fresh from live belief state
-// -- not a client-side counter, not a level-select list. Reuses the exact
-// two-endpoint join public/tutor/tutor.js's load() already does (lines
-// ~132-147): GET /api/graph/concepts (label + strand per concept, already
-// grouped contiguously by strand in the graph data -- no separate
-// strand-order constant to keep in sync here) joined with
-// GET /api/belief/:studentId (only concepts this student has ever been
-// observed on -- a concept never attempted simply has no entry, which is
-// exactly the "unmeasured must look categorically different from weak"
-// distinction the architecture calls for).
-//
-// Zero numbers, zero ranking, zero cross-child comparison, by construction:
-// this function never reads p_mastery/p_decayed/confidence as anything but
-// an input to which CSS tier a star renders in (see starNode() below and
-// the .const-star--* rules in index.html), and every visible string here is
-// hand-authored words with no digits. No tap-to-launch-a-session
-// interactivity -- this is a passive view only (see BACKLOG.md).
+// Kid-voice names for the authored concepts -- the only concept names a
+// child ever sees. Hard rules (see DESIGN_LANGUAGE.md "Star Path"): short and
+// concrete, no digits, no fraction glyphs, no "1/n". The graph's own labels
+// are tutor-facing and never reach this surface. An authored concept missing
+// from this map falls back to a generic name rather than leaking a label.
+const CHILD_LABEL = {
+  "N.COUNT": "Counting up",
+  "N.ORD": "Putting numbers in order",
+  "N.MAG": "Where numbers live on a line",
+  "N.PLACE": "Tens and ones",
+  "N.PLACE.HTH": "Hundreds, tens and ones",
+  "G.PART": "Sharing into equal parts",
+  "G.PART.UNEQUAL": "Spotting unfair shares",
+  "F.NOTATE": "Reading a fraction",
+  "F.MAG.UNIT": "One equal piece of a whole",
+  "F.MAG.NONUNIT": "Several equal pieces",
+  "F.EQV": "Same amount, different fractions",
+  "F.MAG.CMP": "Comparing fractions",
+  "D.NOTATE": "Tenths and hundredths",
+  "D.MAG": "Where decimals live on a line",
+  "D.MAG.CMP": "Comparing decimals",
+};
+const childLabel = (conceptId) => CHILD_LABEL[conceptId] ?? "A brand-new star";
+
+// What Fizz adds after a star's name. Words only, never a count or rank.
+// "fading" is framed as care ("would love to see you again"), never as loss.
+const TIER_NOTE = {
+  seed: "A little seed star, waiting to grow.",
+  glow: "You're growing this one.",
+  bloom: "This one's shining bright!",
+  fading: "This one would love to see you again.",
+};
+// Deliberately does NOT say Play goes here: the server's `next` is only a
+// map highlight, and the session itself is still chosen by the engine (a
+// kid-ux spot check found it differed for most seeded students). "Soon" and
+// Fizz's "I think" keep it a hint, not a promise about the next Play.
+const NEXT_NOTE = "I think this one is ready to grow soon!";
+
+const TIER_A11Y = { seed: "seed star", glow: "growing star", bloom: "shining star", fading: "star to revisit" };
+
+// The map as home. Everything judgement-shaped (which concepts, which tier,
+// which star glows) comes from GET /api/child/map/:studentId -- this
+// function never sees a probability and never decides anything. It is also
+// the only place a child's session starts from (the Play button).
 async function showConstellation(student, hue = 0) {
+  state.student = student;
+  state.studentHue = hue;
   render(loadingCard());
-  const [concepts, belief] = await Promise.all([api("/graph/concepts"), api(`/belief/${student.student_id}`)]);
-  const beliefByConcept = new Map(belief.map((b) => [b.concept_id, b]));
+  const map = await api(`/child/map/${student.student_id}`);
+  const conceptById = new Map(map.concepts.map((c) => [c.concept_id, c]));
 
-  const strandOrder = [];
-  const conceptsByStrand = new Map();
-  for (const c of concepts) {
-    if (!conceptsByStrand.has(c.strand)) {
-      conceptsByStrand.set(c.strand, []);
-      strandOrder.push(c.strand);
-    }
-    conceptsByStrand.get(c.strand).push(c);
+  // Fizz narrates from one fixed spot above the scroll area, so the bubble
+  // is always visible no matter which trail the tapped star sits on.
+  const fizzSlot = el("div", { class: "map-fizz" }, [fizz("lg")]);
+  const bubble = el("div", { class: "speech-bubble", "aria-live": "polite" });
+  function say(name, note) {
+    bubble.replaceChildren(...[name ? el("span", { class: "speech-name" }, name) : null, el("span", { class: "speech-note" }, note)].filter(Boolean));
+  }
+  // The opening line doesn't point at the coral `next` star: it shares the
+  // Play button's colour, and saying "see the glowing star?" right above Play
+  // reads as "Play goes there" when the engine may pick something else.
+  say(null, "Tap a star. I'll tell you its name!");
+
+  let selected = null;
+  function onStarTap(concept, button) {
+    if (selected) selected.classList.remove("const-star--selected");
+    selected = button;
+    button.classList.add("const-star--selected");
+    const note = concept.next && concept.tier !== "fading" && concept.tier !== "bloom" ? NEXT_NOTE : TIER_NOTE[concept.tier];
+    say(childLabel(concept.concept_id), note);
+    // Re-mount Fizz so the one-shot hop replays on every tap.
+    fizzSlot.replaceChildren(fizz("lg", "hop"));
   }
 
-  // A running index across the *whole* map (not reset per strand) so the
-  // entrance animation below reads as one continuous cascade down the page
-  // -- a bit of load-time "juice" appropriate to a map you're meant to feel
-  // good looking at, not a flat instant grid. Purely decorative: it never
-  // gates or delays anything the child can act on (there's nothing to tap
-  // here -- see BACKLOG.md, this view is passive-only).
+  // A running index across the whole map so the twinkle-in reads as one
+  // cascade. Purely decorative; never gates anything tappable.
   let starIndex = 0;
-  const sections = strandOrder.map((strand) =>
-    el("div", { class: "const-strand" }, [
-      el("h2", { class: "const-strand-title" }, STRAND_LABEL[strand] ?? strand),
-      el(
-        "div",
-        { class: "const-grid" },
-        conceptsByStrand.get(strand).map((c) => starNode(beliefByConcept.get(c.concept_id), starIndex++)),
-      ),
-    ]),
-  );
+  const trails = map.strands
+    .filter((s) => s.concept_ids.length > 0)
+    .map((s) => {
+      // Stars alternate above/below the row's midline and a curved step
+      // joins each pair, so a strand reads as a winding path (purely
+      // positional -- see .trail-slot/.trail-step in index.html).
+      const row = [];
+      s.concept_ids.forEach((id, i) => {
+        if (i > 0) row.push(trailStep(i % 2 === 1 ? "down" : "up"));
+        row.push(starNode(conceptById.get(id), starIndex++, onStarTap, slotFor(i)));
+      });
+      if (s.hasComingLater) {
+        const n = s.concept_ids.length;
+        row.push(trailStep(n % 2 === 1 ? "down" : "up", true));
+        row.push(el("span", { class: `trail-more ${slotFor(n)}`, "aria-hidden": "true" }, [el("span"), el("span"), el("span")]));
+      }
+      return el("section", { class: "trail" }, [
+        el("h2", { class: "const-strand-title" }, STRAND_LABEL[s.strand] ?? "More stars"),
+        el("div", { class: "trail-row" }, row),
+      ]);
+    });
+  // The longest trail's star and connector counts, so CSS can stretch the
+  // step length to fill the map card (see --step on .trail-row). Layout
+  // only: these land in an inline style, never in text or aria.
+  const drawn = map.strands.filter((s) => s.concept_ids.length > 0);
+  const maxStars = Math.max(1, ...drawn.map((s) => s.concept_ids.length));
+  const maxSteps = Math.max(1, ...drawn.map((s) => s.concept_ids.length - 1 + (s.hasComingLater ? 1 : 0)));
+  // One short line, no list of strand names: "Patterns & algebra" is not
+  // first-grade reading, and a list of things you can't do yet is noise.
+  const hasComingStrands = map.strands.some((s) => s.concept_ids.length === 0 && s.hasComingLater);
+  const comingLine = hasComingStrands ? el("p", { class: "trail-coming" }, "More star trails coming soon!") : null;
 
   render(
-    el("div", { class: "screen" }, [
+    el("div", { class: "screen screen--map" }, [
       el("div", { class: "topbar" }, [
         el("div", { class: "who" }, [avatar(student.name, hue), student.name]),
-        el("button", { class: "pill-link const-back", onclick: showPicker }, "Back"),
+        el("button", { class: "pill-link const-back", onclick: showPicker }, "Change player"),
       ]),
-      el("div", { class: "const-head" }, [
-        fizz("sm"),
-        el("h1", {}, "Your star map"),
-        el("p", { class: "const-sub" }, "Stars grow the more comfortable you get -- no scores, just your own path."),
+      el("div", { class: "map-layout" }, [
+        el("div", { class: "map-head" }, [bubble, fizzSlot]),
+        el("div", { class: "const-scroll" }, [el("div", { class: "const-body", style: `--stars: ${maxStars}; --steps: ${maxSteps}` }, [...trails, comingLine])]),
+        el("div", { class: "map-play-row" }, [
+          el("button", { class: "btn-primary map-play", onclick: () => startSession(student, hue) }, [icon("arrow"), "Play"]),
+        ]),
       ]),
-      el("div", { class: "const-scroll" }, [el("div", { class: "const-body" }, sections)]),
     ]),
   );
 }
 
-// Maps a belief entry (or its absence) to one of four visual tiers. Never
-// returns or renders p_mastery/p_decayed/confidence itself -- those numbers
-// only ever decide *which* tier this returns, per the hard no-numbers
-// constraint on this view.
-function starTier(belief) {
-  if (!belief) return "seed"; // never attempted -- a seed, not a failure
-  if (belief.status === "MASTERED") return "bloom";
-  if (belief.status === "DECAYED") return "fading"; // was mastered, now fading -- distinct from both seed and glow
-  return "glow"; // EMERGING or STUCK share one child-facing tier by design --
-  // see index.html: STUCK must not read as alarming/discouraging here, so it
-  // gets the same warm "in progress" treatment EMERGING does, not the tutor
-  // dashboard's amber "needs attention" color.
+const slotFor = (i) => (i % 2 === 0 ? "trail-slot--up" : "trail-slot--down");
+
+// One curved connector between two neighbouring stars. `dir` is which way
+// the path travels (the previous star is up and the next is down, or the
+// reverse); `fade` is the trailing step into the "more coming" dots.
+function trailStep(dir, fade = false) {
+  const [y0, y1] = dir === "down" ? [0, 40] : [40, 0];
+  const d = `M0 ${y0} C50 ${y0} 50 ${y1} 100 ${y1}`;
+  return el("span", {
+    class: `trail-step${fade ? " trail-step--fade" : ""}`,
+    "aria-hidden": "true",
+    html: `<svg viewBox="0 0 100 40" preserveAspectRatio="none"><path class="trail-road" d="${d}" vector-effect="non-scaling-stroke"/><path class="trail-dots" d="${d}" vector-effect="non-scaling-stroke"/></svg>`,
+  });
 }
 
-const STAR_TIER_LABEL = {
-  seed: "Not started yet",
-  glow: "In progress",
-  bloom: "Mastered",
-  fading: "Was mastered, fading -- worth a revisit",
-};
-
-function starNode(belief, index = 0) {
-  const tier = starTier(belief);
-  // Cascading entrance delay, capped so a student with many concepts still
-  // finishes twinkling in well under a second -- see .const-star's
-  // animation in index.html (reuses the house pop-in easing).
-  const delayMs = Math.min(index * 28, 480);
-  return el(
-    "div",
+function starNode(concept, index, onTap, slotClass = "") {
+  const tier = concept?.tier ?? "seed";
+  // Cascading entrance delay, capped so the whole map twinkles in quickly.
+  const delayMs = Math.min(index * 40, 560);
+  const cls = `const-star const-star--${tier}${concept?.next ? " const-star--next" : ""} ${slotClass}`.trim();
+  const button = el(
+    "button",
     {
-      class: `const-star const-star--${tier}`,
+      type: "button",
+      class: cls,
       style: `animation-delay: ${delayMs}ms`,
-      role: "img",
-      "aria-label": STAR_TIER_LABEL[tier],
+      "aria-label": `${childLabel(concept?.concept_id)}, ${TIER_A11Y[tier]}`,
     },
-    [icon("star")],
+    [
+      icon("star"),
+      // Bloom gets two sparkles; fading keeps a softer one (CSS hides the
+      // second) so it reads as the same star gone quiet, not a broken one.
+      ...(tier === "bloom" || tier === "fading"
+        ? [el("span", { class: "star-sparkle star-sparkle--a", html: SPARKLE_SVG }), el("span", { class: "star-sparkle star-sparkle--b", html: SPARKLE_SVG })]
+        : []),
+    ],
   );
+  button.addEventListener("click", () => onTap(concept, button));
+  return button;
 }
 
 async function startSession(student, hue = 0) {
@@ -313,7 +381,7 @@ function showEmpty(result) {
         el("div", { class: "icon-wrap" }, [icon(iconName)]),
         el("h2", {}, heading),
         el("p", {}, message),
-        el("button", { class: "btn-primary", onclick: showPicker }, "Back"),
+        el("button", { class: "btn-primary", onclick: () => showConstellation(state.student, state.studentHue) }, "Back to my stars"),
       ]),
     ]),
   );
@@ -714,7 +782,7 @@ async function finishSession(completed) {
         el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
         ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
         el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
-        el("button", { class: "btn-primary", onclick: showPicker }, "Done"),
+        el("button", { class: "btn-primary", onclick: () => showConstellation(state.student, state.studentHue) }, "See my stars"),
       ]),
     ]),
   );

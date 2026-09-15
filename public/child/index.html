@@ -146,61 +146,82 @@
   #app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-4); }
   .screen--center { align-items: center; justify-content: center; overflow-y: auto; }
-  .foot-link { flex: 0 0 auto; }
+  /* The tutor link is for grown-ups: a quiet text link tucked in the bottom
+     corner, deliberately NOT a pill/panel (a full-width white pill read as
+     an input field and competed with the child's own controls). */
+  .foot-link {
+    flex: 0 0 auto; align-self: flex-end;
+    display: inline-flex; align-items: center; gap: var(--sp-1);
+    padding: 2px var(--sp-2); border-radius: var(--r-sm);
+    font-size: var(--text-xs); font-weight: var(--fw-medium); color: var(--soft); text-decoration: none;
+    opacity: 0.8;
+    transition: color var(--dur-fast) var(--ease-standard), opacity var(--dur-fast) var(--ease-standard);
+  }
+  .foot-link:hover, .foot-link:focus-visible { color: var(--ink); opacity: 1; text-decoration: underline; text-underline-offset: 3px; }
+  .foot-link svg { width: 12px; height: 12px; }
 
-  .picker-head { display: flex; align-items: center; gap: var(--sp-3); flex: 0 0 auto; }
-  .picker-head h1 { font-family: var(--display); font-size: clamp(24px, 3vw + 1rem, 40px); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
-  .picker-head .fizz { flex-shrink: 0; }
+  /* -------------------- "Who's playing?" picker --------------------
+     Fizz greets the child (lg, with the shared .speech-bubble) above a grid
+     of big avatar cards -- one per player, each washed in that player's own
+     avatar hue so the roster reads as a row of distinct, friendly places.
+     The grid centers itself vertically (auto margins, which unlike
+     justify-content:center never make overflow unreachable) so a small
+     roster doesn't leave most of the screen empty. */
+  /* Head + grid are centred as one group (the scroll region only takes the
+     height it needs, and shrinks -- then scrolls -- if the roster is long). */
+  .screen--picker { gap: clamp(var(--sp-4), 5vh, var(--sp-9)); justify-content: center; }
+  .picker-head { display: flex; align-items: flex-end; justify-content: center; gap: var(--sp-3); flex: 0 0 auto; padding-top: clamp(0px, 2vh, var(--sp-6)); }
+  .picker-head .fizz--lg { width: clamp(64px, 15vh, 128px); height: clamp(64px, 15vh, 128px); }
+  .picker-head h1 { font-family: var(--display); font-size: clamp(26px, 2.4vw + 1rem, 44px); font-weight: 800; margin: 0; letter-spacing: -0.01em; line-height: var(--lh-tight); color: var(--ink); }
 
   /* Roster can run longer than one screen (more students than fit) -- this
      is the one screen where a contained scroll region is the honest choice
      over either clipping names off the bottom or forcing the whole page to
-     scroll. The picker grid itself is unchanged; only its wrapper scrolls. */
-  .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); align-content: start; }
-  /* Each roster entry is a row of two buttons: the primary play action
-     (unchanged behavior/appearance from before this file's B1 constellation
-     work -- tapping it still starts a session exactly as before) plus a
-     small secondary icon-button that opens that student's star map instead.
-     Splitting into .picker-row/.picker-play/.picker-map (rather than
-     styling `.picker button` directly, as before) is what makes room for
-     the second button without changing the play button's own look. */
-  .picker-row { display: flex; gap: var(--sp-2); }
+     scroll. Only the wrapper scrolls. */
+  .picker-scroll { flex: 0 1 auto; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; padding: 6px; }
+  .picker {
+    display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: clamp(var(--sp-3), 2.4vw, var(--sp-6));
+    width: 100%; max-width: 880px; margin: auto;
+  }
+  /* Each roster entry is one button that opens that player's Star Path
+     (the map is home; Play lives there). */
   .picker-play {
-    flex: 1; display: flex; align-items: center; gap: var(--sp-3); text-align: left;
-    padding: var(--sp-4); font-size: var(--text-lg); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
-    border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
-    box-shadow: var(--shadow-sm);
-    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    position: relative; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(var(--sp-2), 1.6vh, var(--sp-4));
+    min-height: clamp(104px, 23vh, 210px); padding: var(--sp-4) var(--sp-3);
+    border-radius: var(--r-xl); border: 2px solid var(--rule-lite);
+    background: var(--panel); color: var(--ink); box-shadow: var(--shadow-sm);
+    animation: fade-up var(--dur-slow) var(--ease-out) backwards;
+    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-bounce);
   }
-  .picker-play:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
-  .picker-play:active { transform: translateY(0) scale(0.98); box-shadow: var(--shadow-sm); }
-  /* Each roster row gets a light wash of that student's own avatar hue --
-     the same data-hue this file already uses for .avatar, just also read
-     here -- so the roster reads as a row of colorful, distinct places
-     rather than identical white cards with a colored circle on the left. */
-  .picker-play[data-hue="0"] { background: color-mix(in srgb, var(--hue-0) 9%, var(--panel)); }
-  .picker-play[data-hue="1"] { background: color-mix(in srgb, var(--hue-1) 9%, var(--panel)); }
-  .picker-play[data-hue="2"] { background: color-mix(in srgb, var(--hue-2) 9%, var(--panel)); }
-  .picker-play[data-hue="3"] { background: color-mix(in srgb, var(--hue-3) 9%, var(--panel)); }
-  .picker-play[data-hue="4"] { background: color-mix(in srgb, var(--hue-4) 9%, var(--panel)); }
-  .picker-play[data-hue="5"] { background: color-mix(in srgb, var(--hue-5) 9%, var(--panel)); }
-  .picker-play[data-hue="0"]:hover { border-color: var(--hue-0); }
-  .picker-play[data-hue="1"]:hover { border-color: var(--hue-1); }
-  .picker-play[data-hue="2"]:hover { border-color: var(--hue-2); }
-  .picker-play[data-hue="3"]:hover { border-color: var(--hue-3); }
-  .picker-play[data-hue="4"]:hover { border-color: var(--hue-4); }
-  .picker-play[data-hue="5"]:hover { border-color: var(--hue-5); }
-  .picker-row .avatar { width: 38px; height: 38px; font-size: var(--text-md); }
-  .picker-map {
-    flex-shrink: 0; width: 52px; border-radius: var(--r-lg);
-    border: 1.5px solid var(--rule); background: var(--panel); color: var(--soft);
-    display: flex; align-items: center; justify-content: center;
-    transition: border-color var(--dur-fast) var(--ease-standard), color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+  .picker-play:hover { box-shadow: var(--shadow-md); transform: translateY(-3px); }
+  .picker-play:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
+  .picker-play:focus-visible { outline: 3px solid color-mix(in srgb, var(--ink) 55%, transparent); outline-offset: 3px; }
+  /* Per-player wash: a stronger tint at the top fading to white, plus a
+     matching border -- each card reads as "that player's color". */
+  .picker-play[data-hue] { --card-hue: var(--hue-0); }
+  .picker-play[data-hue="1"] { --card-hue: var(--hue-1); }
+  .picker-play[data-hue="2"] { --card-hue: var(--hue-2); }
+  .picker-play[data-hue="3"] { --card-hue: var(--hue-3); }
+  .picker-play[data-hue="4"] { --card-hue: var(--hue-4); }
+  .picker-play[data-hue="5"] { --card-hue: var(--hue-5); }
+  .picker-play[data-hue] {
+    background: linear-gradient(180deg, color-mix(in srgb, var(--card-hue) 18%, var(--panel)) 0%, color-mix(in srgb, var(--card-hue) 5%, var(--panel)) 70%);
+    border-color: color-mix(in srgb, var(--card-hue) 22%, var(--rule-lite));
   }
-  .picker-map:hover { border-color: var(--status-mastered); color: var(--status-mastered); box-shadow: var(--shadow-md); }
-  .picker-map:active { transform: scale(0.96); }
-  .picker-map .icon { width: 18px; height: 18px; }
+  .picker-play[data-hue]:hover { border-color: var(--card-hue); }
+  .picker-avatar.avatar {
+    width: clamp(48px, 10vh, 88px); height: clamp(48px, 10vh, 88px);
+    font-family: var(--display); font-size: clamp(var(--text-lg), 3.4vh, var(--text-4xl)); font-weight: 700;
+    box-shadow: 0 0 0 4px var(--panel), var(--shadow-md);
+    transition: transform var(--dur-base) var(--ease-bounce);
+  }
+  .picker-play:hover .picker-avatar { transform: scale(1.06) rotate(-4deg); }
+  .picker-name { font-family: var(--display); font-size: clamp(var(--text-lg), 2.8vh, var(--text-3xl)); font-weight: 700; line-height: var(--lh-tight); text-align: center; }
+  @media (prefers-reduced-motion: reduce) {
+    .picker-play { animation: none; }
+    .picker-play:hover .picker-avatar { transform: none; }
+  }
 
   .topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex: 0 0 auto; }
   .topbar .who { display: flex; align-items: center; gap: 9px; font-size: var(--text-md); font-weight: var(--fw-semibold); }
@@ -374,77 +395,281 @@
 
   .icon { width: 16px; height: 16px; display: inline-block; }
 
-  /* -------------------- constellation (BACKLOG.md B1) -------------------- */
-  /* Persistent, passive, cross-session progress view generated from live
-     belief state -- see showConstellation()/starNode() in child.js. Purely
-     additive: does not touch .icon-wrap, .pop-in(-mastery), or the
-     path-track above -- a different progress metaphor (stars, not a route)
-     answering a different question ("what have I learned overall" vs. "how
-     far through this session am I"), so it deliberately keeps its own
-     visual language rather than folding Fizz into it. */
+  /* -------------------- Star Path: the child's home map (BACKLOG.md #2) --------------------
+     See showConstellation()/starNode() in child.js and "Star Path" in
+     DESIGN_LANGUAGE.md. Every tier/next decision comes from GET
+     /api/child/map -- this CSS only decides how a tier looks.
+
+     Layout (.map-layout is a grid with three areas):
+       wide (>=760px):  [ head  | trails ]     head = speech bubble above a big Fizz
+                        [ play  | trails ]     play = the one Play button, under Fizz
+       narrow:          [ head ] [ trails ] [ play ]   head = Fizz beside the bubble
+     .const-scroll (trails) is the only internal scroll region. */
 
   .const-back { margin-left: auto; }
+  .wrap:has(.screen--map) { max-width: 1240px; }
 
-  .const-head { text-align: center; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .const-head .fizz { margin-bottom: 2px; }
-  .const-head h1 { font-family: var(--display); font-size: clamp(var(--text-xl), 2.4vw, 30px); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
-  .const-sub { color: var(--soft); font-size: var(--text-md); margin: 0 auto; max-width: 46ch; line-height: var(--lh-relaxed); }
-
-  /* Long roster of strands can outrun one screen -- same contained-scroll
-     treatment as .picker-scroll, for the same reason: this is genuinely
-     variable-length content, not a single game screen. */
-  .const-scroll { flex: 1; min-height: 0; overflow-y: auto; }
-  .const-strand { margin-bottom: var(--sp-7); }
-  .const-strand-title {
-    font-size: var(--text-sm); font-weight: var(--fw-semibold); color: var(--soft); margin: 0 0 var(--sp-3);
-    text-transform: uppercase; letter-spacing: 0.06em;
+  .map-layout {
+    flex: 1; min-height: 0; display: grid; gap: var(--sp-3) clamp(var(--sp-4), 2.4vw, var(--sp-7));
+    grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+    grid-template-areas: "head" "trails" "play";
   }
-  .const-grid { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+  /* DOM order is bubble-then-Fizz (so wide mode stacks bubble above Fizz);
+     narrow mode reverses it so Fizz stands left with the bubble's tail on it. */
+  .map-head { grid-area: head; display: flex; flex-direction: row-reverse; align-items: center; justify-content: center; gap: var(--sp-3); min-width: 0; }
+  .map-play-row { grid-area: play; display: flex; justify-content: center; }
+  .const-scroll { grid-area: trails; }
 
+  /* Fizz: one lg Fizz, re-mounted (hop) on every star tap. Narrow screens
+     size it down; wide screens let it stand tall with a soft ground shadow. */
+  .map-fizz { position: relative; flex-shrink: 0; display: flex; justify-content: center; }
+  .map-fizz .fizz--lg { width: 60px; height: 60px; position: relative; z-index: 1; }
+  .map-fizz::after {
+    content: ""; position: absolute; left: 50%; bottom: -3px; width: 70%; height: 10px; transform: translateX(-50%);
+    border-radius: 50%; background: radial-gradient(closest-side, color-mix(in srgb, var(--ink) 16%, transparent), transparent);
+  }
+
+  /* The speech bubble: Fizz talking. Tail points left at Fizz by default
+     (narrow map, picker); .map-layout's wide mode flips it to point down. */
+  .speech-bubble {
+    position: relative; flex: 0 1 auto; max-width: 46ch; min-height: 3.2em;
+    display: flex; flex-direction: column; justify-content: center; gap: 2px;
+    padding: var(--sp-3) var(--sp-4);
+    background: var(--panel); border: 2px solid var(--rule-lite); border-radius: var(--r-xl); box-shadow: var(--shadow-md);
+    animation: fade-up var(--dur-base) var(--ease-out);
+  }
+  .speech-bubble::before {
+    content: ""; position: absolute; left: -9px; top: 50%; width: 16px; height: 16px; margin-top: -8px;
+    background: var(--panel); border-left: 2px solid var(--rule-lite); border-bottom: 2px solid var(--rule-lite);
+    transform: rotate(45deg); border-bottom-left-radius: 3px;
+  }
+  .speech-name { font-family: var(--display); font-size: clamp(var(--text-lg), 2vw, var(--text-2xl)); font-weight: 700; line-height: var(--lh-tight); color: var(--ink); }
+  .speech-note { font-size: clamp(var(--text-md), 1.4vw, var(--text-lg)); color: var(--soft); line-height: var(--lh-snug); }
+  .map-head .speech-bubble { flex: 1 1 auto; min-height: 4.4em; }
+
+  @media (min-width: 760px) {
+    .map-layout {
+      grid-template-columns: clamp(220px, 24vw, 300px) minmax(0, 1fr);
+      grid-template-rows: minmax(0, 1fr) auto;
+      grid-template-areas: "head trails" "play trails";
+    }
+    /* Bubble above, Fizz below it, the pair centred in the column. The
+       bubble's min-height is sized for its longest content (a two-line name
+       plus a two-line note) so swapping the text on a tap never makes Fizz
+       jump. */
+    /* Top-aligned so the bubble lines up with the map card's top edge
+       (centring it left a big empty band above the bubble on tall windows). */
+    .map-head { flex-direction: column; justify-content: flex-start; gap: var(--sp-5); }
+    /* z-index: a hop (up to ~half Fizz's height) tucks behind the bubble
+       instead of jumping over its own words. */
+    .map-head .speech-bubble { flex: 0 0 auto; width: 100%; max-width: none; min-height: clamp(96px, 18vh, 148px); text-align: center; padding: var(--sp-4); z-index: 2; }
+    .map-head .speech-bubble::before { left: 50%; top: auto; bottom: -9px; margin-top: 0; transform: translateX(-50%) rotate(-45deg); }
+    .map-fizz .fizz--lg { width: clamp(76px, 24vh, 200px); height: clamp(76px, 24vh, 200px); }
+    .map-play-row .map-play { width: 100%; }
+  }
+
+  /* The trails live on one opaque "map" card (same role as .stage: blobs
+     stay in the margins, never behind the stars), with a faint dot grid so
+     it reads as a place, not a list. */
+  .const-scroll {
+    min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+    container-type: inline-size; /* the trails' step length is sized off this card's width (cqi) */
+    background:
+      radial-gradient(circle, color-mix(in srgb, var(--hue-3) 14%, transparent) 1.2px, transparent 1.6px) 0 0 / 22px 22px,
+      var(--panel);
+    border: 1px solid var(--rule-lite); border-radius: var(--r-xl); box-shadow: var(--shadow-sm);
+    animation: fade-up var(--dur-base) var(--ease-out);
+  }
+  .const-body {
+    width: fit-content; max-width: 100%; margin: auto; min-height: 100%;
+    display: flex; flex-direction: column; align-items: flex-start; justify-content: center;
+    gap: clamp(var(--sp-1), 1.2vh, var(--sp-3)); padding: clamp(var(--sp-3), 2vh, var(--sp-6)) clamp(var(--sp-3), 2.4vw, var(--sp-7));
+  }
+
+  .trail { display: flex; flex-direction: column; align-items: flex-start; gap: 0; }
+  /* A small wooden-signpost-ish label: sand pill, display face, words only. */
+  .const-strand-title {
+    margin: 0; padding: 1px var(--sp-3); border-radius: var(--r-pill);
+    font-family: var(--display); font-size: clamp(var(--text-md), 1.4vw, var(--text-lg)); font-weight: 700; line-height: var(--lh-snug);
+    color: var(--soft); background: color-mix(in srgb, var(--hue-3) 12%, var(--panel));
+  }
+
+  /* One short, winding trail per strand, prerequisite-first. Stars sit
+     alternately a little above/below the row's midline (.trail-slot--up/
+     --down) and each .trail-step between two stars is a tiny SVG S-curve
+     from one star's centre height to the next -- so the connector is a
+     winding sandy path with a dotted "footstep" line, not a straight rule.
+     Sizes are all derived from --star so geometry holds at any width:
+     --wave is the vertical offset, and a step's height is exactly 2*--wave
+     so its ends land on the adjacent stars' centre lines. The path is ONE
+     neutral sand material for every strand on purpose: blue, purple and
+     teal already mean glow/fading/bloom here, so strand-coloured trails
+     would muddy the tier colours. */
+  .trail-row {
+    --star: clamp(44px, min(5vw, 7.4vh), 62px);
+    --wave: calc(var(--star) * 0.2);
+    /* Step length stretches the LONGEST trail to fill the map card instead of
+       leaving its right third empty on wide screens. --stars / --steps are
+       the longest row's star and connector counts (set on .const-body by
+       showConstellation); the subtracted terms are the stars themselves (next
+       star is ~a third bigger), the body + row padding and the trailing dots. */
+    --step: clamp(12px, calc((100cqi - var(--stars, 5) * var(--star) * 1.1 - 0.34 * var(--star) - 2 * clamp(12px, 2.4vw, 32px) - 64px) / var(--steps, 5)), 110px);
+    position: relative; display: flex; align-items: center;
+    min-height: calc(var(--star) * 1.34 + 2 * var(--wave) + 6px);
+    padding-inline: 10px;
+  }
+  .trail-slot--up { top: calc(-1 * var(--wave)); }
+  .trail-slot--down { top: var(--wave); }
+  .trail-step {
+    position: relative; z-index: 0; flex: 0 0 auto;
+    width: calc(var(--step) + 8px); height: calc(2 * var(--wave)); margin-inline: -4px;
+    pointer-events: none;
+  }
+  .trail-step svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .trail-road { fill: none; stroke: color-mix(in srgb, var(--hue-3) 14%, var(--panel)); stroke-width: 12px; stroke-linecap: round; }
+  .trail-dots { fill: none; stroke: color-mix(in srgb, var(--hue-3) 42%, var(--rule)); stroke-width: 3px; stroke-linecap: round; stroke-dasharray: 0.1 7; }
+  /* The trail fades out past the last authored star into three soft dots:
+     "this path keeps going later", never a dead seed. */
+  .trail-step--fade { -webkit-mask-image: linear-gradient(90deg, #000 20%, transparent); mask-image: linear-gradient(90deg, #000 20%, transparent); }
+  .trail-more { position: relative; display: inline-flex; gap: 5px; padding-left: 2px; }
+  .trail-more span { width: 6px; height: 6px; border-radius: 50%; background: color-mix(in srgb, var(--hue-3) 30%, var(--rule)); }
+  .trail-more span:nth-child(2) { opacity: 0.7; }
+  .trail-more span:nth-child(3) { opacity: 0.4; }
+  .trail-coming { margin: var(--sp-2) 0 0; max-width: 48ch; color: var(--soft); font-size: var(--text-md); line-height: var(--lh-snug); }
+
+  /* -------- the star button, shared by every tier --------
+     Tier changes size (--k), fill and ring -- never position. Stars stay
+     real buttons >=42px at every tier and viewport. */
   .const-star {
-    width: 56px; height: 56px; border-radius: 50%;
+    --k: 1;
+    position: relative; z-index: 1; flex-shrink: 0;
+    width: max(42px, calc(var(--star) * var(--k))); height: max(42px, calc(var(--star) * var(--k)));
+    padding: 0; border-radius: 50%;
     display: flex; align-items: center; justify-content: center;
-    border: 1.5px solid var(--rule);
-    transition: transform var(--dur-fast) var(--ease-standard);
-    /* Twinkle-in on load, staggered per-star via an inline animation-delay
-       set in starNode() (child.js) -- reuses the exact bouncy easing the
-       rest of the child surface already uses for pop-in/pop-in-mastery, so
-       this reads as the same house motion language, not a new one.
-       `backwards` (not `forwards`/`both`) so the delay window renders as
-       genuinely invisible without permanently overriding each tier's own
-       resting transform (e.g. --bloom's scale(1.08)) once the animation
-       finishes. */
+    border: 2px solid var(--rule); background: var(--panel);
+    transition: transform var(--dur-fast) var(--ease-bounce), outline-color var(--dur-fast) var(--ease-standard);
+    outline: 3px solid transparent; outline-offset: 4px;
+    /* Twinkle-in on load, staggered via inline animation-delay (starNode).
+       One-shot; `backwards` so hover transforms win afterwards. */
     animation: pop-in var(--dur-slow) var(--ease-bounce) backwards;
   }
-  .const-star .icon { width: 26px; height: 26px; }
+  .const-star .icon { width: 50%; height: 50%; position: relative; z-index: 1; }
+  .const-star .icon svg { stroke-width: 1.8; }
+  .const-star:hover { transform: translateY(-3px) scale(1.04); }
+  .const-star:active { transform: scale(0.94); }
+  .const-star:focus-visible, .const-star--selected { outline-color: color-mix(in srgb, var(--ink) 55%, transparent); }
 
-  /* Never attempted -- a dim outline "seed", not a lesser/failed star. Per
-     the architecture's own "unmeasured must look categorically different
-     from weak" rule, this must not read as a worse version of --glow. */
-  .const-star--seed { border-style: dashed; border-color: var(--rule); color: var(--status-unmeasured); background: transparent; }
+  /* Small four-point sparkles (starNode adds them to bloom + fading only). */
+  .star-sparkle { position: absolute; z-index: 2; pointer-events: none; color: var(--status-mastered); display: block; }
+  .star-sparkle svg { display: block; width: 100%; height: 100%; fill: currentColor; }
+  .star-sparkle--a { width: 34%; height: 34%; top: -12%; right: -10%; }
+  .star-sparkle--b { width: 20%; height: 20%; bottom: -2%; left: -8%; }
+
+  /* SEED -- "not yet": smaller, a hollow dashed outline on a sunk fill,
+     star drawn as a faint outline. Categorically quieter than every other tier. */
+  .const-star--seed {
+    --k: 0.84;
+    border-style: dashed; border-color: color-mix(in srgb, var(--status-unmeasured) 70%, var(--rule));
+    background: var(--panel-sunk); color: var(--status-unmeasured);
+  }
+  .const-star--seed .icon { width: 44%; height: 44%; }
   .const-star--seed .icon svg { fill: none; }
 
-  /* EMERGING and STUCK deliberately share one child-facing tier -- see
-     BACKLOG.md: STUCK must not get a discouraging/alarm-colored treatment,
-     so it gets the same warm "in progress" glow EMERGING does rather than
-     the tutor dashboard's amber "needs attention" color. */
-  .const-star--glow { border-style: solid; border-color: var(--status-emerging); color: var(--status-emerging); background: var(--status-emerging-bg); }
-  .const-star--glow .icon svg { fill: currentColor; fill-opacity: 0.45; }
-
-  .const-star--bloom {
-    border-style: solid; border-color: var(--status-mastered); color: var(--status-mastered); background: var(--status-mastered-bg);
-    box-shadow: 0 0 0 4px var(--status-mastered-bg), 0 4px 14px color-mix(in srgb, var(--status-mastered) 28%, transparent);
-    transform: scale(1.08);
+  /* GLOW -- "growing": full size, solid blue ring, star half filled.
+     EMERGING and STUCK share it -- STUCK must never read as alarming. */
+  .const-star--glow {
+    border: 2.5px solid var(--status-emerging); color: var(--status-emerging);
+    background: radial-gradient(circle at 50% 38%, var(--panel) 0%, var(--status-emerging-bg) 70%);
   }
-  .const-star--bloom .icon svg { fill: currentColor; }
+  .const-star--glow .icon svg { fill: currentColor; fill-opacity: 0.35; }
 
-  /* Was mastered, now fading -- must read distinctly from both --seed
-     (never attempted) and --glow (in progress), per BACKLOG.md: "the state
-     most directly answering 'steady progression... visible over time,' so
-     it must not be visually collapsed into EMERGING." Softer purple fill at
-     reduced opacity signals decline from a full bloom, not a fresh start. */
-  .const-star--fading { border-style: solid; border-color: var(--status-decayed); color: var(--status-decayed); background: var(--status-decayed-bg); opacity: 0.62; }
-  .const-star--fading .icon svg { fill: currentColor; fill-opacity: 0.7; }
+  /* BLOOM -- "earned": the biggest resting star, a solid teal disc with a
+     bright white filled star, a pale teal halo ring and two teal sparkles.
+     Teal is the app's one reward colour; only a mastered star uses it. */
+  .const-star--bloom {
+    --k: 1.14;
+    border: 2px solid var(--status-mastered); color: #fff;
+    background: radial-gradient(circle at 36% 30%, color-mix(in srgb, var(--status-mastered) 72%, white) 0%, var(--status-mastered) 62%);
+    box-shadow: 0 0 0 5px var(--status-mastered-bg), 0 6px 18px color-mix(in srgb, var(--status-mastered) 34%, transparent);
+  }
+  .const-star--bloom .icon { width: 54%; height: 54%; }
+  .const-star--bloom .icon svg { fill: currentColor; stroke-width: 1.4; }
+  /* Sparkles twinkle ONCE, right after the map's pop-in cascade, then rest. */
+  .const-star--bloom .star-sparkle { animation: sparkle-once 900ms var(--ease-out) 700ms backwards; }
+  .const-star--bloom .star-sparkle--b { animation-delay: 850ms; }
+  @keyframes sparkle-once {
+    0% { opacity: 0; transform: scale(0.2) rotate(-30deg); }
+    60% { opacity: 1; transform: scale(1.25) rotate(10deg); }
+    100% { opacity: 1; transform: scale(1) rotate(0deg); }
+  }
+
+  /* FADING -- "a little dim, still yours": the SAME filled-star-with-sparkle
+     shape as bloom, just softened into lavender -- so it reads as a star
+     that's gone quiet, not a broken or empty one. Deliberately static (a map
+     can hold 5-8 of these; pulsing them all at once was too busy). */
+  .const-star--fading {
+    border: 2px solid color-mix(in srgb, var(--status-decayed) 45%, var(--rule-lite));
+    color: color-mix(in srgb, var(--status-decayed) 70%, var(--panel));
+    background: radial-gradient(circle at 36% 30%, var(--panel) 0%, var(--status-decayed-bg) 70%);
+  }
+  .const-star--fading .icon svg { fill: currentColor; fill-opacity: 0.55; }
+  .const-star--fading .star-sparkle { color: color-mix(in srgb, var(--status-decayed) 45%, var(--panel)); }
+  .const-star--fading .star-sparkle--b { display: none; }
+
+  /* NEXT -- the one server-chosen star, and the screen's focal point: the
+     largest star, a coral (--play, the page accent -- never teal) ring on a
+     warm fill, a soft halo that breathes, and a ring that ripples outward.
+     It is the ONLY continuously animated star on the map. It overrides the
+     underlying tier's colours (a fading star can be `next`; its sparkle is
+     hidden so the two treatments never fight) -- Fizz's bubble still says
+     which kind of star it is when tapped. */
+  .const-star--next {
+    --k: 1.34;
+    border: 3px solid var(--play); color: var(--play);
+    background: radial-gradient(circle at 50% 36%, var(--panel) 0%, var(--play-bg) 72%);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--play) 16%, transparent), 0 8px 22px color-mix(in srgb, var(--play) 30%, transparent);
+  }
+  .const-star--next .icon { width: 54%; height: 54%; }
+  .const-star--next .icon svg { fill: currentColor; fill-opacity: 0.85; stroke: var(--play-ink); }
+  .const-star--next .star-sparkle { display: none; }
+  .const-star--next::after {
+    content: ""; position: absolute; inset: -22%; border-radius: 50%; z-index: -1; pointer-events: none;
+    /* Transparent over the star itself (the halo box is ~1.44x the star, so
+       the star's edge sits at ~69% of closest-side) -- the glow only ever
+       shows around the star, never tints its face. */
+    background: radial-gradient(closest-side, transparent 62%, color-mix(in srgb, var(--play) 46%, transparent) 70%, transparent 100%);
+    animation: star-next-glow 2.4s ease-in-out infinite;
+  }
+  .const-star--next::before {
+    content: ""; position: absolute; inset: -5px; border-radius: 50%; z-index: -1; pointer-events: none;
+    border: 3px solid color-mix(in srgb, var(--play) 55%, transparent);
+    animation: star-next-ripple 2.4s var(--ease-out) infinite;
+  }
+  @keyframes star-next-glow {
+    0%, 100% { opacity: 0.6; transform: scale(0.92); }
+    50% { opacity: 1; transform: scale(1.06); }
+  }
+  @keyframes star-next-ripple {
+    0% { opacity: 0.9; transform: scale(1); }
+    70%, 100% { opacity: 0; transform: scale(1.45); }
+  }
+
+  .map-play {
+    margin-top: 0; min-height: 60px; min-width: clamp(180px, 30vw, 260px);
+    display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
+    font-family: var(--display); font-size: var(--text-2xl); font-weight: 700;
+    box-shadow: 0 6px 0 var(--play-ink), var(--shadow-md);
+  }
+  .map-play:hover { box-shadow: 0 6px 0 color-mix(in srgb, var(--play-ink) 80%, black), var(--shadow-md); }
+  .map-play:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--play-ink), var(--shadow-sm); }
+  .map-play .icon { width: 22px; height: 22px; }
+
+  @media (prefers-reduced-motion: reduce) {
+    .const-star, .const-star--bloom .star-sparkle, .const-scroll, .speech-bubble { animation: none; }
+    .const-star--next::after { animation: none; opacity: 1; }
+    .const-star--next::before { animation: none; opacity: 0; }
+    .const-star:hover { transform: none; }
+  }
 
   /* -------------------- balance scale (BACKLOG.md "Balance Scale") --------------------
      Purely additive -- does not touch .choice-card/.bar-outer/.line-track/
@@ -500,10 +725,13 @@
   /* -------------------- small-screen safety net -------------------- */
   /* This is a K-5 play surface, so phone-width is the *primary* target, not
      an edge case -- the clamp()s above already hold up down to ~320px, this
-     just tightens the roster grid, which gets cramped once each cell also
-     has to fit a name plus a second icon button. */
-  @media (max-width: 420px) {
-    .picker { grid-template-columns: 1fr; }
+     just drops the roster to two columns of (still big) avatar cards. */
+  @media (max-width: 640px) {
+    .picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .picker-play { min-height: clamp(96px, 17vh, 170px); }
+    /* A five-star trail must fit a ~400px-wide phone without sideways scroll. */
+    .trail-row { --step: 12px; padding-inline: 4px; }
+    .const-body { padding-inline: var(--sp-2); }
   }
   /* A short viewport (landscape phone, a small laptop with browser chrome)
      is the case where "no scrolling" is actually at risk -- the clamp()s
@@ -526,6 +754,31 @@
     .partition-shape { height: clamp(44px, 11vh, 100px); }
     .choice-card { min-height: 70px; }
     .balance-choice { min-height: 44px; }
+    /* Picker: Fizz shrinks and cards go horizontal (avatar beside name). */
+    .picker-head { padding-top: 0; }
+    .picker-head .fizz--lg { width: 44px; height: 44px; }
+    .picker-head h1 { font-size: var(--text-2xl); }
+    .picker-head .speech-bubble { padding: 6px var(--sp-3); min-height: 0; }
+    .picker-play { flex-direction: row; min-height: clamp(56px, 16vh, 88px); padding: var(--sp-2) var(--sp-3); gap: var(--sp-2); border-radius: var(--r-lg); }
+    .picker-avatar.avatar { width: 38px; height: 38px; font-size: var(--text-md); box-shadow: 0 0 0 3px var(--panel); }
+    .picker-name { font-size: var(--text-lg); }
+    /* Star Path: shrink the fixed rows so the trail scroller keeps room. */
+    .map-fizz .fizz--lg { width: 40px; height: 40px; }
+    .speech-bubble, .map-head .speech-bubble { padding: 6px var(--sp-3); min-height: 0; }
+    .speech-name { font-size: var(--text-lg); }
+    .speech-note { font-size: var(--text-sm); }
+    .const-body { padding-block: var(--sp-2); gap: 2px; }
+    .trail-row { --star: 42px; --wave: 7px; }
+    .map-play { min-height: 46px; font-size: var(--text-xl); box-shadow: 0 4px 0 var(--play-ink), var(--shadow-sm); }
+  }
+  /* Short AND wide (landscape phone, small laptop): two-column map, so put
+     each strand's signpost beside its trail instead of above it. */
+  @media (max-height: 480px) and (min-width: 760px) {
+    .map-head { gap: var(--sp-2); }
+    .map-fizz .fizz--lg { width: 52px; height: 52px; }
+    .trail { flex-direction: row; align-items: center; gap: var(--sp-2); }
+    .const-strand-title { min-width: 7.5em; text-align: center; }
+    .trail-row { --step: clamp(12px, 2.4vw, 40px); }
   }
 </style>
 </head>
@@ -536,7 +789,7 @@
 <span class="bg-blob bg-blob--4" aria-hidden="true"></span>
 <div class="wrap">
   <div id="app"></div>
-  <a class="pill-link foot-link" href="#" id="tutorLink" target="_blank">
+  <a class="foot-link" href="#" id="tutorLink" target="_blank">
     tutor view
     <svg class="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
   </a>

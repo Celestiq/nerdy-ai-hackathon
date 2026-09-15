@@ -2,6 +2,7 @@ import { Router } from "express";
 import { graph, registry, itemBank, store, anchors, directory, cohortMembers, studentName, dbConfigured } from "./state.js";
 import { checkDbConnection, persistBundle } from "./db.js";
 import { selectNext } from "../src/engine/engine.js";
+import { isCovered } from "../src/engine/candidates.js";
 import { blame, type BlameSuspect } from "../src/graph/query.js";
 import { buildTutorReport, type CohortMember } from "../src/analytics/index.js";
 import { buildObservation } from "../src/sdk/observation.js";
@@ -215,6 +216,134 @@ function enrichBelief(studentId: string): BeliefState[] {
 
 api.get("/belief/:studentId", (req, res) => {
   res.json(enrichBelief(req.params.studentId));
+});
+
+// -------------------- child star map (BACKLOG.md "Star Path") --------------------
+// The child surface's progression home. Everything a child's browser needs
+// to draw the map, and nothing more: authored concepts only, a coarse
+// visual tier per concept (never p_mastery/p_decayed/confidence, counts or
+// ranks), the prerequisite edges between them, and exactly one `next`
+// star. The judgement of "which tier" and "which star glows" lives here so
+// the child client never sees a probability and never works anything out.
+//
+// `next` is a map highlight only. The session Play actually starts still
+// comes from selectNext() (with its own counter seed), so it may land on a
+// different concept -- child copy must never promise otherwise.
+
+export type StarTier = "seed" | "glow" | "bloom" | "fading";
+
+export interface ChildMapConcept {
+  concept_id: string;
+  strand: string;
+  tier: StarTier;
+  next: boolean;
+}
+
+export interface ChildMapStrand {
+  strand: string;
+  /** Authored concepts in this strand, prerequisite-first. Empty when the strand has no authored content yet. */
+  concept_ids: string[];
+  /** The strand also holds concepts no game can serve yet (rendered as one soft "more coming" hint, never as dead seeds). */
+  hasComingLater: boolean;
+}
+
+export interface ChildMap {
+  student_id: string;
+  strands: ChildMapStrand[];
+  concepts: ChildMapConcept[];
+  edges: { from: string; to: string; strength: "hard" | "supporting" }[];
+}
+
+function starTier(belief: BeliefInternal | undefined): StarTier {
+  if (!belief || belief.status === "UNTESTED") return "seed";
+  if (belief.status === "MASTERED") return "bloom";
+  if (belief.status === "DECAYED") return "fading";
+  // EMERGING and STUCK share one warm "growing" tier on purpose: STUCK must
+  // never read as alarming on the child surface.
+  return "glow";
+}
+
+// `next` eligibility is decided by belief *status*, not raw p_mastery, so it
+// agrees with the mastery gate in src/store/projector.ts (p over threshold
+// alone is not mastery -- the recent-evidence floor must also hold).
+//   - the concept itself is EMERGING, UNTESTED or DECAYED. STUCK never
+//     glows: it is escalated to a person and the engine hard-blocks it, so
+//     a glow would promise "ready to grow" and Play would serve something
+//     else. MASTERED never glows.
+//   - every hard prerequisite is MASTERED or DECAYED (a prerequisite still
+//     EMERGING, even over the p threshold, blocks its successor).
+//   - authored, and some registered game can actually serve it.
+// Preference: keep growing started work (EMERGING), then refresh a fading
+// star (DECAYED), then a fresh seed (UNTESTED); ties by shallower depth,
+// then graph order. If nothing qualifies there is no `next` at all.
+// frontier() in src/graph/query.ts is deliberately not used here: it is
+// p_mastery-based and the engine depends on it as-is.
+const NEXT_PREFERENCE: Partial<Record<BeliefInternal["status"], number>> = { EMERGING: 0, DECAYED: 1, UNTESTED: 2 };
+const PREREQ_SATISFIED: ReadonlySet<BeliefInternal["status"]> = new Set(["MASTERED", "DECAYED"]);
+
+export function buildChildMap(studentId: string): ChildMap {
+  const belief = store.belief(studentId);
+  const authoredNodes = [...graph.nodes.values()].filter((n) => n.status === "authored");
+  const authoredIds = new Set(authoredNodes.map((n) => n.concept_id));
+  const graphOrder = new Map([...graph.nodes.keys()].map((id, i) => [id, i]));
+
+  const edges = graph.data.requires
+    .filter((e) => authoredIds.has(e.from) && authoredIds.has(e.to))
+    .map((e) => ({ from: e.from, to: e.to, strength: e.strength }));
+
+  // Prerequisite depth within the concept's own strand (longest chain of
+  // same-strand requires edges), so each strand reads as a short trail that
+  // starts at its foundation. Cross-strand edges are still returned above.
+  const depthMemo = new Map<string, number>();
+  const depth = (id: string, seen = new Set<string>()): number => {
+    if (depthMemo.has(id)) return depthMemo.get(id)!;
+    if (seen.has(id)) return 0;
+    seen.add(id);
+    const strand = graph.node(id)?.strand;
+    const prereqs = edges.filter((e) => e.from === id && graph.node(e.to)?.strand === strand);
+    const d = prereqs.length === 0 ? 0 : 1 + Math.max(...prereqs.map((e) => depth(e.to, seen)));
+    depthMemo.set(id, d);
+    return d;
+  };
+
+  const strandOrder: string[] = [];
+  for (const node of graph.nodes.values()) if (!strandOrder.includes(node.strand)) strandOrder.push(node.strand);
+
+  const strands: ChildMapStrand[] = strandOrder.map((strand) => {
+    const inStrand = [...graph.nodes.values()].filter((n) => n.strand === strand);
+    const concept_ids = inStrand
+      .filter((n) => n.status === "authored")
+      .map((n) => n.concept_id)
+      .sort((a, b) => depth(a) - depth(b) || graphOrder.get(a)! - graphOrder.get(b)!);
+    return { strand, concept_ids, hasComingLater: inStrand.some((n) => n.status !== "authored") };
+  });
+
+  const statusOf = (id: string): BeliefInternal["status"] => belief.get(id)?.status ?? "UNTESTED";
+  const eligible = authoredNodes
+    .filter((n) => NEXT_PREFERENCE[statusOf(n.concept_id)] !== undefined)
+    .filter((n) =>
+      graph.data.requires
+        .filter((e) => e.from === n.concept_id && e.strength === "hard")
+        .every((e) => PREREQ_SATISFIED.has(statusOf(e.to))),
+    )
+    .filter((n) => isCovered(graph, registry, itemBank, n.concept_id))
+    .sort(
+      (a, b) =>
+        NEXT_PREFERENCE[statusOf(a.concept_id)]! - NEXT_PREFERENCE[statusOf(b.concept_id)]! ||
+        depth(a.concept_id) - depth(b.concept_id) ||
+        graphOrder.get(a.concept_id)! - graphOrder.get(b.concept_id)!,
+    );
+  const nextId = eligible[0]?.concept_id ?? null;
+
+  const concepts: ChildMapConcept[] = strands.flatMap((s) =>
+    s.concept_ids.map((id) => ({ concept_id: id, strand: s.strand, tier: starTier(belief.get(id)), next: id === nextId })),
+  );
+
+  return { student_id: studentId, strands, concepts, edges };
+}
+
+api.get("/child/map/:studentId", (req, res) => {
+  res.json(buildChildMap(req.params.studentId));
 });
 
 // Plain-English explanations of each signature, for the tutor's per-test
