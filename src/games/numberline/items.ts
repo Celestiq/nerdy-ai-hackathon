@@ -67,6 +67,62 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.25,
     claims: [],
   },
+  // N.COUNT pool (C2, cycle 18). No claims, same as the four items above:
+  // the graph has no explains edge at N.COUNT and no N.COUNT item has ever
+  // carried a signature, so a wrong placement here stays UNCLASSIFIED rather
+  // than borrowing a signature another concept owns. Harder items move to
+  // the 0..20 line the concept label ("count a sequence to 20") names; none
+  // repeats an N.ORD prompt on that line.
+  {
+    item_id: "itm_nc_4",
+    concept_id: "N.COUNT",
+    prompt: "4",
+    scale: [0, 10],
+    target: 0.4,
+    tolerance: 0.07,
+    difficulty: 0.3,
+    claims: [],
+  },
+  {
+    item_id: "itm_nc_6",
+    concept_id: "N.COUNT",
+    prompt: "6",
+    scale: [0, 10],
+    target: 0.6,
+    tolerance: 0.07,
+    difficulty: 0.32,
+    claims: [],
+  },
+  {
+    item_id: "itm_nc_10of20",
+    concept_id: "N.COUNT",
+    prompt: "10",
+    scale: [0, 20],
+    target: 0.5,
+    tolerance: 0.06,
+    difficulty: 0.4,
+    claims: [],
+  },
+  {
+    item_id: "itm_nc_15of20",
+    concept_id: "N.COUNT",
+    prompt: "15",
+    scale: [0, 20],
+    target: 0.75,
+    tolerance: 0.06,
+    difficulty: 0.5,
+    claims: [],
+  },
+  {
+    item_id: "itm_nc_16of20",
+    concept_id: "N.COUNT",
+    prompt: "16",
+    scale: [0, 20],
+    target: 0.8,
+    tolerance: 0.06,
+    difficulty: 0.6,
+    claims: [],
+  },
   {
     item_id: "itm_no_12",
     concept_id: "N.ORD",
@@ -106,6 +162,63 @@ export const numberlineItems: NumberlineItem[] = [
     tolerance: 0.06,
     difficulty: 0.3,
     claims: [],
+  },
+  // N.ORD pool (C2, cycle 18). LANDMARK_ONLY, the signature itm_no_4 already
+  // uses: a child who only knows 0 / the middle / the end drops a number
+  // with no nearby landmark at the middle (same convention as itm_nl_27).
+  // Every number sits between a quarter and three quarters of its line, so
+  // the middle really is its nearest landmark, while each claim region keeps
+  // >=0.03 clear of the tolerance band. itm_no_34of50 carries the same
+  // construction to a 0..50 line for the hardest item.
+  {
+    item_id: "itm_no_6",
+    concept_id: "N.ORD",
+    prompt: "6",
+    scale: [0, 20],
+    target: 0.3,
+    tolerance: 0.06,
+    difficulty: 0.3,
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
+  },
+  {
+    item_id: "itm_no_14",
+    concept_id: "N.ORD",
+    prompt: "14",
+    scale: [0, 20],
+    target: 0.7,
+    tolerance: 0.06,
+    difficulty: 0.35,
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
+  },
+  {
+    item_id: "itm_no_13",
+    concept_id: "N.ORD",
+    prompt: "13",
+    scale: [0, 20],
+    target: 0.65,
+    tolerance: 0.06,
+    difficulty: 0.45,
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.05 }],
+  },
+  {
+    item_id: "itm_no_7",
+    concept_id: "N.ORD",
+    prompt: "7",
+    scale: [0, 20],
+    target: 0.35,
+    tolerance: 0.06,
+    difficulty: 0.5,
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.05 }],
+  },
+  {
+    item_id: "itm_no_34of50",
+    concept_id: "N.ORD",
+    prompt: "34",
+    scale: [0, 50],
+    target: 0.68,
+    tolerance: 0.05,
+    difficulty: 0.6,
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
   },
   // N.MAG's LOG_COMPRESSION claims follow the research direction
   // (Siegler & Opfer 2003): a child whose number line is logarithmically
@@ -147,8 +260,10 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.4,
     tolerance: 0.05,
     difficulty: 0.25,
-    // near-middle number: snapping to the 50 landmark instead of estimating
-    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.025 }],
+    // near-middle number: snapping to the 50 landmark instead of estimating.
+    // Width 0.025 -> 0.02 in cycle 18 (C2): keeps a 0.03 gap from the
+    // 0.35..0.45 tolerance band.
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.02 }],
   },
   {
     item_id: "itm_nl_27",
@@ -193,6 +308,29 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.65,
     // log(58)/log(100) ~= 0.88
     claims: [{ signature: "LOG_COMPRESSION", at: 0.88, width: 0.08 }],
+  },
+  // C2 (cycle 18): same LOG_COMPRESSION construction.
+  {
+    item_id: "itm_nl_3",
+    concept_id: "N.MAG",
+    prompt: "3",
+    scale: [0, 100],
+    target: 0.03,
+    tolerance: 0.03,
+    difficulty: 0.38,
+    // log(3)/log(100) ~= 0.24: a small number spread far too far right
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.24, width: 0.06 }],
+  },
+  {
+    item_id: "itm_nl_71",
+    concept_id: "N.MAG",
+    prompt: "71",
+    scale: [0, 100],
+    target: 0.71,
+    tolerance: 0.04,
+    difficulty: 0.7,
+    // log(71)/log(100) ~= 0.93: squeezed up at the high end
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.93, width: 0.04 }],
   },
   // N.PLACE ("place value: tens and ones") and N.PLACE.HTH ("place value:
   // hundreds") test digit-position understanding specifically, one strand
@@ -303,6 +441,30 @@ export const numberlineItems: NumberlineItem[] = [
     // "86" placed as if it were "68"
     claims: [{ signature: "RANGE_COMPRESSION", at: 0.68, width: 0.06 }],
   },
+  // C2 (cycle 18): same tens/ones swap; digits differ by >=2 and no swap
+  // lands near the half landmark.
+  {
+    item_id: "itm_np_38",
+    concept_id: "N.PLACE",
+    prompt: "38",
+    scale: [0, 100],
+    target: 0.38,
+    tolerance: 0.05,
+    difficulty: 0.38,
+    // "38" placed as if it were "83"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.83, width: 0.06 }],
+  },
+  {
+    item_id: "itm_np_91",
+    concept_id: "N.PLACE",
+    prompt: "91",
+    scale: [0, 100],
+    target: 0.91,
+    tolerance: 0.05,
+    difficulty: 0.55,
+    // "91" placed as if it were "19"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.19, width: 0.06 }],
+  },
   {
     item_id: "itm_nph_500",
     concept_id: "N.PLACE.HTH",
@@ -348,6 +510,66 @@ export const numberlineItems: NumberlineItem[] = [
     // hundreds/tens digit swap: "615" placed as if it were "165".
     claims: [{ signature: "RANGE_COMPRESSION", at: 0.165, width: 0.03 }],
   },
+  // N.PLACE.HTH pool (C2, cycle 18): same hundreds/tens swap construction.
+  // Hundreds and tens digits differ by >=2 (so the swapped position is
+  // >=0.18 away and the claim keeps a clean gap from the tolerance band), and
+  // no tens digit is 5 (a swap into the 500s would put the claim on the
+  // half landmark).
+  {
+    item_id: "itm_nph_190",
+    concept_id: "N.PLACE.HTH",
+    prompt: "190",
+    scale: [0, 1000],
+    target: 0.19,
+    tolerance: 0.03,
+    difficulty: 0.35,
+    // "190" placed as if it were "910"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.91, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_730",
+    concept_id: "N.PLACE.HTH",
+    prompt: "730",
+    scale: [0, 1000],
+    target: 0.73,
+    tolerance: 0.03,
+    difficulty: 0.42,
+    // "730" placed as if it were "370"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.37, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_428",
+    concept_id: "N.PLACE.HTH",
+    prompt: "428",
+    scale: [0, 1000],
+    target: 0.428,
+    tolerance: 0.03,
+    difficulty: 0.52,
+    // "428" placed as if it were "248"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.248, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_826",
+    concept_id: "N.PLACE.HTH",
+    prompt: "826",
+    scale: [0, 1000],
+    target: 0.826,
+    tolerance: 0.03,
+    difficulty: 0.65,
+    // "826" placed as if it were "286"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.286, width: 0.03 }],
+  },
+  {
+    item_id: "itm_nph_364",
+    concept_id: "N.PLACE.HTH",
+    prompt: "364",
+    scale: [0, 1000],
+    target: 0.364,
+    tolerance: 0.03,
+    difficulty: 0.7,
+    // "364" placed as if it were "634"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.634, width: 0.03 }],
+  },
   {
     item_id: "itm_fu_1_8",
     concept_id: "F.MAG.UNIT",
@@ -378,7 +600,9 @@ export const numberlineItems: NumberlineItem[] = [
     target: 1 / 6,
     tolerance: 0.06,
     difficulty: 0.55,
-    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.12 }],
+    // width 0.12 -> 0.08 in cycle 18 (C2): the old region (0.48..0.72)
+    // covered the half landmark.
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.08 }],
   },
   {
     item_id: "itm_fu_1_10",
@@ -426,6 +650,42 @@ export const numberlineItems: NumberlineItem[] = [
     // snapping to the half landmark instead of thirds
     claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
   },
+  // C2 (cycle 18): 1/7 and 1/9 are stretch denominators OUTSIDE the Common
+  // Core grade 3-4 lists (3: 2,3,4,6,8; 4 adds 5,10,12,100) -- kept as
+  // general-"1/n" probes at higher difficulty, not in-band precedent. 1/12 is
+  // in band. Same
+  // denominator/10 WHOLE_NUMBER_BIAS construction (a denominator of 10 or more
+  // reads as the far end of the line, as itm_fu_1_10 does).
+  {
+    item_id: "itm_fu_1_7",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/7",
+    scale: [0, 1],
+    target: 1 / 7,
+    tolerance: 0.05,
+    difficulty: 0.6,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.7, width: 0.1 }],
+  },
+  {
+    item_id: "itm_fu_1_9",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/9",
+    scale: [0, 1],
+    target: 1 / 9,
+    tolerance: 0.05,
+    difficulty: 0.65,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.9, width: 0.08 }],
+  },
+  {
+    item_id: "itm_fu_1_12",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/12",
+    scale: [0, 1],
+    target: 1 / 12,
+    tolerance: 0.04,
+    difficulty: 0.7,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
+  },
   {
     item_id: "itm_fn_3_4",
     concept_id: "F.MAG.NONUNIT",
@@ -434,7 +694,9 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.75,
     tolerance: 0.06,
     difficulty: 0.45,
-    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.4, width: 0.12 }],
+    // width 0.12 -> 0.08 in cycle 18 (C2): the old region (0.28..0.52)
+    // covered the half landmark.
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.4, width: 0.08 }],
   },
   {
     item_id: "itm_fn_2_5",
@@ -444,7 +706,9 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.4,
     tolerance: 0.06,
     difficulty: 0.5,
-    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.1 }],
+    // width 0.1 -> 0.08 in cycle 18 (C2): the old region (0.5..0.7) reached
+    // the half landmark.
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.08 }],
   },
   // F.MAG.NONUNIT pool (C1, cycle 18). WHOLE_NUMBER_BIAS claim uses the same
   // construction as F.MAG.UNIT's items above: the denominator read as a
@@ -489,6 +753,39 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.7,
     tolerance: 0.05,
     difficulty: 0.7,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
+  },
+  // C2 (cycle 18): same denominator/10 construction. 3/5 and 4/5 are left
+  // out (their claim would sit on the half landmark), 7/8 and 9/10 too (claim
+  // too close to the target).
+  {
+    item_id: "itm_fn_3_8",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "3/8",
+    scale: [0, 1],
+    target: 0.375,
+    tolerance: 0.06,
+    difficulty: 0.38,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.8, width: 0.1 }],
+  },
+  {
+    item_id: "itm_fn_3_10",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "3/10",
+    scale: [0, 1],
+    target: 0.3,
+    tolerance: 0.05,
+    difficulty: 0.5,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
+  },
+  {
+    item_id: "itm_fn_5_12",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "5/12",
+    scale: [0, 1],
+    target: 5 / 12,
+    tolerance: 0.05,
+    difficulty: 0.72,
     claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
   },
   // D.NOTATE ("decimal notation: tenths and hundredths place") -- unlike
@@ -544,6 +841,80 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.65,
     claims: [{ signature: "LONGER_IS_LARGER", at: 0.9, width: 0.1 }],
   },
+  // D.NOTATE pool (C2, cycle 18), LONGER_IS_LARGER only, the two readings
+  // above: (a) a two-digit hundredths string read as a whole number ("25" >
+  // "9") and placed near the top, like itm_dn_0_36; (b) the leading zero
+  // ignored, so 0.0d lands at 0.d, exactly ten times too far right, like
+  // itm_dn_0_04. 0.05 and 0.01 are left out: 0.05's misread position is the
+  // half landmark, and 0.01's is too close to its own tolerance band. No
+  // prompt repeats a D.MAG / D.MAG.CMP prompt or the 0.125 anchor.
+  {
+    item_id: "itm_dn_0_25",
+    concept_id: "D.NOTATE",
+    prompt: "0.25",
+    scale: [0, 1],
+    target: 0.25,
+    tolerance: 0.05,
+    difficulty: 0.3,
+    // "25" read as bigger than any tenths digit
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.8, width: 0.12 }],
+  },
+  {
+    item_id: "itm_dn_0_12",
+    concept_id: "D.NOTATE",
+    prompt: "0.12",
+    scale: [0, 1],
+    target: 0.12,
+    tolerance: 0.05,
+    difficulty: 0.38,
+    // "12" read as bigger than "9"
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.85, width: 0.12 }],
+  },
+  {
+    item_id: "itm_dn_0_03",
+    concept_id: "D.NOTATE",
+    prompt: "0.03",
+    scale: [0, 1],
+    target: 0.03,
+    tolerance: 0.03,
+    difficulty: 0.45,
+    // leading zero ignored: placed as if it were 0.3
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.3, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dn_0_06",
+    concept_id: "D.NOTATE",
+    prompt: "0.06",
+    scale: [0, 1],
+    target: 0.06,
+    tolerance: 0.03,
+    difficulty: 0.5,
+    // leading zero ignored: placed as if it were 0.6 (width kept narrow so
+    // the region stays clear of the half landmark)
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.6, width: 0.07 }],
+  },
+  {
+    item_id: "itm_dn_0_07",
+    concept_id: "D.NOTATE",
+    prompt: "0.07",
+    scale: [0, 1],
+    target: 0.07,
+    tolerance: 0.03,
+    difficulty: 0.62,
+    // leading zero ignored: placed as if it were 0.7
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.7, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dn_0_08",
+    concept_id: "D.NOTATE",
+    prompt: "0.08",
+    scale: [0, 1],
+    target: 0.08,
+    tolerance: 0.03,
+    difficulty: 0.7,
+    // leading zero ignored: placed as if it were 0.8
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.8, width: 0.1 }],
+  },
   {
     item_id: "itm_dm_0_125",
     concept_id: "D.MAG",
@@ -554,7 +925,10 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.6,
     claims: [
       { signature: "LONGER_IS_LARGER", at: 0.8, width: 0.15 },
-      { signature: "LOG_COMPRESSION", at: 0.3, width: 0.1 },
+      // No LOG_COMPRESSION claim (cycle 18): the log-compressed position,
+      // log(12.5)/log(100) ~= 0.548, is not physically distinguishable from an
+      // "about the middle" tap, so on this cohort anchor it would turn motor
+      // noise into D.MAG blame. D.MAG's other LOG items carry that probe.
     ],
   },
   {
@@ -620,6 +994,52 @@ export const numberlineItems: NumberlineItem[] = [
     tolerance: 0.05,
     difficulty: 0.65,
     claims: [{ signature: "LONGER_IS_LARGER", at: 0.8, width: 0.12 }],
+  },
+  // C2 (cycle 18): same LOG_COMPRESSION construction, log(100x)/log(100).
+  // 0.1 is left out (its log position is the half landmark).
+  {
+    item_id: "itm_dm_0_6",
+    concept_id: "D.MAG",
+    prompt: "0.6",
+    scale: [0, 1],
+    target: 0.6,
+    tolerance: 0.05,
+    difficulty: 0.28,
+    // log(60)/log(100) ~= 0.89
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.89, width: 0.05 }],
+  },
+  {
+    item_id: "itm_dm_0_35",
+    concept_id: "D.MAG",
+    prompt: "0.35",
+    scale: [0, 1],
+    target: 0.35,
+    tolerance: 0.05,
+    difficulty: 0.42,
+    // log(35)/log(100) ~= 0.77
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.77, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dm_0_05",
+    concept_id: "D.MAG",
+    prompt: "0.05",
+    scale: [0, 1],
+    target: 0.05,
+    tolerance: 0.03,
+    difficulty: 0.55,
+    // log(5)/log(100) ~= 0.35
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.35, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dm_0_8",
+    concept_id: "D.MAG",
+    prompt: "0.8",
+    scale: [0, 1],
+    target: 0.8,
+    tolerance: 0.04,
+    difficulty: 0.7,
+    // log(80)/log(100) ~= 0.95
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.95, width: 0.03 }],
   },
   // D.MAG.CMP ("compare decimals"). The graph's explains edge for this
   // concept is LONGER_IS_LARGER ("0.125 read as larger than 0.5 because
@@ -688,6 +1108,37 @@ export const numberlineItems: NumberlineItem[] = [
     tolerance: 0.04,
     difficulty: 0.7,
     claims: [{ signature: "LONGER_IS_LARGER", at: 0.85, width: 0.12 }],
+  },
+  // C2 (cycle 18): same long-digit-string construction, claim high.
+  {
+    item_id: "itm_dc_0_18",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.18",
+    scale: [0, 1],
+    target: 0.18,
+    tolerance: 0.05,
+    difficulty: 0.33,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.72, width: 0.12 }],
+  },
+  {
+    item_id: "itm_dc_0_38",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.38",
+    scale: [0, 1],
+    target: 0.38,
+    tolerance: 0.05,
+    difficulty: 0.42,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.85, width: 0.1 }],
+  },
+  {
+    item_id: "itm_dc_0_165",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.165",
+    scale: [0, 1],
+    target: 0.165,
+    tolerance: 0.05,
+    difficulty: 0.62,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.75, width: 0.15 }],
   },
 ];
 

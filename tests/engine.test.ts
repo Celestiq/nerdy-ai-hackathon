@@ -223,10 +223,13 @@ describe("assembleAssignment: seed-based item rotation", () => {
       const result = assembleAssignment(graph, registry, itemBank, ["N.COUNT"], new Map(), seed);
       return result!.item_specs.map((i) => i.item_id).join(">");
     });
-    // Same four N.COUNT items every time (rotation reorders, never drops or
-    // invents items) -- but not always in the same order.
+    // Same N.COUNT items every time (rotation reorders, never drops or
+    // invents items) -- but not always in the same order. Read from the bank
+    // (N.COUNT's pool was deepened in cycle 18, C2) rather than pinned ids.
+    const nCountIds = numberlineItems.filter((i) => i.concept_id === "N.COUNT").map((i) => i.item_id);
+    expect(nCountIds.length).toBeLessThanOrEqual(numberlineManifest.items_per_session.max);
     for (const order of orders) {
-      expect(new Set(order.split(">"))).toEqual(new Set(["itm_nc_7", "itm_nc_3", "itm_nc_5", "itm_nc_9"]));
+      expect(new Set(order.split(">"))).toEqual(new Set(nCountIds));
     }
     expect(new Set(orders).size).toBeGreaterThan(1);
   });
@@ -261,9 +264,13 @@ describe("assembleAssignment: relaxed concept gets ascending-difficulty ordering
     expect(result).toBeDefined();
 
     const nCountDifficulties = result!.item_specs.filter((i) => i.concept_id === "N.COUNT").map((i) => i.difficulty);
-    // itm_nc_3=0.15, itm_nc_5=0.18, itm_nc_7=0.2, itm_nc_9=0.25
+    // Every N.COUNT item in the bank, easiest first (derived from the bank:
+    // the pool was deepened in cycle 18, C2, and still fits in one session
+    // with room for the other concept).
+    const bankNCount = numberlineItems.filter((i) => i.concept_id === "N.COUNT").map((i) => i.difficulty);
+    expect(bankNCount.length).toBeLessThan(numberlineManifest.items_per_session.max);
     expect(nCountDifficulties).toEqual([...nCountDifficulties].sort((a, b) => a - b));
-    expect(nCountDifficulties).toEqual([0.15, 0.18, 0.2, 0.25]);
+    expect(nCountDifficulties).toEqual([...bankNCount].sort((a, b) => a - b));
 
     // The relaxed concept's items come first, ahead of the other concept's
     // (rotated) items.
@@ -281,7 +288,7 @@ describe("assembleAssignment: relaxed concept gets ascending-difficulty ordering
     // Not asserting a specific order (that's the rotation test's job) --
     // just that this path doesn't coincidentally always match the sorted
     // order, i.e. ascending-difficulty is specific to the relaxed path.
-    const ascending = [0.15, 0.18, 0.2, 0.25];
+    const ascending = numberlineItems.filter((i) => i.concept_id === "N.COUNT").map((i) => i.difficulty).sort((a, b) => a - b);
     // If this ever flakes because a seed happens to rotate into ascending
     // order too, that's fine -- it's not the behavior under test, sorting
     // definitely happening for the *relaxed* path (covered above) is.
