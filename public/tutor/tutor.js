@@ -91,6 +91,21 @@ const GAME_LABEL = {
   "balancescale.compare.v1": "Balance scale",
 };
 
+// Graph nodes carry status "authored" (a game + items can serve it) or
+// "stub" (in the concept graph, nothing can assess it yet). Anything without
+// a status field is treated as authored so an older API response still
+// renders every concept as before.
+function isAuthored(concept) {
+  return concept.status !== "stub";
+}
+// Denominator for every "N of M concepts" figure on this dashboard (mastery
+// gauge, roster meters, "measured" counts): only concepts a child could
+// actually be measured on. Counting stubs made every child look ~80% empty.
+function authoredCount() {
+  const n = cache.concepts.filter(isAuthored).length;
+  return n || cache.concepts.length;
+}
+
 // -------------------- state --------------------
 // Data is fetched once per poll (load) and cached; switching tabs, pages or
 // the roster filter only re-renders from the cache -- no network round trip.
@@ -132,6 +147,16 @@ let whyOpen = false;
 // shape as e.g. sessionsByStudent's per-student cache, just for a UI flag
 // instead of fetched data.
 let hasAutoOpenedWhy = false;
+// Cold-load default: the dashboard opens focused on the child who most needs
+// a human (first entry of report.stuck -- the same order "Needs extra
+// support" lists them in), falling back to the first child in the directory,
+// so the "Why this next" routing trace is on screen without a click. Runs
+// once per page load only: if a tutor then switches to "All children", later
+// polls must not yank the selection back.
+let hasAutoSelected = false;
+// Concept map: whether the current strand's "not yet authored" row is
+// expanded. Resets whenever the strand changes.
+let stubsOpen = false;
 
 function setTab(tab) {
   activeTab = tab;
@@ -163,6 +188,7 @@ function setStudent(id) {
   renderRoster();
 }
 function setStrand(strand) {
+  if (strand !== activeStrand) stubsOpen = false;
   activeStrand = strand;
   renderPanel();
 }
@@ -256,7 +282,25 @@ async function load() {
   lastSnapshotKey = snapshotKey;
 
   if (!activeStrand) {
-    activeStrand = STRAND_ORDER.find((s) => concepts.some((c) => c.strand === s)) ?? concepts[0]?.strand ?? null;
+    // Prefer a strand that has authored (playable) concepts, so the map
+    // doesn't open on a strand that is nothing but "not yet authored".
+    activeStrand =
+      STRAND_ORDER.find((s) => concepts.some((c) => c.strand === s && isAuthored(c))) ??
+      STRAND_ORDER.find((s) => concepts.some((c) => c.strand === s)) ??
+      concepts[0]?.strand ??
+      null;
+  }
+  if (!hasAutoSelected) {
+    hasAutoSelected = true;
+    const topId = report.stuck[0]?.student_id ?? directory[0]?.student_id ?? null;
+    const idx = directory.findIndex((d) => d.student_id === topId);
+    if (idx >= 0) {
+      selectedStudentId = topId;
+      rosterPage = Math.floor(idx / ROSTER_PAGE_SIZE);
+      whyOpen = true;
+      hasAutoOpenedWhy = true;
+      loadAssignmentFor(topId);
+    }
   }
   // Only touch the DOM when something a tutor could actually see has
   // changed -- render() (see below) replaces all four regions, which
@@ -375,14 +419,14 @@ function render() {
 // of sync with the detail views it summarizes.
 
 function cohortMasteryPct() {
-  const { report, concepts, beliefByStudent } = cache;
+  const { report, beliefByStudent } = cache;
   if (selectedStudentId) {
     const belief = beliefByStudent.get(selectedStudentId) ?? [];
     const masteredN = belief.filter((b) => b.status === "MASTERED").length;
-    return concepts.length ? Math.round((masteredN / concepts.length) * 100) : 0;
+    return Math.round((masteredN / authoredCount()) * 100);
   }
   const totalMastered = report.coverage.reduce((sum, c) => sum + c.mastered_n, 0);
-  const totalPossible = concepts.length * report.cohort_size;
+  const totalPossible = authoredCount() * report.cohort_size;
   return totalPossible ? Math.round((totalMastered / totalPossible) * 100) : 0;
 }
 
@@ -423,7 +467,8 @@ function pulseCol() {
 // -------------------- roster (paginated, no horizontal scroll) --------------------
 
 function rosterBlock() {
-  const { directory, beliefByStudent, concepts } = cache;
+  const { directory, beliefByStudent } = cache;
+  const totalConcepts = authoredCount();
   const totalPages = Math.max(1, Math.ceil(directory.length / ROSTER_PAGE_SIZE));
   rosterPage = Math.min(rosterPage, totalPages - 1);
   const pageItems = directory.slice(rosterPage * ROSTER_PAGE_SIZE, rosterPage * ROSTER_PAGE_SIZE + ROSTER_PAGE_SIZE);
@@ -450,7 +495,7 @@ function rosterBlock() {
   pageItems.forEach((d) => {
     const globalIndex = directory.indexOf(d);
     const belief = beliefByStudent.get(d.student_id) ?? [];
-    const summary = rosterSummary(belief, concepts.length);
+    const summary = rosterSummary(belief, totalConcepts);
     const stuckN = summary.STUCK;
     cards.appendChild(
       el(
@@ -462,8 +507,8 @@ function rosterBlock() {
             el("div", { class: "rc-name" }, d.name),
             stuckN > 0 ? el("span", { class: "chip chip--stuck rc-flag" }, String(stuckN)) : null,
           ]),
-          miniStackMeter(summary, concepts.length),
-          el("div", { class: "rc-count" }, `${belief.length}/${concepts.length} measured`),
+          miniStackMeter(summary, totalConcepts),
+          el("div", { class: "rc-count" }, `${belief.length}/${totalConcepts} measured`),
         ],
       ),
     );
@@ -955,19 +1000,59 @@ function conceptMapBlock() {
     el(
       "div",
       { class: "subtabbar" },
-      strandsPresent.map((s) =>
-        el("button", { class: "subtab-btn" + (activeStrand === s ? " active" : ""), onclick: () => setStrand(s) }, STRAND_LABEL[s] ?? s),
-      ),
+      strandsPresent.map((s) => {
+        const authoredN = concepts.filter((c) => c.strand === s && isAuthored(c)).length;
+        return el(
+          "button",
+          { class: "subtab-btn" + (activeStrand === s ? " active" : "") + (authoredN === 0 ? " no-authored" : ""), onclick: () => setStrand(s) },
+          [STRAND_LABEL[s] ?? s, authoredN > 0 ? el("span", { class: "subtab-n" }, String(authoredN)) : null],
+        );
+      }),
     ),
   ]);
 
+  const inStrand = concepts.filter((c) => c.strand === activeStrand);
+  const authored = inStrand.filter(isAuthored);
+  const stubs = inStrand.filter((c) => !isAuthored(c));
+
+  if (authored.length === 0) {
+    block.appendChild(el("div", { class: "strand-empty" }, "No games assess this strand yet, so there's nothing to measure here."));
+  }
   const grid = el("div", { class: "concept-grid" });
-  for (const node of concepts.filter((c) => c.strand === activeStrand)) {
+  for (const node of authored) {
     grid.appendChild(conceptTile(node, coverageById[node.concept_id], soloBelief, report.cohort_size));
   }
   block.appendChild(grid);
+  if (stubs.length > 0) block.appendChild(stubRow(stubs));
   block.appendChild(legend());
   return block;
+}
+
+// One muted, expandable row standing in for every stub concept in a strand.
+// Expanded, it lists them as plain chips (hover for the tooltip) -- no
+// meters, no "unmeasured" tiles, since nothing can measure them yet.
+function stubRow(stubs) {
+  const toggle = el(
+    "button",
+    { class: "stub-toggle", "aria-expanded": String(stubsOpen), onclick: () => { stubsOpen = !stubsOpen; renderPanel(); } },
+    [
+      el("span", { class: "stub-chevron" + (stubsOpen ? " open" : "") }, [icon("chevronDown")]),
+      el("span", { class: "stub-n" }, String(stubs.length)),
+      `${stubs.length === 1 ? "concept" : "concepts"} not yet authored`,
+      el("span", { class: "stub-note" }, "in the graph · no game or items yet"),
+    ],
+  );
+  const row = el("div", { class: "stub-row" }, [toggle]);
+  if (stubsOpen) {
+    row.appendChild(
+      el(
+        "div",
+        { class: "stub-list" },
+        stubs.map((c) => el("span", { class: "mono-chip", "data-concept-id": c.concept_id }, c.label)),
+      ),
+    );
+  }
+  return row;
 }
 
 function conceptTile(node, coverage, soloBelief, cohortSize) {
