@@ -107,6 +107,13 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.3,
     claims: [],
   },
+  // N.MAG's LOG_COMPRESSION claims follow the research direction
+  // (Siegler & Opfer 2003): a child whose number line is logarithmically
+  // compressed spreads SMALL numbers out (places them too far right) and
+  // squeezes large ones together at the high end. The claim sits at the
+  // log-predicted position log(n)/log(100) on the 0..100 line. Cycle 18 (C1,
+  // pedagogy review) re-pointed itm_nl_62's claim from 0.3 (the old,
+  // backwards "squeezed toward the low end" reading) to that position.
   {
     item_id: "itm_nl_62",
     concept_id: "N.MAG",
@@ -115,7 +122,8 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.62,
     tolerance: 0.05,
     difficulty: 0.3,
-    claims: [{ signature: "LOG_COMPRESSION", at: 0.3, width: 0.15 }],
+    // log(62)/log(100) ~= 0.90
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.9, width: 0.05 }],
   },
   {
     item_id: "itm_nl_15",
@@ -126,6 +134,65 @@ export const numberlineItems: NumberlineItem[] = [
     tolerance: 0.05,
     difficulty: 0.2,
     claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.05 }],
+  },
+  // N.MAG pool (C1, cycle 18). LOG_COMPRESSION as described above;
+  // LANDMARK_ONLY = snapping to the nearest landmark (0 / 50 / 100) instead of
+  // estimating. Numbers chosen so none repeats an N.PLACE prompt, and every
+  // claim region is disjoint from its target's tolerance band.
+  {
+    item_id: "itm_nl_40",
+    concept_id: "N.MAG",
+    prompt: "40",
+    scale: [0, 100],
+    target: 0.4,
+    tolerance: 0.05,
+    difficulty: 0.25,
+    // near-middle number: snapping to the 50 landmark instead of estimating
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.025 }],
+  },
+  {
+    item_id: "itm_nl_27",
+    concept_id: "N.MAG",
+    prompt: "27",
+    scale: [0, 100],
+    target: 0.27,
+    tolerance: 0.05,
+    difficulty: 0.45,
+    // no nearby landmark: a landmark-only child drops it at the middle
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
+  },
+  {
+    item_id: "itm_nl_5",
+    concept_id: "N.MAG",
+    prompt: "5",
+    scale: [0, 100],
+    target: 0.05,
+    tolerance: 0.03,
+    difficulty: 0.4,
+    // log(5)/log(100) ~= 0.35: a small number spread far too far right
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.35, width: 0.1 }],
+  },
+  {
+    item_id: "itm_nl_20",
+    concept_id: "N.MAG",
+    prompt: "20",
+    scale: [0, 100],
+    target: 0.2,
+    tolerance: 0.04,
+    difficulty: 0.5,
+    // log(20)/log(100) ~= 0.65
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.65, width: 0.08 }],
+  },
+  {
+    item_id: "itm_nl_58",
+    concept_id: "N.MAG",
+    prompt: "58",
+    scale: [0, 100],
+    target: 0.58,
+    tolerance: 0.04,
+    difficulty: 0.65,
+    // log(58)/log(100) ~= 0.88
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.88, width: 0.08 }],
   },
   // N.PLACE ("place value: tens and ones") and N.PLACE.HTH ("place value:
   // hundreds") test digit-position understanding specifically, one strand
@@ -202,6 +269,40 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.4,
     claims: [{ signature: "RANGE_COMPRESSION", at: 0.36, width: 0.07 }],
   },
+  // C1 (cycle 18): same tens/ones swap construction as above.
+  {
+    item_id: "itm_np_52",
+    concept_id: "N.PLACE",
+    prompt: "52",
+    scale: [0, 100],
+    target: 0.52,
+    tolerance: 0.05,
+    difficulty: 0.35,
+    // "52" placed as if it were "25"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.25, width: 0.07 }],
+  },
+  {
+    item_id: "itm_np_81",
+    concept_id: "N.PLACE",
+    prompt: "81",
+    scale: [0, 100],
+    target: 0.81,
+    tolerance: 0.05,
+    difficulty: 0.5,
+    // "81" placed as if it were "18"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.18, width: 0.07 }],
+  },
+  {
+    item_id: "itm_np_86",
+    concept_id: "N.PLACE",
+    prompt: "86",
+    scale: [0, 100],
+    target: 0.86,
+    tolerance: 0.05,
+    difficulty: 0.6,
+    // "86" placed as if it were "68"
+    claims: [{ signature: "RANGE_COMPRESSION", at: 0.68, width: 0.06 }],
+  },
   {
     item_id: "itm_nph_500",
     concept_id: "N.PLACE.HTH",
@@ -265,7 +366,9 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.25,
     tolerance: 0.06,
     difficulty: 0.35,
-    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.4, width: 0.12 }],
+    // width narrowed 0.12 -> 0.06 in cycle 18 (C1 pedagogy review): the old
+    // region overlapped the 0.19..0.31 tolerance band.
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.4, width: 0.06 }],
   },
   {
     item_id: "itm_fu_1_6",
@@ -287,6 +390,42 @@ export const numberlineItems: NumberlineItem[] = [
     difficulty: 0.6,
     claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
   },
+  // C1 (cycle 18): same denominator/10 WHOLE_NUMBER_BIAS construction as
+  // above (1/2), plus two LANDMARK_ONLY probes (1/5, 1/3) -- the graph's
+  // other explains edge at F.MAG.UNIT (anchoring on 0 / half / 1 instead of
+  // partitioning).
+  {
+    item_id: "itm_fu_1_2",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/2",
+    scale: [0, 1],
+    target: 0.5,
+    tolerance: 0.06,
+    difficulty: 0.2,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.2, width: 0.1 }],
+  },
+  {
+    item_id: "itm_fu_1_5",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/5",
+    scale: [0, 1],
+    target: 0.2,
+    tolerance: 0.06,
+    difficulty: 0.4,
+    // snapping to the half landmark instead of fifths
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
+  },
+  {
+    item_id: "itm_fu_1_3",
+    concept_id: "F.MAG.UNIT",
+    prompt: "1/3",
+    scale: [0, 1],
+    target: 1 / 3,
+    tolerance: 0.06,
+    difficulty: 0.45,
+    // snapping to the half landmark instead of thirds
+    claims: [{ signature: "LANDMARK_ONLY", at: 0.5, width: 0.06 }],
+  },
   {
     item_id: "itm_fn_3_4",
     concept_id: "F.MAG.NONUNIT",
@@ -306,6 +445,51 @@ export const numberlineItems: NumberlineItem[] = [
     tolerance: 0.06,
     difficulty: 0.5,
     claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.1 }],
+  },
+  // F.MAG.NONUNIT pool (C1, cycle 18). WHOLE_NUMBER_BIAS claim uses the same
+  // construction as F.MAG.UNIT's items above: the denominator read as a
+  // whole number on a 0..10 mental line, i.e. the claim sits at
+  // denominator/10 (e.g. 5/8 dropped near 0.8). Every claim region is
+  // disjoint from its target's tolerance band.
+  {
+    item_id: "itm_fn_2_3",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "2/3",
+    scale: [0, 1],
+    target: 2 / 3,
+    tolerance: 0.06,
+    difficulty: 0.35,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.3, width: 0.1 }],
+  },
+  {
+    item_id: "itm_fn_5_8",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "5/8",
+    scale: [0, 1],
+    target: 0.625,
+    tolerance: 0.06,
+    difficulty: 0.55,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.8, width: 0.07 }],
+  },
+  {
+    item_id: "itm_fn_5_6",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "5/6",
+    scale: [0, 1],
+    target: 5 / 6,
+    tolerance: 0.06,
+    difficulty: 0.6,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 0.6, width: 0.08 }],
+  },
+  {
+    item_id: "itm_fn_7_10",
+    concept_id: "F.MAG.NONUNIT",
+    prompt: "7/10",
+    scale: [0, 1],
+    target: 0.7,
+    tolerance: 0.05,
+    difficulty: 0.7,
+    claims: [{ signature: "WHOLE_NUMBER_BIAS", at: 1.0, width: 0.1 }],
   },
   // D.NOTATE ("decimal notation: tenths and hundredths place") -- unlike
   // D.MAG's items below, which test raw magnitude estimation, these isolate
@@ -381,27 +565,129 @@ export const numberlineItems: NumberlineItem[] = [
     target: 0.7,
     tolerance: 0.06,
     difficulty: 0.4,
-    claims: [{ signature: "LOG_COMPRESSION", at: 0.4, width: 0.15 }],
+    // Cycle 18 (C1 pedagogy review): claim moved from 0.4 to the
+    // log-compressed position, log(70)/log(100) ~= 0.92 -- see the D.MAG pool
+    // comment below.
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.92, width: 0.05 }],
   },
+  // D.MAG pool (C1, cycle 18). LOG_COMPRESSION follows the research direction
+  // (Siegler & Opfer 2003; same convention as N.MAG above): read as hundredths
+  // on a log-compressed line, a decimal x lands at log(100x)/log(100), so
+  // small decimals are placed too far RIGHT and larger ones squeezed up at
+  // the high end. LONGER_IS_LARGER (a long digit string read as big, claim
+  // right of a small target) only for the thousandths item, same pairing the
+  // itm_dm_0_125 anchor already uses. No prompt repeats a D.NOTATE or
+  // D.MAG.CMP prompt; every claim region is disjoint from its tolerance band.
   {
-    item_id: "itm_dc_0_125",
-    concept_id: "D.MAG.CMP",
-    prompt: "0.125",
+    item_id: "itm_dm_0_2",
+    concept_id: "D.MAG",
+    prompt: "0.2",
     scale: [0, 1],
-    target: 0.125,
-    tolerance: 0.06,
-    difficulty: 0.65,
-    claims: [{ signature: "LONGER_IS_LARGER", at: 0.85, width: 0.12 }],
-  },
-  {
-    item_id: "itm_dc_0_09",
-    concept_id: "D.MAG.CMP",
-    prompt: "0.09",
-    scale: [0, 1],
-    target: 0.09,
+    target: 0.2,
     tolerance: 0.05,
+    difficulty: 0.3,
+    // log(20)/log(100) ~= 0.65
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.65, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dm_0_3",
+    concept_id: "D.MAG",
+    prompt: "0.3",
+    scale: [0, 1],
+    target: 0.3,
+    tolerance: 0.05,
+    difficulty: 0.35,
+    // log(30)/log(100) ~= 0.74
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.74, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dm_0_45",
+    concept_id: "D.MAG",
+    prompt: "0.45",
+    scale: [0, 1],
+    target: 0.45,
+    tolerance: 0.05,
+    difficulty: 0.5,
+    // log(45)/log(100) ~= 0.83
+    claims: [{ signature: "LOG_COMPRESSION", at: 0.83, width: 0.06 }],
+  },
+  {
+    item_id: "itm_dm_0_375",
+    concept_id: "D.MAG",
+    prompt: "0.375",
+    scale: [0, 1],
+    target: 0.375,
+    tolerance: 0.05,
+    difficulty: 0.65,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.8, width: 0.12 }],
+  },
+  // D.MAG.CMP ("compare decimals"). The graph's explains edge for this
+  // concept is LONGER_IS_LARGER ("0.125 read as larger than 0.5 because
+  // '125' > '5'"), so every item is a decimal whose digit string is long
+  // relative to its value, with the claim placed high on the line where a
+  // digit-count reading puts it. Cycle 18 (C1): the former itm_dc_0_125 and
+  // itm_dc_0_09 were removed -- they were byte-for-byte the same content as
+  // the itm_dm_0_125 cohort anchor (D.MAG) and itm_dn_0_09 (D.NOTATE), so a
+  // response to one was indistinguishable from the other concept's item.
+  {
+    item_id: "itm_dc_0_15",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.15",
+    scale: [0, 1],
+    target: 0.15,
+    tolerance: 0.05,
+    difficulty: 0.3,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.65, width: 0.15 }],
+  },
+  {
+    item_id: "itm_dc_0_32",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.32",
+    scale: [0, 1],
+    target: 0.32,
+    tolerance: 0.05,
+    difficulty: 0.38,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.78, width: 0.12 }],
+  },
+  {
+    item_id: "itm_dc_0_48",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.48",
+    scale: [0, 1],
+    target: 0.48,
+    tolerance: 0.05,
+    difficulty: 0.45,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.88, width: 0.08 }],
+  },
+  {
+    item_id: "itm_dc_0_205",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.205",
+    scale: [0, 1],
+    target: 0.205,
+    tolerance: 0.05,
+    difficulty: 0.55,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.75, width: 0.15 }],
+  },
+  {
+    item_id: "itm_dc_0_105",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.105",
+    scale: [0, 1],
+    target: 0.105,
+    tolerance: 0.04,
+    difficulty: 0.65,
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.7, width: 0.15 }],
+  },
+  {
+    item_id: "itm_dc_0_275",
+    concept_id: "D.MAG.CMP",
+    prompt: "0.275",
+    scale: [0, 1],
+    target: 0.275,
+    tolerance: 0.04,
     difficulty: 0.7,
-    claims: [{ signature: "LONGER_IS_LARGER", at: 0.6, width: 0.15 }],
+    claims: [{ signature: "LONGER_IS_LARGER", at: 0.85, width: 0.12 }],
   },
 ];
 

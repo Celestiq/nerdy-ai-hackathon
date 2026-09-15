@@ -22,6 +22,21 @@ export const fractionbarsItems: FractionbarsItem[] = [
   { item_id: "itm_fb_1_4v1_6", concept_id: "F.MAG.CMP", difficulty: 0.5, a: { numerator: 1, denominator: 4 }, b: { numerator: 1, denominator: 6 }, correct: "a" },
   { item_id: "itm_fb_3_4v2_3", concept_id: "F.MAG.CMP", difficulty: 0.55, a: { numerator: 3, denominator: 4 }, b: { numerator: 2, denominator: 3 }, correct: "a" },
   { item_id: "itm_fb_2_5v1_2", concept_id: "F.MAG.CMP", difficulty: 0.45, a: { numerator: 2, denominator: 5 }, b: { numerator: 1, denominator: 2 }, correct: "b" },
+  // C1 (cycle 18): pool deepened past items_per_session.max (8) so rotation
+  // actually varies a F.MAG.CMP-only session, and `correct` rebalanced
+  // (was "a" on 3 of 4; now a:4 / b:5 -- the first three rows above are
+  // left as-is because itm_fb_3_4v2_3 is the cohort anchor and
+  // itm_fb_1_3v1_8 is pinned by tests/routes.test.ts). Every wrong option is
+  // built so classifyChoice names a signature, never UNCLASSIFIED: the
+  // distractor has the same numerator and a larger denominator
+  // (DENOMINATOR_BIAS) or a larger numerator but smaller value
+  // (WHOLE_NUMBER_BIAS). Tally of distractor signatures over the whole
+  // pool: DENOMINATOR_BIAS 4, WHOLE_NUMBER_BIAS 4, UNCLASSIFIED 1 (the anchor).
+  { item_id: "itm_fb_1_5v1_2", concept_id: "F.MAG.CMP", difficulty: 0.3, a: { numerator: 1, denominator: 5 }, b: { numerator: 1, denominator: 2 }, correct: "b" },
+  { item_id: "itm_fb_3_8v3_4", concept_id: "F.MAG.CMP", difficulty: 0.45, a: { numerator: 3, denominator: 8 }, b: { numerator: 3, denominator: 4 }, correct: "b" },
+  { item_id: "itm_fb_3_5v4_10", concept_id: "F.MAG.CMP", difficulty: 0.6, a: { numerator: 3, denominator: 5 }, b: { numerator: 4, denominator: 10 }, correct: "a" },
+  { item_id: "itm_fb_3_8v2_3", concept_id: "F.MAG.CMP", difficulty: 0.65, a: { numerator: 3, denominator: 8 }, b: { numerator: 2, denominator: 3 }, correct: "b" },
+  { item_id: "itm_fb_5_12v3_4", concept_id: "F.MAG.CMP", difficulty: 0.7, a: { numerator: 5, denominator: 12 }, b: { numerator: 3, denominator: 4 }, correct: "b" },
 ];
 
 // F.EQV ("equivalent fractions") used to have two items here

@@ -262,7 +262,7 @@
       "signature": "LOG_COMPRESSION",
       "blames": "N.PLACE.HTH",
       "weight": 0.7,
-      "provenance": "content author: bunching larger magnitudes toward the left reflects weak place-value sense beyond the ones/tens range"
+      "provenance": "content author: a logarithmically compressed line (small values spread too far right, larger values squeezed together at the high end; Siegler & Opfer 2003) reflects weak place-value sense beyond the ones/tens range"
     },
     {
       "at": "D.MAG.CMP",

@@ -231,15 +231,19 @@ describe("assembleAssignment: seed-based item rotation", () => {
     expect(new Set(orders).size).toBeGreaterThan(1);
   });
 
-  it("a 2-item pool only ever rotates between its two valid permutations, never throws or drops an item", () => {
+  // Was "a 2-item pool..." pinned to itm_nl_62/itm_nl_15; N.MAG's pool was
+  // deepened in cycle 18 (C1), so the expected set is derived from the bank.
+  it("a pool smaller than items_per_session.max is served whole: rotation only picks among its cyclic orders, never throws or drops an item", () => {
     const { registry, itemBank } = freshRegistry();
+    const nMagIds = numberlineItems.filter((i) => i.concept_id === "N.MAG").map((i) => i.item_id);
+    expect(nMagIds.length).toBeLessThan(numberlineManifest.items_per_session.max);
     const seeds = ["two-a", "two-b", "two-c", "two-d", "two-e", "two-f"];
     const orders = new Set(
       seeds.map((seed) => assembleAssignment(graph, registry, itemBank, ["N.MAG"], new Map(), seed)!.item_specs.map((i) => i.item_id).join(">")),
     );
     expect(orders.size).toBeGreaterThanOrEqual(1);
-    expect(orders.size).toBeLessThanOrEqual(2);
-    for (const order of orders) expect(new Set(order.split(">"))).toEqual(new Set(["itm_nl_62", "itm_nl_15"]));
+    expect(orders.size).toBeLessThanOrEqual(nMagIds.length);
+    for (const order of orders) expect(new Set(order.split(">"))).toEqual(new Set(nMagIds));
   });
 });
 
