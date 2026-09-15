@@ -5,6 +5,7 @@ import type { ConceptMetaLookup } from "../src/store/projector.js";
 import { numberlineManifest, numberlineItems } from "../src/games/numberline/index.js";
 import { fractionbarsManifest, fractionbarsItems, partitionItems } from "../src/games/fractionbars/index.js";
 import { balancescaleManifest, balancescaleItems } from "../src/games/balancescale/index.js";
+import { isDbConfigured, loadAllBundles } from "./db.js";
 
 /**
  * Composition root. This is the ONLY file that knows about specific games
@@ -51,8 +52,21 @@ export const metaOf: ConceptMetaLookup = (conceptId) => {
   return node ? { mastery_threshold: node.mastery_threshold, decay_half_life_days: node.decay_half_life_days } : undefined;
 };
 
+// Production (DATABASE_URL set): Postgres is the durable log, so the store
+// itself stays pure in-memory (no local file -- most hosts give this
+// process an ephemeral filesystem anyway) and is hydrated once at boot by
+// replaying everything persisted so far. Local/dev/demo (no DATABASE_URL):
+// unchanged file-backed behavior, same as before this database existed.
+export const dbConfigured = isDbConfigured();
+
 const DATA_DIR = new URL("../.data/", import.meta.url).pathname;
-export const store = new LearnerStore(metaOf, DATA_DIR + "evidence-log.jsonl");
+export const store = dbConfigured ? new LearnerStore(metaOf) : new LearnerStore(metaOf, DATA_DIR + "evidence-log.jsonl");
+
+if (dbConfigured) {
+  const bundles = await loadAllBundles();
+  for (const bundle of bundles) store.ingest(bundle);
+  console.log(`Hydrated learner store from Postgres: ${bundles.length} evidence bundle(s).`);
+}
 
 // One small fixed anchor set per game, reserved for the whole demo cohort.
 // See architecture.html #engine "The anchor set, and why adaptivity breaks

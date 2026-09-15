@@ -1,5 +1,6 @@
 import { Router } from "express";
-import { graph, registry, itemBank, store, anchors, directory, cohortMembers, studentName } from "./state.js";
+import { graph, registry, itemBank, store, anchors, directory, cohortMembers, studentName, dbConfigured } from "./state.js";
+import { checkDbConnection, persistBundle } from "./db.js";
 import { selectNext } from "../src/engine/engine.js";
 import { blame, type BlameSuspect } from "../src/graph/query.js";
 import { buildTutorReport, type CohortMember } from "../src/analytics/index.js";
@@ -150,7 +151,7 @@ function diffNewlyMastered(before: Map<string, BeliefInternal>, after: Map<strin
   return out;
 }
 
-api.post("/evidence", (req, res) => {
+api.post("/evidence", async (req, res) => {
   const parsed = EvidenceBundleSchema.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ accepted: false, errors: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`) });
@@ -162,7 +163,25 @@ api.post("/evidence", (req, res) => {
   const beliefBefore = store.belief(parsed.data.student_id);
   const result = store.ingest(parsed.data);
   const beliefAfter = store.belief(parsed.data.student_id);
-  res.json({ ...result, newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter) });
+
+  // Write-through to the durable store (see server/db.ts). The in-memory
+  // store above is already the source of truth for this running process --
+  // this only decides whether the evidence survives a restart/redeploy. A
+  // transient DB error here is logged, not surfaced as a failed submission:
+  // losing durability on one bundle beats blocking a child mid-assessment
+  // over a database blip.
+  let dbPersisted: boolean | undefined;
+  if (dbConfigured && result.accepted) {
+    try {
+      await persistBundle(parsed.data);
+      dbPersisted = true;
+    } catch (err) {
+      dbPersisted = false;
+      console.error("persistBundle failed (evidence kept in memory only for this process):", err);
+    }
+  }
+
+  res.json({ ...result, ...(dbPersisted !== undefined ? { dbPersisted } : {}), newlyMastered: diffNewlyMastered(beliefBefore, beliefAfter) });
 });
 
 // A concept the student has already MASTERED can't be the live root cause
@@ -366,6 +385,7 @@ api.get("/concepts/:conceptId", (req, res) => {
   res.json(node);
 });
 
-api.get("/health", (_req, res) => {
-  res.json({ ok: true, graphVersion: graph.version, games: registry.all().map((m) => m.game_id) });
+api.get("/health", async (_req, res) => {
+  const db = dbConfigured ? ((await checkDbConnection()) ? "connected" : "error") : "disabled";
+  res.json({ ok: db !== "error", graphVersion: graph.version, games: registry.all().map((m) => m.game_id), db });
 });

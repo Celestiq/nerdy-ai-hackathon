@@ -22,10 +22,12 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
   (magnitude → fractions → decimals, 20 nodes), both `requires` and
   `explains` edges, structural validation (acyclic, provenance-required),
   and the four-call query surface: `frontier`, `blame`, `path`, `coverage`.
-- **Learner store** (`src/store`) — append-only evidence log (file-backed
-  JSONL) with no update path, and a pure-projection belief model
-  (Beta-Bernoulli mastery, confidence from count/agreement/spread/recency,
-  time-decay, wheel-spin counting, five-state status).
+- **Learner store** (`src/store`) — append-only evidence log with no update
+  path, and a pure-projection belief model (Beta-Bernoulli mastery,
+  confidence from count/agreement/spread/recency, time-decay, wheel-spin
+  counting, five-state status). Local/dev: file-backed JSONL. Production:
+  Postgres/Supabase (`server/db.ts`, `db/schema.sql`) — see "Database"
+  below.
 - **Game registry** (`src/registry`) — capability-based manifest matching
   (never by game name) plus an item-bank registry so the engine never
   imports a specific game.
@@ -59,7 +61,6 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
 - No live LLM item generation (roadmap C12) — the item bank is
   hand-authored, per the architecture doc's own guidance that authoring
   depth, not item count, is the real cost.
-- No production datastore — the evidence log is a local JSONL file.
 
 ## Running it
 
@@ -79,6 +80,43 @@ npm test            # 82 tests: contracts, graph, store, registry, engine, analy
 npm run typecheck
 npm run simulate -- 40 my-seed   # headless cohort run against the real engine, prints a trace + routing self-check
 ```
+
+## Database
+
+No setup needed for local dev/demo: with no `DATABASE_URL` set, evidence
+persists to a local file (`.data/evidence-log.jsonl`) exactly as before.
+
+For a real deployment, evidence should survive a restart/redeploy, which a
+local file on most hosts' ephemeral disks won't. Point the server at a
+Postgres database (a free [Supabase](https://supabase.com) project works
+well) instead:
+
+1. Create a Supabase project, then in its SQL Editor run `db/schema.sql`
+   (creates one table, `evidence_bundles` — insert-only, deduped by
+   `session_id`, same shape as the file log it replaces).
+2. Copy its connection string (Project Settings → Database → Connection
+   string; use the **Transaction pooler**, port 6543, for a serverless or
+   multi-request-per-process host) into `DATABASE_URL`. Copy `.env.example`
+   to `.env` for local testing, or set it as a real env var on your host.
+3. `npm start` (or `npm run dev`). On boot the server hydrates its
+   in-memory belief store by replaying every row already in Postgres, then
+   every accepted `/api/evidence` submission is mirrored into Postgres
+   before the request is acknowledged. `npm run seed` also persists to
+   Postgres when `DATABASE_URL` is set, so the demo cohort survives a
+   redeploy too.
+4. `GET /api/health` reports `db: "connected" | "disabled" | "error"`.
+
+Design notes (see `server/db.ts` for the full reasoning):
+
+- This is additive, not a rewrite: `src/store` (the append-only log + pure
+  belief projection) is unchanged and still the thing every test, the
+  simulation harness, and `scripts/simulate.ts` run against in memory.
+  Postgres is a durability layer the server (`server/state.ts`,
+  `server/routes.ts`) and `scripts/seed.ts` opt into when configured.
+- Single-instance scoped: each process hydrates its own in-memory copy at
+  boot. Fine for one running server (this project's actual deploy target);
+  a second concurrent replica wouldn't see the first one's writes until its
+  own restart. Revisit if this ever needs more than one replica.
 
 ## Proving the architecture's own claims
 

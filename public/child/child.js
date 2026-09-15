@@ -65,13 +65,39 @@ function avatar(name, hue, cls = "") {
   return el("span", { class: `avatar ${cls}`, "data-hue": String(hue % 6) }, initials(name));
 }
 
+// -------------------- Fizz (see DESIGN_LANGUAGE.md) --------------------
+// The one mascot every screen on this surface shares -- a species-neutral
+// "spark critter" so it never competes with a game's own subject matter
+// (no ears to clash with a fraction bar, no fur to look wrong next to a
+// balance scale). Colors come from .fizz-* classes in index.html, which
+// themselves resolve to this page's existing --play accent and the shared
+// --status-mastered reward color -- Fizz never introduces a new hue.
+// `pose` only ever adds a one-shot CSS animation class (see index.html's
+// fizz-hop/fizz-cheer keyframes); it never changes Fizz's shape.
+const FIZZ_SVG = `<svg viewBox="0 0 100 100" aria-hidden="true">
+  <ellipse class="fizz-body" cx="50" cy="60" rx="34" ry="30"/>
+  <ellipse class="fizz-belly" cx="50" cy="70" rx="20" ry="14"/>
+  <path class="fizz-spark" d="M50 30 C 46 18, 54 10, 60 6 C 56 16, 58 24, 52 32 Z"/>
+  <rect class="fizz-stem" x="48.5" y="28" width="3" height="10" rx="1.5"/>
+  <circle class="fizz-eye" cx="38" cy="55" r="10"/><circle class="fizz-eye" cx="62" cy="55" r="10"/>
+  <circle class="fizz-pupil" cx="40" cy="57" r="4.5"/><circle class="fizz-pupil" cx="64" cy="57" r="4.5"/>
+  <circle class="fizz-cheek" cx="28" cy="66" r="6"/><circle class="fizz-cheek" cx="72" cy="66" r="6"/>
+  <ellipse class="fizz-body" cx="34" cy="88" rx="9" ry="5"/><ellipse class="fizz-body" cx="66" cy="88" rx="9" ry="5"/>
+</svg>`;
+function fizz(size = "md", pose = "", cls = "") {
+  const poseClass = pose === "hop" ? "fizz-hop" : pose === "cheer" ? "fizz-cheer" : "";
+  return el("span", { class: `fizz fizz--${size} ${poseClass} ${cls}`.trim(), "aria-hidden": "true", html: FIZZ_SVG });
+}
+
 // Shared loading indicator (see .spinner in shared/styles.css) -- swaps the
 // bare "Loading..." text both async views below used to render for a small
 // breathing-dots animation, so a wait reads as "working" rather than as a
 // screen that failed to render.
 function loadingCard(label = "Loading...") {
-  return el("div", { class: "empty-card" }, [
-    el("div", { class: "loading-row" }, [el("span", { class: "spinner" }, [el("span", {}), el("span", {}), el("span", {})]), label]),
+  return el("div", { class: "screen screen--center" }, [
+    el("div", { class: "empty-card" }, [
+      el("div", { class: "loading-row" }, [el("span", { class: "spinner" }, [el("span", {}), el("span", {}), el("span", {})]), label]),
+    ]),
   ]);
 }
 
@@ -97,7 +123,7 @@ async function showPicker() {
   const directory = await api("/directory");
   const rows = directory.map((d, i) =>
     el("div", { class: "picker-row" }, [
-      el("button", { class: "picker-play", onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
+      el("button", { class: "picker-play", "data-hue": String(i % 6), onclick: () => startSession(d, i) }, [avatar(d.name, i), el("span", {}, d.name)]),
       el(
         "button",
         { class: "picker-map", onclick: () => showConstellation(d, i), "aria-label": `${d.name}'s star map` },
@@ -106,9 +132,9 @@ async function showPicker() {
     ]),
   );
   render(
-    el("div", {}, [
-      el("div", { class: "picker-head" }, [el("h1", {}, "Who's playing?")]),
-      el("div", { class: "picker" }, rows),
+    el("div", { class: "screen" }, [
+      el("div", { class: "picker-head" }, [fizz("md"), el("h1", {}, "Who's playing?")]),
+      el("div", { class: "picker-scroll" }, [el("div", { class: "picker" }, rows)]),
     ]),
   );
 }
@@ -167,16 +193,17 @@ async function showConstellation(student, hue = 0) {
   );
 
   render(
-    el("div", {}, [
+    el("div", { class: "screen" }, [
       el("div", { class: "topbar" }, [
         el("div", { class: "who" }, [avatar(student.name, hue), student.name]),
         el("button", { class: "pill-link const-back", onclick: showPicker }, "Back"),
       ]),
       el("div", { class: "const-head" }, [
+        fizz("sm"),
         el("h1", {}, "Your star map"),
         el("p", { class: "const-sub" }, "Stars grow the more comfortable you get -- no scores, just your own path."),
       ]),
-      el("div", { class: "const-body" }, sections),
+      el("div", { class: "const-scroll" }, [el("div", { class: "const-body" }, sections)]),
     ]),
   );
 }
@@ -281,11 +308,13 @@ function showEmpty(result) {
   }
 
   render(
-    el("div", { class: "empty-card" }, [
-      el("div", { class: "icon-wrap" }, [icon(iconName)]),
-      el("h2", {}, heading),
-      el("p", {}, message),
-      el("button", { class: "btn-primary", onclick: showPicker }, "Back"),
+    el("div", { class: "screen screen--center" }, [
+      el("div", { class: "empty-card" }, [
+        el("div", { class: "icon-wrap" }, [icon(iconName)]),
+        el("h2", {}, heading),
+        el("p", {}, message),
+        el("button", { class: "btn-primary", onclick: showPicker }, "Back"),
+      ]),
     ]),
   );
 }
@@ -301,15 +330,33 @@ function currentItem() {
   return state.items.find((i) => i.item_id === spec.item_id);
 }
 
-function progressDots() {
-  const total = state.assignment.item_specs.length;
-  const segs = [];
-  for (let i = 0; i < total; i++) {
-    segs.push(el("div", { class: "seg" + (i < state.index ? " done" : "") }));
+// Fizz's home across every item type below: one shared path of `total`
+// nodes (one per item in the assignment), Fizz standing on whichever node
+// `index` is currently at. This is the actual answer to "the UI language
+// must stay the same across games" -- numberline/compare/partition/balance
+// all render wildly different stages above, but every one of them ends up
+// funneled through this exact same component for "how far am I", because
+// they already share this one call site. See DESIGN_LANGUAGE.md before
+// adding a fifth item type that bypasses this.
+function pathTrack(total, index, { justAdvanced = false } = {}) {
+  const count = Math.max(total, 1);
+  const posFor = (i) => {
+    const t = count > 1 ? i / (count - 1) : 0.5;
+    return { x: 6 + t * 88, y: 66 - Math.sin(t * Math.PI) * 40 };
+  };
+  const nodes = [];
+  for (let i = 0; i < count; i++) {
+    const { x, y } = posFor(i);
+    nodes.push(el("div", { class: "path-node" + (i < index ? " path-node--done" : ""), style: `left:${x}%; top:${y}%` }));
   }
-  return el("div", { class: "progress-wrap" }, [
-    el("div", { class: "progress-track" }, segs),
-    el("span", { class: "chip chip--neutral" }, `${total - state.index} to go — not a score`),
+  const fizzIndex = Math.min(index, count - 1);
+  const { x: fx, y: fy } = posFor(fizzIndex);
+  const fizzNode = el("div", { class: "path-fizz", style: `left:${fx}%; top:${fy}%` }, [fizz("md", justAdvanced ? "hop" : "")]);
+
+  const remaining = Math.max(total - index, 0);
+  return el("div", { class: "path-wrap" }, [
+    el("div", { class: "path-track" }, [...nodes, fizzNode]),
+    el("span", { class: "chip chip--neutral" }, remaining > 0 ? `${remaining} to go — not a score` : "That's the set — not a score"),
   ]);
 }
 
@@ -333,13 +380,13 @@ function showItem() {
   }
 
   render(
-    el("div", {}, [
+    el("div", { class: "screen" }, [
       el("div", { class: "topbar" }, [
         el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
         el("div", {}),
       ]),
       el("div", { class: "stage" }, stage),
-      progressDots(),
+      pathTrack(state.assignment.item_specs.length, state.index),
     ]),
   );
 }
@@ -417,12 +464,16 @@ function renderNumberline(item, startedAtMs) {
 }
 
 function renderCompare(item, startedAtMs) {
+  // data-hue: a fixed blue/magenta pair for side a/b (see .choice-card[data-hue]
+  // in index.html) -- purely a stable left/right color convention, not a hint:
+  // which side holds the bigger fraction is randomized by the item generator,
+  // independent of `side`.
   function card(side) {
     const f = item[side];
     const pct = Math.round((f.numerator / f.denominator) * 100);
     return el(
       "div",
-      { class: "choice-card", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
+      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
       [
         el("div", { class: "bar-outer" }, [
           el("div", { class: "bar-fill", style: `width:${pct}%` }),
@@ -532,9 +583,12 @@ function renderBalanceScale(item, startedAtMs) {
   const area = el("div", { class: "balance-area" }, []);
   area.appendChild(svg);
 
+  // data-hue: purple/amber, see .balance-choice[data-hue] in index.html --
+  // a fixed pair for this game's two buttons, distinct from renderCompare/
+  // renderPartition's blue/magenta so the palette varies across game types.
   const choices = el("div", { class: "choice-row balance-choice-row" }, [
-    el("div", { class: "balance-choice", onclick: () => handleChoice("balances") }, "Balances"),
-    el("div", { class: "balance-choice", onclick: () => handleChoice("doesnt_balance") }, "Doesn't Balance"),
+    el("div", { class: "balance-choice", "data-hue": "4", onclick: () => handleChoice("balances") }, "Balances"),
+    el("div", { class: "balance-choice", "data-hue": "3", onclick: () => handleChoice("doesnt_balance") }, "Doesn't Balance"),
   ]);
 
   return [
@@ -546,6 +600,8 @@ function renderBalanceScale(item, startedAtMs) {
 }
 
 function renderPartition(item, startedAtMs) {
+  // Same fixed blue/magenta data-hue convention renderCompare uses -- see
+  // the comment there.
   function shape(side) {
     const equal = side === item.correct;
     const slices = [];
@@ -555,7 +611,7 @@ function renderPartition(item, startedAtMs) {
     }
     return el(
       "div",
-      { class: "choice-card", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
+      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
       [el("div", { class: "partition-shape" }, slices)],
     );
   }
@@ -574,8 +630,15 @@ async function submitAndAdvance(payload) {
     state.observations.push(observation);
     state.index += 1;
     render(
-      el("div", { class: "stage" }, [
-        el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), "Nice — next one"]),
+      el("div", { class: "screen" }, [
+        el("div", { class: "topbar" }, [
+          el("div", { class: "who" }, [avatar(state.student.name, state.studentHue), state.student.name]),
+          el("div", {}),
+        ]),
+        el("div", { class: "stage" }, [
+          el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), "Nice — next one"]),
+        ]),
+        pathTrack(state.assignment.item_specs.length, state.index, { justAdvanced: true }),
       ]),
     );
     setTimeout(() => {
@@ -631,19 +694,28 @@ async function finishSession(completed) {
   // client-side count (newlyMastered.length only ever gates which *branch*
   // renders, it's never displayed). A routine end-of-session (no mastery)
   // keeps the exact same icon-wrap/pop-in/check markup as before this change.
+  // Fizz closes out the session too, not just the ones in between -- a
+  // routine end gets an idle Fizz in the plain icon-wrap (unchanged
+  // circle/pop-in from before), a mastery beat gets Fizz mid-cheer inside
+  // the existing icon-wrap--mastery treatment (unchanged pulse ring). The
+  // check/star glyphs this replaced were also fine on their own, but this
+  // is the moment the report called out explicitly: the character should
+  // show up at the edges of a session, not only mid-question.
   const justMastered = newlyMastered.length > 0;
   const endIconWrap = justMastered
-    ? el("div", { class: "icon-wrap icon-wrap--mastery" }, [icon("star")])
-    : el("div", { class: "icon-wrap" }, [icon("check")]);
+    ? el("div", { class: "icon-wrap icon-wrap--mastery" }, [fizz("md", "cheer")])
+    : el("div", { class: "icon-wrap" }, [fizz("sm")]);
 
   render(
-    el("div", { class: "end-card" }, [
-      endIconWrap,
-      el("h2", {}, "What you built today"),
-      el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
-      ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
-      el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
-      el("button", { class: "btn-primary", onclick: showPicker }, "Done"),
+    el("div", { class: "screen screen--center" }, [
+      el("div", { class: "end-card" }, [
+        endIconWrap,
+        el("h2", {}, "What you built today"),
+        el("p", {}, `You worked through ${state.observations.length} ${state.observations.length === 1 ? "item" : "items"}. That effort counts, whatever the answers were.`),
+        ...masteryBeatText(newlyMastered).map((text) => el("p", { class: "mastery-beat" }, text)),
+        el("span", { class: "chip chip--neutral" }, "No score, no comparison to anyone else"),
+        el("button", { class: "btn-primary", onclick: showPicker }, "Done"),
+      ]),
     ]),
   );
 }

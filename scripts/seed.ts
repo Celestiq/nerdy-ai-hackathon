@@ -7,11 +7,22 @@
  *
  * Usage: npm run seed
  */
-import { graph, registry, itemBank, store, metaOf, directory } from "../server/state.js";
+import "dotenv/config";
+import { graph, registry, itemBank, store, metaOf, directory, dbConfigured } from "../server/state.js";
+import { persistBundle, closeDb } from "../server/db.js";
 import { runCohort } from "../src/simulation/cohortRunner.js";
 import { competent, misconceptionHolder, strugglesOn, decayer } from "../src/simulation/profiles.js";
 import { buildObservation } from "../src/sdk/observation.js";
 import type { EvidenceBundle } from "../src/contracts/schemas.js";
+
+// When DATABASE_URL is set, server/state.js has already hydrated `store`
+// from Postgres (see server/db.ts), so every ingest() below dedupes
+// correctly against production history too -- this helper just mirrors
+// each newly-accepted bundle into Postgres the same way the live
+// /api/evidence route does, so a seeded demo cohort survives a redeploy.
+async function persistIfAccepted(accepted: boolean, bundle: EvidenceBundle): Promise<void> {
+  if (accepted && dbConfigured) await persistBundle(bundle);
+}
 
 const [maya, devon, priya, jonah, amara, leo] = directory.map((d) => d.student_id);
 
@@ -54,7 +65,9 @@ console.log(`Simulated ${trace.length} session attempts.`);
 // against an already-seeded .data/ dir just skips duplicates).
 let persisted = 0;
 for (const b of simStore.allBundles()) {
-  if (store.ingest(b).accepted) persisted++;
+  const { accepted } = store.ingest(b);
+  if (accepted) persisted++;
+  await persistIfAccepted(accepted, b);
 }
 console.log(`Persisted ${persisted} new evidence bundles to the server store.`);
 
@@ -103,7 +116,9 @@ for (const [student, offsetDays] of [
     ["b", 4],
   ] as const) {
     const day = new Date(recentMonday.getTime() + (offsetDays + dayOffset) * 86_400_000).toISOString();
-    const result = store.ingest(wholeNumberBiasSession(student, suffix, day));
+    const bundle = wholeNumberBiasSession(student, suffix, day);
+    const result = store.ingest(bundle);
+    await persistIfAccepted(result.accepted, bundle);
     console.log(`  seeded F.MAG.CMP/WHOLE_NUMBER_BIAS session ${suffix} for ${student}:`, result);
   }
 }
@@ -177,7 +192,9 @@ function masteryBootstrapSession(studentId: string, startedAt: string): Evidence
 // the 0.85 threshold regardless of any future retuning of that constant.
 const yesterday = new Date();
 yesterday.setUTCDate(yesterday.getUTCDate() - 1);
-const masteryResult = store.ingest(masteryBootstrapSession(devon, yesterday.toISOString()));
+const masteryBundle = masteryBootstrapSession(devon, yesterday.toISOString());
+const masteryResult = store.ingest(masteryBundle);
+await persistIfAccepted(masteryResult.accepted, masteryBundle);
 console.log(`  seeded N.COUNT mastery-bootstrap session for ${devon}:`, masteryResult);
 
 // Hand-authored bootstrap unblocking F.EQV/balancescale.compare.v1's live
@@ -239,7 +256,9 @@ function fmagNonunitBootstrapSession(studentId: string, startedAt: string): Evid
     engagement: { completed: true, abandoned_at: null, idle_ms: 0 },
   };
 }
-const fmagResult = store.ingest(fmagNonunitBootstrapSession(priya, yesterday.toISOString()));
+const fmagBundle = fmagNonunitBootstrapSession(priya, yesterday.toISOString());
+const fmagResult = store.ingest(fmagBundle);
+await persistIfAccepted(fmagResult.accepted, fmagBundle);
 console.log(`  seeded F.MAG.NONUNIT mastery-bootstrap session for ${priya}:`, fmagResult);
 
 console.log("\nDone. Belief snapshots:");
@@ -259,6 +278,8 @@ for (const id of directory.map((d) => d.student_id)) {
 // documented `npm run seed && npm run dev` setup path otherwise). This is
 // the guard that should have caught Cycle 9's regression before commit --
 // see BACKLOG.md Cycle 9.
+await closeDb(); // otherwise the pg pool's open sockets keep this one-shot script's process alive
+
 if (!sawMastered) {
   console.error(
     "\nFAIL: no concept-student pair naturally reached MASTERED on this fresh seed -- see BACKLOG.md Cycle 9.",

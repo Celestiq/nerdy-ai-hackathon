@@ -5,42 +5,159 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Play</title>
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Baloo+2:wght@600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="../shared/styles.css">
 <style>
   /* Child surface's own accent -- a warm coral that sits alongside the
      shared brand blue (tutor's accent) rather than replacing it: same
      palette family, different amplitude, per the shared design system in
-     shared/styles.css. Dark variant lifts lightness/saturation the same
-     way the shared tokens do for status colors, so switching OS theme
-     never leaves this page's one page-local accent stranded in light-only
-     values while everything else (--paper/--panel/--ink/etc.) re-themes. */
-  /* --play-on: text color for anything sitting *on top of* the --play/
-     --play-ink accent (currently just .btn-primary). Light mode's accent is
-     dark enough for white text (5.4:1+); dark mode's lifted, lighter accent
-     (#FF8F5C/#FFC4A0) is not -- white-on-#FF8F5C is only ~2.25:1, unreadable
-     for a young/struggling reader on the session's one primary CTA ("Done"/
-     "Back"). Kid-ux review caught this: swap to the dark theme's near-black
-     --paper as button text instead, which holds 8:1+ against both states. */
+     shared/styles.css. --play-on: text color for anything sitting *on top
+     of* the --play/--play-ink accent (currently just .btn-primary) -- this
+     page's light-only, so it only ever needs the one dark-enough-for-white-
+     text value (5.4:1+), not a second variant for a dark background. */
   :root { --play: #E0592B; --play-bg: #FDECE3; --play-ink: #B8431C; --play-on: #fff; }
-  @media (prefers-color-scheme: dark) {
-    :root { --play: #FF8F5C; --play-bg: #3A2413; --play-ink: #FFC4A0; --play-on: #0C1220; }
+
+  /* This surface is light-only, deliberately, regardless of OS theme -- see
+     "Light-only, deliberately" in DESIGN_LANGUAGE.md. A K-5 kid didn't set
+     their device's dark-mode preference for this app, and a colorful,
+     sunlit palette reads as "a place to play" the way a dark UI doesn't for
+     this age group. Every token shared/styles.css would otherwise flip
+     under `prefers-color-scheme: dark` is re-pinned here to its light value
+     -- unconditionally, so it wins regardless of OS setting -- by copying
+     that file's own light `:root` values verbatim rather than inventing
+     new ones, so this is a *lock*, not a fork, of the shared system.
+     tutor.js is untouched and keeps following the OS theme normally. */
+  :root {
+    --paper: #F4F6F8; --panel: #FFFFFF; --panel-sunk: #F8F9FB;
+    --ink: #16202E; --soft: #5B6672; --faint: #8A93A0;
+    --rule: #D6DDE5; --rule-lite: #E9EDF1;
+    --brand: #2B4CD4; --brand-ink: #1E3AAE; --brand-bg: #E8EDFC;
+    --live: #2A8F4E;
+    --status-mastered: #0E7C82; --status-mastered-bg: #E1F2F0;
+    --status-emerging: #3B63D6; --status-emerging-bg: #E9EEFC;
+    --status-weak: #C0246A; --status-weak-bg: #FCEAF1;
+    --status-stuck: #9A6B00; --status-stuck-bg: #FBEFD8;
+    --status-decayed: #7247C4; --status-decayed-bg: #F0EAFB;
+    --status-unmeasured: #97A1AC; --status-unmeasured-bg: #F1F3F5;
+    --shadow-sm: 0 1px 2px rgba(20, 30, 45, 0.05);
+    --shadow-md: 0 6px 20px rgba(20, 30, 45, 0.08);
+    --shadow-lg: 0 16px 40px rgba(20, 30, 45, 0.16);
+    color-scheme: light;
   }
 
+  /* A small named palette for *decorative/chrome* color variety -- the
+     background wash, the roster, the two sides of a choice -- kept to
+     exactly the 6 hues shared/styles.css's avatar system already uses
+     (`.avatar[data-hue]`), so a new color on this page is always "one the
+     app already has an identity for," never an arbitrary pick. --hue-1
+     (teal) is `--status-mastered` itself -- reserved for the one meaning
+     that color already carries (see DESIGN_LANGUAGE.md's reward-color
+     guardrail) -- so decorative use below deliberately skips it. */
+  :root {
+    --hue-0: #3B63D6; --hue-1: #0E7C82; --hue-2: #C0246A;
+    --hue-3: #B4650F; --hue-4: #7247C4; --hue-5: #2A8F4E;
+  }
+
+  /* Fizz, the child surface's mascot (see DESIGN_LANGUAGE.md). Deliberately
+     built from tokens this surface already has rather than a new palette:
+     body/belly reuse --play (this page's one accent) so Fizz never competes
+     with it, and the antenna spark reuses --status-mastered -- the app's
+     single existing "reward" color (the mastery-pulse ring, the star map's
+     bloom tier) -- rather than inventing a second reward hue. Eyes/pupils
+     are fixed, not theme tokens: a mascot's face reads as illustration, not
+     UI chrome, so it doesn't invert in dark mode any more than a printed
+     logo would. --display is this page's own headline face (Baloo 2, round
+     and bouncy -- "this is a game," matching the child surface's tone) the
+     same way tutor.js's own <style> block defines a local --serif; body
+     copy stays on the shared --sans so the two surfaces still read as one
+     type system, just a different display face for the child surface's big
+     moments. */
+  :root {
+    --display: "Baloo 2", var(--sans);
+    --fizz-body: var(--play);
+    --fizz-belly: var(--play-bg);
+    --fizz-cheek: color-mix(in srgb, var(--play) 35%, white);
+    --fizz-spark: var(--status-mastered);
+    --fizz-spark-ink: color-mix(in srgb, var(--status-mastered) 65%, black);
+  }
+
+  /* -------------------- full-bleed, no-scroll shell --------------------
+     A game should feel like a place you're standing in, not a form in the
+     middle of a mostly-empty page -- and a K-5 player shouldn't have to
+     discover a scrollbar mid-question. html/body are pinned to the viewport
+     height; .wrap is the one flex column that owns that height, and every
+     screen child.js renders gets the shared `.screen` class below so it can
+     flex to fill whatever's left under its own topbar/heading. Variable-
+     length content (the roster, the star map) still gets its own internal
+     scroll region rather than clipping -- see .picker-scroll/.const-scroll
+     -- so "no scrolling" holds for the part of the app it actually matters
+     for (an in-progress question) without silently hiding a long roster. */
+  html, body { height: 100%; }
   body {
-    min-height: 100vh; display: flex; flex-direction: column; align-items: center;
-    /* A soft, immersive wash behind the play surface -- built from the same
-       --play-bg token used everywhere else on this page (not a one-off
-       color), just large and diffuse enough to feel like a place rather
-       than a form. Kept subtle so body text contrast is untouched. */
-    background: radial-gradient(ellipse 900px 500px at 20% -10%, var(--play-bg), transparent 60%), var(--paper);
+    height: 100vh; height: 100dvh; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center;
+    /* An immersive, multi-color wash behind the play surface -- four soft
+       glows from the decorative hue palette above, overlapping enough to
+       feel like a sunlit place rather than a form, but each one dilute
+       enough (color-mix against transparent, not a flat fill) that body
+       text sitting directly on it still holds contrast. */
+    background:
+      radial-gradient(ellipse 640px 420px at 6% -8%, color-mix(in srgb, var(--hue-3) 40%, transparent), transparent 62%),
+      radial-gradient(ellipse 620px 420px at 100% -6%, color-mix(in srgb, var(--play) 34%, transparent), transparent 60%),
+      radial-gradient(ellipse 560px 380px at 102% 55%, color-mix(in srgb, var(--hue-2) 24%, transparent), transparent 60%),
+      radial-gradient(ellipse 760px 480px at 46% 112%, color-mix(in srgb, var(--hue-4) 26%, transparent), transparent 62%),
+      var(--paper);
   }
-  .wrap { width: 100%; max-width: 640px; padding: var(--sp-6-5) var(--sp-5) var(--sp-9); }
 
-  .picker-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-6); gap: var(--sp-3); }
-  .picker-head h1 { font-size: var(--text-2xl); font-weight: var(--fw-bold); margin: 0; letter-spacing: -0.01em; }
+  /* Ambient background motion -- slow color glows drifting in the margins,
+     the same kind of "the world is alive behind the game" touch Toki's
+     illustrated forest and Peekaboo's floating shapes both use. Two rules
+     keep this from ever competing with the actual question: they're fixed
+     to the viewport behind `.wrap` (z-index below it, see `.wrap` itself),
+     so they only ever show in the gutters around the opaque white `.stage`
+     card, never through it; and every drift is slow (22-30s) and low-
+     amplitude (a few px of travel) -- peripheral atmosphere, not motion
+     that asks to be watched. `z-index: 0` here + `.wrap`'s `z-index: 1`
+     below is the entire mechanism; nothing else on the page needs to know
+     these exist. */
+  .bg-blob { position: fixed; z-index: 0; border-radius: 50%; filter: blur(28px); pointer-events: none; }
+  .bg-blob--1 { width: 240px; height: 240px; left: -70px; top: -60px; background: color-mix(in srgb, var(--hue-3) 55%, transparent); animation: bg-drift-a 24s ease-in-out infinite; }
+  .bg-blob--2 { width: 260px; height: 260px; right: -80px; top: 4%; background: color-mix(in srgb, var(--play) 48%, transparent); animation: bg-drift-b 27s ease-in-out infinite; }
+  .bg-blob--3 { width: 220px; height: 220px; right: -60px; bottom: 6%; background: color-mix(in srgb, var(--hue-2) 42%, transparent); animation: bg-drift-a 31s ease-in-out infinite reverse; }
+  .bg-blob--4 { width: 260px; height: 260px; left: 42%; bottom: -100px; background: color-mix(in srgb, var(--hue-4) 46%, transparent); animation: bg-drift-b 25s ease-in-out infinite; }
+  @keyframes bg-drift-a {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(16px, -14px) scale(1.06); }
+  }
+  @keyframes bg-drift-b {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    50% { transform: translate(-14px, 16px) scale(0.96); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .bg-blob { animation: none; }
+  }
 
-  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); }
+  .wrap {
+    width: 100%; max-width: 1080px; height: 100%; min-height: 0;
+    padding: clamp(12px, 2.4vh, 26px) clamp(16px, 4vw, 44px) clamp(10px, 1.8vh, 18px);
+    display: flex; flex-direction: column; gap: var(--sp-2);
+    position: relative; z-index: 1; /* stack above .bg-blob -- see comment there */
+  }
+  #app { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+  .screen { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: var(--sp-4); }
+  .screen--center { align-items: center; justify-content: center; overflow-y: auto; }
+  .foot-link { flex: 0 0 auto; }
+
+  .picker-head { display: flex; align-items: center; gap: var(--sp-3); flex: 0 0 auto; }
+  .picker-head h1 { font-family: var(--display); font-size: clamp(24px, 3vw + 1rem, 40px); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
+  .picker-head .fizz { flex-shrink: 0; }
+
+  /* Roster can run longer than one screen (more students than fit) -- this
+     is the one screen where a contained scroll region is the honest choice
+     over either clipping names off the bottom or forcing the whole page to
+     scroll. The picker grid itself is unchanged; only its wrapper scrolls. */
+  .picker-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  .picker { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--sp-3); align-content: start; }
   /* Each roster entry is a row of two buttons: the primary play action
      (unchanged behavior/appearance from before this file's B1 constellation
      work -- tapping it still starts a session exactly as before) plus a
@@ -54,10 +171,26 @@
     padding: var(--sp-4); font-size: var(--text-lg); font-weight: var(--fw-semibold); border-radius: var(--r-lg);
     border: 1.5px solid var(--rule); background: var(--panel); color: var(--ink);
     box-shadow: var(--shadow-sm);
-    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .picker-play:hover { border-color: var(--play); box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .picker-play:active { transform: translateY(0) scale(0.98); box-shadow: var(--shadow-sm); }
+  /* Each roster row gets a light wash of that student's own avatar hue --
+     the same data-hue this file already uses for .avatar, just also read
+     here -- so the roster reads as a row of colorful, distinct places
+     rather than identical white cards with a colored circle on the left. */
+  .picker-play[data-hue="0"] { background: color-mix(in srgb, var(--hue-0) 9%, var(--panel)); }
+  .picker-play[data-hue="1"] { background: color-mix(in srgb, var(--hue-1) 9%, var(--panel)); }
+  .picker-play[data-hue="2"] { background: color-mix(in srgb, var(--hue-2) 9%, var(--panel)); }
+  .picker-play[data-hue="3"] { background: color-mix(in srgb, var(--hue-3) 9%, var(--panel)); }
+  .picker-play[data-hue="4"] { background: color-mix(in srgb, var(--hue-4) 9%, var(--panel)); }
+  .picker-play[data-hue="5"] { background: color-mix(in srgb, var(--hue-5) 9%, var(--panel)); }
+  .picker-play[data-hue="0"]:hover { border-color: var(--hue-0); }
+  .picker-play[data-hue="1"]:hover { border-color: var(--hue-1); }
+  .picker-play[data-hue="2"]:hover { border-color: var(--hue-2); }
+  .picker-play[data-hue="3"]:hover { border-color: var(--hue-3); }
+  .picker-play[data-hue="4"]:hover { border-color: var(--hue-4); }
+  .picker-play[data-hue="5"]:hover { border-color: var(--hue-5); }
   .picker-row .avatar { width: 38px; height: 38px; font-size: var(--text-md); }
   .picker-map {
     flex-shrink: 0; width: 52px; border-radius: var(--r-lg);
@@ -69,50 +202,122 @@
   .picker-map:active { transform: scale(0.96); }
   .picker-map .icon { width: 18px; height: 18px; }
 
-  .topbar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--sp-5); gap: var(--sp-3); }
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-3); flex: 0 0 auto; }
   .topbar .who { display: flex; align-items: center; gap: 9px; font-size: var(--text-md); font-weight: var(--fw-semibold); }
   .topbar .avatar { width: 30px; height: 30px; font-size: var(--text-xs); }
 
   .stage {
     background: var(--panel); border: 1px solid var(--rule-lite); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
-    padding: var(--sp-8) var(--sp-6) var(--sp-7); min-height: 320px; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: var(--sp-6);
+    padding: clamp(14px, 2.8vh, 44px) clamp(18px, 5vw, 64px);
+    flex: 1; min-height: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: clamp(var(--sp-3), 2vh, var(--sp-6));
     animation: fade-up var(--dur-base) var(--ease-out);
+    /* Safety net, not the primary strategy: the four-row balance-scale item
+       (prompt/subprompt/beam/two choice buttons -- the tallest stack of any
+       item type this stage renders) is what the sizes below are actually
+       budgeted against at a ~700px-tall window; a shorter window than that
+       falls back to scrolling *inside* the card rather than clipping. */
+    overflow: auto;
   }
-  .prompt { font-size: var(--text-hero); font-weight: var(--fw-bold); letter-spacing: -0.01em; text-align: center; }
-  .subprompt { font-size: var(--text-md); color: var(--soft); margin-top: -14px; }
+  .prompt { font-family: var(--display); font-size: clamp(26px, 3vw + 1.2rem, 68px); font-weight: 700; letter-spacing: -0.01em; text-align: center; text-wrap: balance; line-height: var(--lh-tight); }
+  .subprompt { font-size: clamp(var(--text-md), 1.6vw, var(--text-xl)); color: var(--soft); line-height: var(--lh-snug); margin-top: -6px; }
 
   .line-area { width: 100%; touch-action: none; }
-  .line-area svg { width: 100%; height: 110px; display: block; }
+  .line-area svg { width: 100%; height: clamp(100px, 20vh, 230px); display: block; }
   .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
   .line-tick { stroke: var(--rule); stroke-width: 2; }
   .line-tick-label { font-family: var(--mono); font-size: var(--text-xs); fill: var(--soft); }
   .line-marker { fill: var(--play); transition: cx var(--dur-base) var(--ease-out); }
 
-  .choice-row { display: flex; gap: var(--sp-4); width: 100%; justify-content: center; }
+  .choice-row { display: flex; gap: clamp(var(--sp-4), 3vw, var(--sp-9)); width: 100%; justify-content: center; flex-wrap: wrap; }
   .choice-card {
-    flex: 1; max-width: 220px; min-height: 44px; border: 2px solid var(--rule); border-radius: var(--r-lg); padding: var(--sp-4);
-    background: var(--panel); display: flex; flex-direction: column; align-items: center; gap: 10px;
-    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    flex: 1 1 220px; max-width: 380px; min-height: 120px; border: 2px solid var(--rule); border-radius: var(--r-lg);
+    padding: clamp(var(--sp-4), 3vh, var(--sp-7));
+    background: var(--panel); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(10px, 2vh, 18px);
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .choice-card:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); transform: translateY(-1px); }
+  /* Two-choice items (compare + partition, see child.js) tint their two
+     cards blue/magenta -- a stable, memorable "left/right" convention kids
+     can rely on across every game that offers exactly two choices, not a
+     hint toward which one is correct (which side holds which value is
+     randomized by the item generator, independent of this color). */
+  .choice-card[data-hue="0"] { background: color-mix(in srgb, var(--hue-0) 8%, var(--panel)); border-color: color-mix(in srgb, var(--hue-0) 30%, var(--rule)); }
+  .choice-card[data-hue="0"]:hover { border-color: var(--hue-0); }
+  .choice-card[data-hue="2"] { background: color-mix(in srgb, var(--hue-2) 8%, var(--panel)); border-color: color-mix(in srgb, var(--hue-2) 30%, var(--rule)); }
+  .choice-card[data-hue="2"]:hover { border-color: var(--hue-2); }
   .choice-card:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
-  .bar-outer { width: 100%; height: 34px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
+  .bar-outer { width: 100%; height: clamp(28px, 5vh, 56px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
   .bar-fill { background: var(--status-mastered); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
   .bar-empty { background: var(--rule-lite); height: 100%; transition: width var(--dur-base) var(--ease-standard); }
-  .bar-label { font-family: var(--mono); font-size: var(--text-sm); color: var(--soft); }
+  .bar-label { font-family: var(--mono); font-size: clamp(var(--text-sm), 1.8vw, var(--text-xl)); color: var(--soft); }
 
-  .partition-shape { width: 100%; height: 60px; border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
+  .partition-shape { width: 100%; height: clamp(60px, 12vh, 150px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); display: flex; }
   .partition-slice { border-right: 1.5px solid var(--ink); flex: 1; }
   .partition-slice:last-child { border-right: none; }
   .partition-slice.fill { background: var(--status-mastered); }
 
-  .progress-wrap { width: 100%; margin-top: 4px; display: flex; flex-direction: column; align-items: center; gap: var(--sp-2); }
-  .progress-track { width: 100%; display: flex; gap: 6px; }
-  .progress-track .seg { flex: 1; height: 8px; border-radius: var(--r-pill); background: var(--rule-lite); }
-  .progress-track .seg.done { background: var(--play); animation: fade-in var(--dur-base) var(--ease-out); }
+  /* -------------------- Fizz + the path track --------------------
+     The one progress mechanic every item type above funnels through --
+     see renderFizz()/pathTrack() in child.js and DESIGN_LANGUAGE.md. Nodes
+     reuse the star map's own "dashed = not attempted yet" convention
+     (.const-star--seed below) rather than inventing a second not-yet
+     language, and "done" reuses --status-mastered, the app's one reward
+     color -- both choices are about staying one visual language, not two. */
+  /* Fizz never quite stands still -- a slow, small idle bob (fizz-idle)
+     plays continuously on every Fizz on the page, the same "the character
+     is alive, not a static icon" touch the Behance research kept surfacing.
+     hop/cheer are finite, one-shot animations layered on *top* of the idle
+     bob (both listed together below, idle first) rather than replacing it:
+     once a hop/cheer's fixed duration ends, idle -- still running -- keeps
+     driving `transform` with no visible seam. Small amplitude and a slow
+     3s cycle on purpose: this must read as "breathing," not as motion
+     competing with the actual question for attention. */
+  .fizz { display: inline-flex; flex-shrink: 0; transform-origin: 50% 100%; animation: fizz-idle 3s ease-in-out infinite; }
+  .fizz svg { width: 100%; height: 100%; display: block; }
+  .fizz--sm { width: 28px; height: 28px; }
+  .fizz--md { width: 46px; height: 46px; }
+  .fizz--lg { width: 76px; height: 76px; }
+  .fizz-body { fill: var(--fizz-body); }
+  .fizz-belly { fill: var(--fizz-belly); }
+  .fizz-spark { fill: var(--fizz-spark); }
+  .fizz-stem { fill: var(--fizz-spark-ink); }
+  .fizz-eye { fill: #fff; }
+  .fizz-pupil { fill: #2b2a3a; }
+  .fizz-cheek { fill: var(--fizz-cheek); opacity: 0.8; }
+  .fizz-hop { animation: fizz-idle 3s ease-in-out infinite, fizz-hop 0.55s var(--ease-bounce); }
+  .fizz-cheer { animation: fizz-idle 3s ease-in-out infinite, fizz-cheer 0.7s var(--ease-bounce); }
+  @keyframes fizz-idle {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    50% { transform: translateY(-5%) rotate(-2deg); }
+  }
+  @keyframes fizz-hop {
+    0% { transform: translateY(0) scaleY(1); }
+    35% { transform: translateY(-42%) scaleY(1.08); }
+    60% { transform: translateY(-48%) scaleY(1.12); }
+    85% { transform: translateY(0) scaleY(0.92); }
+    100% { transform: translateY(0) scaleY(1); }
+  }
+  @keyframes fizz-cheer {
+    0% { transform: scale(0.4) rotate(-8deg); opacity: 0; }
+    55% { transform: scale(1.18) rotate(6deg); opacity: 1; }
+    75% { transform: scale(0.94) rotate(-3deg); }
+    100% { transform: scale(1) rotate(0deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .fizz, .fizz-hop, .fizz-cheer { animation: none; }
+  }
 
-  .feedback-note { display: flex; align-items: center; gap: 8px; font-size: var(--text-lg); color: var(--play-ink); font-weight: var(--fw-semibold); min-height: 20px; animation: fade-up var(--dur-fast) var(--ease-out); }
+  .path-wrap { width: 100%; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .path-track { position: relative; width: 100%; height: clamp(64px, 11vh, 108px); }
+  .path-node {
+    position: absolute; width: 20px; height: 20px; border-radius: 50%; transform: translate(-50%, -50%);
+    border: 2px dashed var(--rule); background: transparent;
+  }
+  .path-node--done { border-style: solid; border-color: var(--status-mastered); background: var(--status-mastered-bg); }
+  .path-fizz { position: absolute; transform: translate(-50%, -86%); z-index: 2; }
+
+  .feedback-note { display: flex; align-items: center; gap: 10px; font-size: clamp(var(--text-lg), 2vw, var(--text-2xl)); color: var(--play-ink); font-weight: var(--fw-semibold); min-height: 20px; animation: fade-up var(--dur-fast) var(--ease-out); }
   .feedback-note .icon-wrap { width: 30px; height: 30px; border-radius: 50%; background: var(--play-bg); color: var(--play); display: flex; align-items: center; justify-content: center; animation: pop-in var(--dur-slow) var(--ease-bounce); }
 
   .end-card { text-align: center; padding: var(--sp-6) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
@@ -151,7 +356,7 @@
     width: 64px; height: 64px;
     animation: pop-in-mastery var(--dur-celebrate) var(--ease-bounce), mastery-pulse-ring var(--dur-pulse) var(--ease-out) var(--dur-celebrate);
   }
-  .end-card h2 { font-size: var(--text-xl); font-weight: var(--fw-bold); margin: 0; }
+  .end-card h2 { font-family: var(--display); font-size: clamp(var(--text-xl), 2.4vw, 32px); font-weight: 700; margin: 0; }
   .end-card p { color: var(--soft); max-width: 44ch; margin: 0; line-height: var(--lh-relaxed); }
   .end-card p.mastery-beat { color: var(--status-mastered); font-weight: var(--fw-semibold); max-width: 40ch; }
   .btn-primary {
@@ -164,24 +369,31 @@
 
   .empty-card { text-align: center; padding: var(--sp-8) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
   .empty-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--rule-lite); color: var(--soft); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; }
-  .empty-card h2 { margin: 0; font-size: var(--text-xl); font-weight: var(--fw-bold); }
+  .empty-card h2 { margin: 0; font-family: var(--display); font-size: clamp(var(--text-xl), 2.4vw, 32px); font-weight: 700; }
   .empty-card p { color: var(--soft); max-width: 40ch; margin: 0; line-height: var(--lh-relaxed); }
 
-  .foot-link { margin-top: var(--sp-6); }
   .icon { width: 16px; height: 16px; display: inline-block; }
 
   /* -------------------- constellation (BACKLOG.md B1) -------------------- */
   /* Persistent, passive, cross-session progress view generated from live
      belief state -- see showConstellation()/starNode() in child.js. Purely
-     additive: does not touch .icon-wrap, .pop-in(-mastery), or
-     .progress-track above. */
+     additive: does not touch .icon-wrap, .pop-in(-mastery), or the
+     path-track above -- a different progress metaphor (stars, not a route)
+     answering a different question ("what have I learned overall" vs. "how
+     far through this session am I"), so it deliberately keeps its own
+     visual language rather than folding Fizz into it. */
 
   .const-back { margin-left: auto; }
 
-  .const-head { text-align: center; margin: 4px 0 var(--sp-7); }
-  .const-head h1 { font-size: var(--text-xl); font-weight: var(--fw-bold); margin: 0 0 6px; letter-spacing: -0.01em; }
+  .const-head { text-align: center; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .const-head .fizz { margin-bottom: 2px; }
+  .const-head h1 { font-family: var(--display); font-size: clamp(var(--text-xl), 2.4vw, 30px); font-weight: 700; margin: 0; letter-spacing: -0.01em; }
   .const-sub { color: var(--soft); font-size: var(--text-md); margin: 0 auto; max-width: 46ch; line-height: var(--lh-relaxed); }
 
+  /* Long roster of strands can outrun one screen -- same contained-scroll
+     treatment as .picker-scroll, for the same reason: this is genuinely
+     variable-length content, not a single game screen. */
+  .const-scroll { flex: 1; min-height: 0; overflow-y: auto; }
   .const-strand { margin-bottom: var(--sp-7); }
   .const-strand-title {
     font-size: var(--text-sm); font-weight: var(--fw-semibold); color: var(--soft); margin: 0 0 var(--sp-3);
@@ -236,7 +448,7 @@
 
   /* -------------------- balance scale (BACKLOG.md "Balance Scale") --------------------
      Purely additive -- does not touch .choice-card/.bar-outer/.line-track/
-     .icon-wrap/pop-in/.progress-track above. A new SVG skin (beam-and-two-
+     .icon-wrap/pop-in/the path track above. A new SVG skin (beam-and-two-
      pans), display-only: see renderBalanceScale() in child.js. The beam's
      rotation is driven by the SVG `transform` attribute directly (not
      inline CSS transform-origin math) so `rotate(angle cx cy)` can pivot
@@ -247,7 +459,11 @@
      judgement, "does it balance?", not "which pan is bigger?"); the real
      tap targets are .balance-choice below. */
   .balance-area { width: 100%; touch-action: none; }
-  .balance-area svg { width: 100%; height: 230px; display: block; }
+  /* This item type stacks a prompt, a subprompt, this beam, and a row of
+     choice buttons -- the tallest combination of any item type the stage
+     renders -- so its own height budget is deliberately tighter than the
+     numberline/choice svgs above rather than sharing their clamp. */
+  .balance-area svg { width: 100%; height: clamp(120px, 24vh, 300px); display: block; }
   .balance-base { stroke: var(--ink); stroke-width: 3; }
   .balance-fulcrum { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
   .balance-beam { transition: transform var(--dur-slow) var(--ease-bounce); }
@@ -268,25 +484,56 @@
     flex: 1; min-height: 66px; min-width: 52px; display: flex; align-items: center; justify-content: center;
     text-align: center; padding: var(--sp-3) var(--sp-3); border: 2px solid var(--rule); border-radius: var(--r-lg);
     background: var(--panel); font-size: var(--text-lg); font-weight: var(--fw-semibold); color: var(--ink);
-    transition: border-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
+    transition: border-color var(--dur-fast) var(--ease-standard), background-color var(--dur-fast) var(--ease-standard), box-shadow var(--dur-fast) var(--ease-standard), transform var(--dur-fast) var(--ease-standard);
   }
   .balance-choice:hover { border-color: var(--play); cursor: pointer; box-shadow: var(--shadow-md); transform: translateY(-1px); }
   .balance-choice:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
+  /* Purple/amber -- distinct from the blue/magenta pair renderCompare and
+     renderPartition use above, so the palette reads as varied across game
+     types rather than the same two colors everywhere -- neither is "the
+     reward color" (that's --status-mastered alone, see DESIGN_LANGUAGE.md). */
+  .balance-choice[data-hue="4"] { background: color-mix(in srgb, var(--hue-4) 8%, var(--panel)); border-color: color-mix(in srgb, var(--hue-4) 30%, var(--rule)); }
+  .balance-choice[data-hue="4"]:hover { border-color: var(--hue-4); }
+  .balance-choice[data-hue="3"] { background: color-mix(in srgb, var(--hue-3) 8%, var(--panel)); border-color: color-mix(in srgb, var(--hue-3) 30%, var(--rule)); }
+  .balance-choice[data-hue="3"]:hover { border-color: var(--hue-3); }
 
   /* -------------------- small-screen safety net -------------------- */
   /* This is a K-5 play surface, so phone-width is the *primary* target, not
-     an edge case -- these just tighten the same layout rather than
-     reflowing it, since the flex/percentage-based rules above already hold
-     up down to ~320px. Two adjustments: a two-up roster grid gets cramped
-     once each cell also has to fit a name plus a second icon button, and a
-     44px hero prompt can crowd a longer numberline prompt string. */
+     an edge case -- the clamp()s above already hold up down to ~320px, this
+     just tightens the roster grid, which gets cramped once each cell also
+     has to fit a name plus a second icon button. */
   @media (max-width: 420px) {
     .picker { grid-template-columns: 1fr; }
-    .prompt { font-size: var(--text-3xl); }
+  }
+  /* A short viewport (landscape phone, a small laptop with browser chrome)
+     is the case where "no scrolling" is actually at risk -- the clamp()s
+     above are vh-driven, so they already shrink here, but the gap between
+     stacked sections is what eats the rest of the room. The balance-scale
+     item (prompt+subprompt+beam+two buttons, the tallest stack this stage
+     renders) is the one that still doesn't fit at the shortest realistic
+     heights even with every clamp at its minimum -- past that point the
+     honest move is dropping the one non-essential row (the subprompt is
+     restated by the prompt + the interaction itself) rather than clipping
+     or forcing a scrollbar mid-question. */
+  @media (max-height: 480px) {
+    .wrap { gap: 4px; }
+    .screen { gap: var(--sp-2); }
+    .stage { gap: 8px; padding-block: 8px; }
+    .path-wrap { gap: 3px; }
+    .path-track { height: 44px; }
+    .subprompt { display: none; }
+    .line-area svg, .balance-area svg { height: clamp(70px, 18vh, 150px); }
+    .partition-shape { height: clamp(44px, 11vh, 100px); }
+    .choice-card { min-height: 70px; }
+    .balance-choice { min-height: 44px; }
   }
 </style>
 </head>
 <body>
+<span class="bg-blob bg-blob--1" aria-hidden="true"></span>
+<span class="bg-blob bg-blob--2" aria-hidden="true"></span>
+<span class="bg-blob bg-blob--3" aria-hidden="true"></span>
+<span class="bg-blob bg-blob--4" aria-hidden="true"></span>
 <div class="wrap">
   <div id="app"></div>
   <a class="pill-link foot-link" href="#" id="tutorLink" target="_blank">
