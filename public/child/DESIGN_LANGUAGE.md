@@ -28,7 +28,9 @@ motion feels (hop / cheer, nothing else).
     .screen                  <- flex:1 column; every top-level view uses this
       .topbar (flex:0)       <- who's playing + Home (session views only)
       .stage (flex:1)        <- THE ONLY PLACE A NEW GAME'S MARKUP GOES
-      .path-wrap (flex:0)    <- Fizz + the path track (session views only)
+        .prompt-row          <- Fizz + your prompt (showItem adds it; session views only)
+        ...your widget rows
+      .path-wrap (flex:0)    <- the path track (session views only)
 ```
 
 **There is no link to the tutor view on any child screen**, picker included
@@ -50,12 +52,29 @@ Tutors open `/tutor/` directly. Don't add one back.
   friendly retry card ("Oops, that didn't send" / "Try again"), never a
   frozen screen; after a second failure it also offers "Back to my stars".
   `api()` throws on any non-2xx response, so errors never render as data.
+- **Every screen-level fetch has a retry card, never a permanent
+  "Loading..."**: `showPicker`, `showConstellation` and `startSession` catch
+  and call `showLoadRetry()` ("Oops, that didn't load" / "Try again", plus
+  "Change player" or "Back to my stars" where there is somewhere to go back
+  to). A map retry keeps the celebration hand-off (`state.justBloomed`).
+- **An answer that fails to send never strands the item.** Every widget
+  catches `submitAndAdvance`'s rejection, undoes its own "picked" state
+  (compare/partition `.is-chosen`, number line unlock, balance scale back to
+  undecided with `settled` reset) and calls `showSendHiccup()`: a small
+  `.send-note` pill at the foot of the card ("Oops, that didn't send. Try
+  again!"). The card grows its bottom padding while it shows, so it never
+  covers a button. New widgets must do the same (see `answerTap()`).
+- **Home never drops a chosen answer.** `state.responding` (a `/respond` in
+  flight) and `state.settling` (the balance scale's 260ms tip-before-send)
+  both make `quitSession()` wait, then leave with that answer kept. A new
+  widget with its own delay before sending must set `state.settling` too.
 - Any delayed callback that can re-render (feedback timeout, balance-scale
   settle) must check `state.phase === "playing"` first.
 
 `showItem()` in `child.js` is the pattern to copy: build your game's markup as
 an array of elements returned from a `renderYourGame(item, startedAtMs)`
-function, and let the existing wiring put it inside `.stage`, with the
+function, **prompt first**, and let the existing wiring put it inside
+`.stage` (it wraps that first element in `.prompt-row` beside Fizz), with the
 existing topbar/path-track around it. **Do not** render your own topbar,
 progress indicator, or outer card — that's exactly the drift this file exists
 to prevent.
@@ -76,10 +95,13 @@ stacked vertically (see "Budgeting stage height" below), not a reason to add
 
 `.stage`'s padding, gaps, and every SVG/shape height in it are `clamp()`s
 tuned against the **tallest** item type that exists today (the balance scale:
-prompt + subprompt + a shape + a row of choice buttons — four stacked rows).
-If your new game also needs four rows, budget it the same way the balance
-scale is budgeted (see the comments directly above `.balance-area svg` in
-`index.html`) rather than giving it more generous sizing than that ceiling —
+prompt row + subprompt + a shape + a row of choice buttons — four stacked
+rows). The balance scale's drawing is the one flexible row: `.balance-area`
+is `flex: 1 1 0` between a floor and a 360px ceiling, so it takes whatever
+height is left and never pushes its buttons out of the card. If your new game
+also needs four rows, budget it the same way (see the comments above
+`.balance-area` in `index.html`) rather than giving it more generous sizing
+than that ceiling —
 otherwise it'll be the one game that scrolls on a normal laptop window. Three
 rows or fewer (prompt + one widget, or prompt + subprompt + one widget) has
 real headroom; use it, don't feel obligated to stay cramped.
@@ -105,7 +127,7 @@ this file:**
 | Pose | Class | Means | Used at |
 |---|---|---|---|
 | idle | *(base `.fizz` class — always on)* | alive, resting | every Fizz, continuously |
-| hop | `fizz-hop` | one step of progress, or "I noticed that" | the path track, on every advance; the Star Path narrator, when a star is tapped (it hops *behind* its own speech bubble, which sits at `z-index: 2`) |
+| hop | `fizz-hop` | one step of progress, or "I noticed that" | beside the prompt, on every answer (the answer beat, see "Item widgets"); the Star Path narrator, when a star is tapped (it hops *behind* its own speech bubble, which sits at `z-index: 2`) |
 | cheer | `fizz-cheer` | a bigger moment, still never a result | the celebration screen; the Star Path narrator when the map opens from it |
 
 "Idle" isn't a neutral no-op — it's a continuous, slow (`fizz-idle`, 3s loop)
@@ -128,30 +150,43 @@ depend on correctness, a streak, or a count. If a future game type needs to repr
 state, that already has its own honest treatment (`showEmpty`'s pause/
 hourglass icons) — don't invent a Fizz mood for it without a kid-ux pass.
 
-Sizes: `fizz--sm` (28px, headers/inline), `fizz--md` (46px, the path track,
-end-card icon-wraps), `fizz--lg` (76px base; the "Fizz is talking to you"
-size). `fizz--lg` is used wherever Fizz is the narrator of a whole screen —
-the picker greeting, the Star Path and the celebration — and those screens
-scale it with a `clamp()` on their own container (`.picker-head .fizz--lg`,
-`.map-fizz .fizz--lg`, `.celebrate-fizz`: up to ~128px / ~200px / ~190px on
-tall windows, down to 40-60px on phones and short windows) rather than
-adding a fourth size class.
-One Fizz per screen, always.
+Sizes: `fizz--sm` (28px, headers/inline, retry/end-card icon-wraps),
+`fizz--md` (46px, currently unused), `fizz--lg` (76px base; the "Fizz is
+talking to you" size). `fizz--lg` is used wherever Fizz narrates — the
+picker greeting, the Star Path, the celebration, and **beside every
+in-session prompt** — and those places scale it with a `clamp()` on their own
+container (`.picker-head .fizz--lg`, `.map-fizz .fizz--lg`, `.celebrate-fizz`,
+`.prompt-fizz .fizz--lg`: up to ~128px / ~200px / ~190px / 140px on tall
+windows, down to 40-60px on phones and short windows) rather than adding a
+fourth size class. Beside the prompt Fizz must read as a character, not an
+icon: its body is only ~70% of the box, so a 75px box looked ~40px next to a
+68px prompt at laptop heights. `.prompt-fizz` uses a steep height term
+(`clamp(56px, 30vh - 110px, 140px)`: ~112px at a 740px-tall viewport, the cap
+by ~830px, back at the floor by ~550px, where the balance scale needs the
+room), 56-84px on phones.
+One Fizz per screen, always. (That is why Fizz no longer stands on the path
+track: in a session it lives beside the prompt, where the child is looking.)
 
 ## The path track — the one progress mechanic
 
 `pathTrack(total, index, { justAdvanced })` in `child.js` is the answer to
 "the UI language must stay the same across games": every item type funnels
 through this one call after every response. It draws `total` nodes along a
-fixed arc (one per item in the assignment), places Fizz on the current node,
-and plays the hop animation when `justAdvanced` is true.
+fixed arc (one per item in the assignment) on the same sand road the Star
+Path's trails use (`.trail-road`/`.trail-dots`), and when `justAdvanced` is
+true pops (shared `pop-in`) the node just finished and the new current one.
 
 Rules for extending it, not replacing it:
 - A new game adds items to an assignment the same way existing games do —
   it does not get its own progress widget.
-- Node states are exactly two: not-yet-reached (dashed outline, reusing the
-  star map's own "seed" convention) and done (`--status-mastered` solid).
-  There is no third "wrong" state — see Fizz's poses above for why.
+- Node states are exactly three, all filled (no dashed outlines): not-yet
+  (a small sand dot with a white rim), **current** (bigger, `--play` coral
+  ring on `--play-bg`: "you are here", the same coral as Play) and done
+  (solid `--status-mastered`). There is no "wrong" state — see Fizz's poses
+  above for why. No check marks in done nodes either: a check reads as
+  "correct".
+- Nodes are centred with negative margins, not `transform`, so the shared
+  keyframes can animate them.
 - **Nothing is written under the track.** The nodes and Fizz's position are
   the whole progress signal. The old "N to go" chip (with its score disclaimer) was
   removed: it put a digit on every question screen, and the disclaimer
@@ -253,23 +288,31 @@ Rules:
     at once was too busy, so the old `star-remember` breathe was removed.
     Its copy is framed as care: "This one would love to see you again."
 - **The `next` star is the map's focal point and its only continuously
-  animated element** (`.const-star--next`, `--k` 1.34): the largest star,
-  a thick `--play` coral ring on a warm fill with a filled coral star, a
-  soft halo that breathes (`::after`) and a ring that ripples outward
-  (`::before`). Never teal. It **overrides the underlying tier's look**. A
-  fading star can be `next` (the server allows it), and its sparkle is
-  hidden so the two treatments never fight. Fizz's bubble still names the
-  real tier when tapped. The server may send **no** `next` star (e.g. every
-  candidate is escalated), and then the map simply has no coral star. Copy
-  about it must **not** say or imply that Play goes there: the engine picks
-  the actual session, and it usually differs (a kid-ux spot check on the
-  seeded roster found the session's concepts missed the `next` star for four
-  of six students). The star shares the Play button's coral, so the copy
-  does the de-coupling: the opening bubble never points at it ("Tap a star.
-  I'll tell you its name!"), and its tapped note is Fizz's hedged opinion
-  about *soon*: "I think this one is ready to grow soon!" (for a fading
-  `next`, the fading note is used instead). If `next` is ever made to match
-  the session the engine will serve, this copy can get bolder.
+  animated element.** It **overrides the underlying tier's look** (a fading
+  star can be `next`; its sparkle is hidden so the two treatments never
+  fight), and Fizz's bubble still names the real tier when tapped. The map's
+  top-level `nextKind` picks one of two looks:
+  - *grow* (`.const-star--next`, `--k` 1.34): the largest star, a thick
+    `--play` coral ring on a warm fill with a filled coral star, a soft halo
+    that breathes (`::after`) and a ring that ripples outward (`::before`).
+  - *practice* (`.const-star--practice`, `--k` 1.24): Play leads with a
+    concept the child has been finding hard. Softer on purpose: a thick
+    `--status-emerging` blue ring (the glow tier such a concept already
+    has), a slower breathing halo and **no** ripple. Never coral (that is
+    "go grow"), never teal (reward only), never lavender (fading).
+  The server may send **no** `next` star (`nextKind: null`, e.g. every
+  candidate is escalated), and then the map has no glowing star.
+- **Play goes to the glowing star, and the copy says so.** (This supersedes
+  the old rule that copy must never imply it: the map route and
+  `/assignment` now share one engine rule, measured with 0 mismatches
+  including struggling kids.) The opening bubble points at it: "See the
+  glowing star? Press Play to grow it!" (grow), "See the glowing star? Let's
+  practice this one together!" (practice), or "Tap a star. I'll tell you its
+  name!" when there is no `next`. Tapped notes: "Let's grow this one!" (grow;
+  a fading grow star keeps the fading note) and "Let's practice this one
+  together!" (practice, any tier). **Never the word "stuck"**, no digits, and
+  nothing that sounds like a warning. If the engine and map rule ever split
+  again, go back to hedged copy.
 - **Arriving from the celebration** (`state.justBloomed`, set by "See your
   star map" and cleared the moment the map reads it, so it plays once):
   every star that just bloomed gets `.const-star--just-bloomed` — a copy of
@@ -279,14 +322,16 @@ Rules:
   star is `bloom`. A star whose pattern was cracked keeps its own tier and
   gets `.const-star--just-cracked` (a teal ring, twice). Fizz cheers and the
   bubble names the first such star ("Look, your star just bloomed!" / "You
-  figured out a tricky part here!"); it is marked selected and scrolled into
-  view inside `.const-scroll`, never by scrolling the page.
+  figured out a tricky part here!"; from the rebloom card, "Look, your star is
+  bright again!"; if the map disagrees that the star is bloom, its plain tier
+  note); it is marked selected and scrolled into view inside `.const-scroll`,
+  never by scrolling the page.
 - **Motion budget on the map:** the pop-in cascade (one-shot), bloom
   sparkles (one-shot), the just-bloomed/just-cracked highlight (one-shot),
-  Fizz idle/hop/cheer, and the `next` halo + ripple (the only loop). Under
-  `prefers-reduced-motion` all of it stops: the `next` halo stays visible
-  and static, the ripple and the glow overlay are hidden, and a just-bloomed
-  star simply shows as bloom.
+  Fizz idle/hop/cheer, and the `next` halo (+ ripple for grow; the only
+  loop). Under `prefers-reduced-motion` all of it stops: the grow/practice
+  halo stays visible and static, the ripple and the glow overlay are hidden,
+  and a just-bloomed star simply shows as bloom.
 - **Names are kid-voice only**, from `CHILD_LABEL` in `child.js`: short,
   concrete, **no digits, no fraction glyphs, no "1/n"**. The graph's own
   labels are tutor-facing and never reach this screen. A new authored
@@ -312,14 +357,46 @@ one screen).
 
 ## Item widgets
 
-- **Number line** (`renderNumberline`): place, adjust, then lock in. A tap or
+- **The answer beat** (`showAck`, every widget): plays **on** the item card
+  for `ACK_MS` (600ms), never on a blank card. The item stays where it is and
+  stops taking taps (`.stage--ack`); the subprompt, Lock button and the
+  choice that wasn't picked fade to 35%; the picked card/button lifts in its
+  own hue (`.is-chosen`); the number-line marker throws one coral ring (the
+  Star Path's `star-next-ripple` keyframe, once); the balance scale finishes
+  tipping. Fizz hops beside the prompt and its `.speech-bubble` takes the
+  prompt's place with one `ACK_LINES` line. The path track pops the node just
+  finished. All of it is identical whatever the answer was: "picked" is not
+  "right". The lift is the card's own hue (the colour it already had), never
+  green, a check or a sparkle, and the choice that wasn't picked only quiets
+  to 55% (at 35% it looked crossed out, which reads as a verdict). The card
+  is `overflow: visible` for the beat only, so Fizz's hop isn't clipped when
+  the prompt row sits at the card's top edge.
+- **Number line** (`renderNumberline`): the prompt is "Where does <value>
+  go?"; a fraction value is stacked (`valueGlyph()` → `.prompt-frac`, never
+  smaller than 20px), whole numbers and decimals inline. The end labels are
+  content, so they are `--display` in ink, centred under the end ticks, in
+  viewBox units (bigger at ≤640px wide, where the line draws at ~0.55x:
+  ~20px on a 400px phone, not the old ~7px). Place, adjust, then
+  lock in. A tap or
   press-and-drag on the line moves the marker as often as the child likes;
   nothing is sent until the `Lock it in` button (`.line-lock`, disabled until
   a spot is placed). Don't go back to submit-on-first-tap: it punished a
   slipped finger as a misconception.
+- **Balance scale** (`renderBalanceScale`): the viewBox is cropped around
+  the scale so it draws about twice the old size; each pan holds a weight
+  block with the fraction stacked on it in `--display` (SVG units, so labels
+  grow with the drawing). Pans counter-rotate so they hang upright. **Before
+  the choice the beam is undecided, never level**: it rocks gently
+  (`balance-rock`, ±5°) and the pivot shows a "?"; a level beam used to read
+  as a hint for "Balances". On the tap the rock stops and the beam tips to
+  the true relationship. Under reduced motion there is no rocking and the "?"
+  alone carries "not decided yet". The two choice buttons stay the only tap
+  targets.
 - **Fraction bars** (`renderCompare`): each bar is one whole of the same
   length, drawn as `denominator` equal `.bar-cell`s with `numerator` shaded,
   not a single fill width. It uses only the item's `numerator`/`denominator`.
+  The fraction under each bar (`.bar-label`) is what the child compares, so
+  it is `--display` in ink, not a small grey mono caption.
 - **Partition** (`renderPartition`): the prompt word comes from the
   `PARTITION_WORDS` lookup (halves … sixths, mirroring `server/routes.ts`).
   An unknown part count says "equal parts", never a digit. Always one tap on
@@ -360,7 +437,7 @@ one screen).
     bloomed/cracked stars are shown by their highlight on the map, not listed
     here.
   - **The cracked line is never `--play` orange.** Orange on this surface
-    means Play and the `next` star ("ready to grow soon"), so an orange line
+    means Play and the `next` star ("Let's grow this one!"), so an orange line
     reads as "go fix this one". It isn't mastery either, so it isn't teal:
     plain ink, carried by the teal ring and Fizz's cheer around it.
   - **Never name or hint at the misconception.** The server sends only
@@ -370,8 +447,21 @@ one screen).
     only pick which branch renders.
   - Both lists are server judgements (belief diff and the evidence log). A
     client-side streak or tally must never trigger this screen.
-  - An abandoned (Home) session goes straight to the map and never shows it.
+  - **An abandoned (Home) session gets it too.** The answers given before
+    Home count, so if that bundle's response has a beat, it plays before the
+    map; with no beat, Home still goes straight to the map (no end card).
   - Reduced motion: Fizz, ring and sparkles are static.
+- **Rebloom** (`showRebloom`): when **every** `newlyMastered` entry has
+  `kind: "rebloom"` (a star that had faded is bright again; a missing `kind`
+  means `"first"`) and `patternsCracked` is empty, the lighter version of the
+  same screen plays instead: a smaller Fizz circle (plain `pop-in`, one ring
+  pulse, no sparkles), a smaller heading "Your star is bright again!", one
+  teal line "You remembered — <name>!" for the first entry, and the same "See
+  your star map" → the same one-shot bloom highlight. "Bright again" is
+  about the star; never a repeat count ("again and again", "third time"),
+  digits, or copy that says the child forgot. Any `"first"` entry, or any cracked pattern, gets
+  the full celebration; firsts are listed before reblooms, so its one bloom
+  line names a first-time star when there is one.
 - **Empty card** copy is written for a 6-8 year old reader: short sentences,
   three different messages (done for now / a teacher is helping / new things
   are coming).
@@ -431,7 +521,9 @@ Reuse the shared `--dur-*`/`--ease-*` tokens from `public/shared/styles.css`
 for anything that isn't Fizz-specific (a card's hover lift, a fade-up on
 mount). Fizz's own `fizz-idle`/`fizz-hop`/`fizz-cheer` keyframes (see the
 Fizz section above) and the background's `bg-drift-*` keyframes are the only
-surface-specific motion, and all of them already respect
+surface-specific motion, plus two small in-session keyframes: the balance
+scale's pre-choice `balance-rock` and the path node / answer bubble `pop-in`s
+(shared). All of them respect
 `prefers-reduced-motion: reduce` — carry that same guard on anything new.
 
 **Ambient motion has a hard ceiling: it may never compete with the question
@@ -463,8 +555,11 @@ constraints: stays behind `.wrap`, moves slowly, stays out of `.stage`.
 ## Checklist for a new game/item type
 
 1. Write `renderYourGame(item, startedAtMs)` returning an array of elements
-   (prompt, optional subprompt, your widget) — model it on
+   (prompt **first**, optional subprompt, your widget) — model it on
    `renderCompare`/`renderPartition` in `child.js`, not on a fresh design.
+   Send answers through `answerTap()` (or catch `submitAndAdvance` the same
+   way) so a failed send shows the hiccup note and the answer beat has an
+   `.is-chosen` element to lift.
 2. Wire it into `showItem()`'s branch on `game_id`/`item.kind` — don't touch
    the surrounding `.screen`/topbar/`pathTrack()` call, they're already
    shared.

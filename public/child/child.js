@@ -19,13 +19,16 @@ const state = {
   busy: false,
   // Session lifecycle: "playing" while items are on screen, "finishing" once
   // the bundle is being posted (or the child tapped Home), "idle" otherwise.
-  // Every delayed callback (the feedback-note timeout, the balance scale's
+  // Every delayed callback (the answer-beat timeout, the balance scale's
   // settle delay) checks it, so nothing can re-render an item on top of the
   // map after the child has left the session.
   phase: "idle",
   // True only while a POST /respond is in flight. A Home tap during that
   // window is deferred until the observation lands, so it isn't lost.
   responding: false,
+  // True during the balance scale's short tip-then-send delay: the answer is
+  // chosen but not yet posted, so a Home tap must wait for it too.
+  settling: false,
   quitRequested: false,
   // One-shot hand-off from the celebration screen to the Star Path: which
   // stars just bloomed / cracked a pattern this session (server-reported),
@@ -128,6 +131,23 @@ function loadingCard(label = "Loading...") {
   ]);
 }
 
+// A fetch for a whole screen failed (server down, network blip). Same shape
+// and voice as showSaveRetry: never a permanent "Loading...". `onBack` adds a
+// quiet way out beside "Try again".
+function showLoadRetry({ onRetry, backLabel = null, onBack = null }) {
+  render(
+    el("div", { class: "screen screen--center" }, [
+      el("div", { class: "empty-card", role: "alert" }, [
+        el("div", { class: "icon-wrap" }, [fizz("sm")]),
+        el("h2", {}, "Oops, that didn't load"),
+        el("p", {}, "Let's try that again."),
+        el("button", { type: "button", class: "btn-primary", onclick: onRetry }, "Try again"),
+        onBack ? el("button", { type: "button", class: "pill-link", onclick: onBack }, backLabel) : null,
+      ]),
+    ]),
+  );
+}
+
 // Plain-English display names for the graph's strand codes -- words only,
 // never a count or ranking. Kept local to this file rather than imported
 // from tutor.js (a different surface with a different bundling story), but
@@ -149,7 +169,15 @@ const STRAND_LABEL = {
 // Picking a player opens their Star Path (the map is home); Play starts
 // from there.
 async function showPicker() {
-  const directory = await api("/directory");
+  render(loadingCard());
+  let directory;
+  try {
+    directory = await api("/directory");
+  } catch (err) {
+    console.error("loading the roster failed:", err);
+    showLoadRetry({ onRetry: showPicker });
+    return;
+  }
   // Big avatar cards, fading up in a quick stagger (capped, one-shot).
   const cards = directory.map((d, i) =>
     el(
@@ -203,13 +231,20 @@ const TIER_NOTE = {
   bloom: "This one's shining bright!",
   fading: "This one would love to see you again.",
 };
-// Deliberately does NOT say Play goes here: the server's `next` is only a
-// map highlight, and the session itself is still chosen by the engine (a
-// kid-ux spot check found it differed for most seeded students). "Soon" and
-// Fizz's "I think" keep it a hint, not a promise about the next Play.
-const NEXT_NOTE = "I think this one is ready to grow soon!";
+// The map's `next` is exactly what Play serves (the map route and
+// /assignment share one engine rule, and the session leads with it), so
+// Fizz's copy can promise it. `nextKind` from the map says how it reads:
+// "grow" for an ordinary next star, "practice" when Play leads with a concept
+// the child has been finding hard (never called "stuck" here). No digits.
+const NEXT_NOTE = { grow: "Let's grow this one!", practice: "Let's practice this one together!" };
+const OPENING_NOTE = {
+  grow: "See the glowing star? Press Play to grow it!",
+  practice: "See the glowing star? Let's practice this one together!",
+  none: "Tap a star. I'll tell you its name!",
+};
 // Fizz's line when the map opens from the celebration screen.
 const JUST_BLOOMED_NOTE = "Look, your star just bloomed!";
+const JUST_REBLOOMED_NOTE = "Look, your star is bright again!";
 const JUST_CRACKED_NOTE = "You figured out a tricky part here!";
 
 const TIER_A11Y = { seed: "seed star", glow: "growing star", bloom: "shining star", fading: "star to revisit" };
@@ -224,11 +259,29 @@ async function showConstellation(student, hue = 0) {
   const justBloomed = state.justBloomed;
   state.justBloomed = null;
   render(loadingCard());
-  const map = await api(`/child/map/${student.student_id}`);
+  let map;
+  try {
+    map = await api(`/child/map/${student.student_id}`);
+  } catch (err) {
+    console.error("loading the star map failed:", err);
+    showLoadRetry({
+      // Keep the celebration hand-off so a retry still plays the highlight.
+      onRetry: () => {
+        state.justBloomed = justBloomed;
+        showConstellation(student, hue);
+      },
+      backLabel: "Change player",
+      onBack: showPicker,
+    });
+    return;
+  }
   const bloomedIds = new Set(justBloomed?.bloomed ?? []);
   const crackedIds = new Set(justBloomed?.cracked ?? []);
   const focusButton = { current: null };
   const conceptById = new Map(map.concepts.map((c) => [c.concept_id, c]));
+  // An older server without `nextKind` still sends `next`: treat it as grow.
+  const hasNext = map.concepts.some((c) => c.next);
+  const nextKind = !hasNext ? null : map.nextKind === "practice" ? "practice" : "grow";
 
   // Fizz narrates from one fixed spot above the scroll area, so the bubble
   // is always visible no matter which trail the tapped star sits on.
@@ -237,17 +290,24 @@ async function showConstellation(student, hue = 0) {
   function say(name, note) {
     bubble.replaceChildren(...[name ? el("span", { class: "speech-name" }, name) : null, el("span", { class: "speech-note" }, note)].filter(Boolean));
   }
-  // The opening line doesn't point at the coral `next` star: it shares the
-  // Play button's colour, and saying "see the glowing star?" right above Play
-  // reads as "Play goes there" when the engine may pick something else.
-  say(null, "Tap a star. I'll tell you its name!");
+  // The opening line points at the glowing star, because Play really does go
+  // there now. With no `next` star it just invites a tap.
+  say(null, OPENING_NOTE[nextKind ?? "none"]);
 
   let selected = null;
   function onStarTap(concept, button) {
     if (selected) selected.classList.remove("const-star--selected");
     selected = button;
     button.classList.add("const-star--selected");
-    const note = concept.next && concept.tier !== "fading" && concept.tier !== "bloom" ? NEXT_NOTE : TIER_NOTE[concept.tier];
+    // A practice star always gets the practice line; a grow star keeps the
+    // gentler fading note if it had faded.
+    const note = !concept.next
+      ? TIER_NOTE[concept.tier]
+      : nextKind === "practice"
+        ? NEXT_NOTE.practice
+        : concept.tier !== "fading" && concept.tier !== "bloom"
+          ? NEXT_NOTE.grow
+          : TIER_NOTE[concept.tier];
     say(childLabel(concept.concept_id), note);
     // Re-mount Fizz so the one-shot hop replays on every tap.
     fizzSlot.replaceChildren(fizz("lg", "hop"));
@@ -269,7 +329,7 @@ async function showConstellation(student, hue = 0) {
         // The just-bloomed highlight only plays if the server's map agrees
         // the star is bloom now; a cracked pattern pops the star in its tier.
         const highlight = bloomedIds.has(id) && concept?.tier === "bloom" ? "bloomed" : crackedIds.has(id) || bloomedIds.has(id) ? "cracked" : null;
-        const button = starNode(concept, starIndex++, onStarTap, slotFor(i), highlight);
+        const button = starNode(concept, starIndex++, onStarTap, slotFor(i), highlight, nextKind);
         if (id === justBloomed?.focus) focusButton.current = button;
         row.push(button);
       });
@@ -318,7 +378,15 @@ async function showConstellation(student, hue = 0) {
     const b = focusButton.current;
     selected = b;
     b.classList.add("const-star--selected");
-    say(childLabel(justBloomed.focus), justBloomed.focusKind === "bloomed" && concept?.tier === "bloom" ? JUST_BLOOMED_NOTE : JUST_CRACKED_NOTE);
+    const bloomKind = justBloomed.focusKind === "bloomed" || justBloomed.focusKind === "rebloomed";
+    // If the map disagrees that a bloomed star is bloom, fall back to its
+    // plain tier note rather than claiming a cracked pattern.
+    const note = !bloomKind
+      ? JUST_CRACKED_NOTE
+      : concept?.tier === "bloom"
+        ? justBloomed.focusKind === "rebloomed" ? JUST_REBLOOMED_NOTE : JUST_BLOOMED_NOTE
+        : TIER_NOTE[concept?.tier ?? "seed"];
+    say(childLabel(justBloomed.focus), note);
     fizzSlot.replaceChildren(fizz("lg", "cheer"));
     const scroller = app.querySelector(".const-scroll");
     if (scroller) {
@@ -348,12 +416,15 @@ function trailStep(dir, fade = false) {
 // `highlight` is the one-shot arrival from the celebration screen:
 // "bloomed" plays glow -> bloom (a glow-tier overlay that melts away), and
 // "cracked" plays a single teal pulse on the star as it is.
-function starNode(concept, index, onTap, slotClass = "", highlight = null) {
+// `nextKind` picks the next star's look: coral `.const-star--next` for "grow",
+// the softer blue `.const-star--practice` for "practice" (never both).
+function starNode(concept, index, onTap, slotClass = "", highlight = null, nextKind = "grow") {
   const tier = concept?.tier ?? "seed";
   // Cascading entrance delay, capped so the whole map twinkles in quickly.
   const delayMs = Math.min(index * 40, 560);
   const highlightClass = highlight === "bloomed" ? " const-star--just-bloomed" : highlight === "cracked" ? " const-star--just-cracked" : "";
-  const cls = `const-star const-star--${tier}${concept?.next ? " const-star--next" : ""}${highlightClass} ${slotClass}`.trim();
+  const nextClass = concept?.next ? (nextKind === "practice" ? " const-star--practice" : " const-star--next") : "";
+  const cls = `const-star const-star--${tier}${nextClass}${highlightClass} ${slotClass}`.trim();
   const button = el(
     "button",
     {
@@ -379,8 +450,21 @@ function starNode(concept, index, onTap, slotClass = "", highlight = null) {
 async function startSession(student, hue = 0) {
   state.student = student;
   state.studentHue = hue;
+  state.phase = "idle";
   render(loadingCard());
-  const result = await api(`/assignment/${student.student_id}`);
+  // GET /assignment is a pure peek, so a retry gets the same session back.
+  let result, items;
+  try {
+    result = await api(`/assignment/${student.student_id}`);
+    if (result.assignment) {
+      const ids = result.assignment.item_specs.map((s) => s.item_id).join(",");
+      items = await api(`/items/${result.assignment.game_id}?ids=${ids}`);
+    }
+  } catch (err) {
+    console.error("starting a session failed:", err);
+    showLoadRetry({ onRetry: () => startSession(student, hue), backLabel: "Back to my stars", onBack: () => showConstellation(student, hue) });
+    return;
+  }
   if (!result.assignment) {
     showEmpty(result);
     return;
@@ -391,11 +475,10 @@ async function startSession(student, hue = 0) {
   state.observations = [];
   state.busy = false;
   state.responding = false;
+  state.settling = false;
   state.quitRequested = false;
   state.index = 0;
-
-  const ids = state.assignment.item_specs.map((s) => s.item_id).join(",");
-  state.items = await api(`/items/${state.assignment.game_id}?ids=${ids}`);
+  state.items = items;
 
   state.phase = "playing";
   showItem();
@@ -473,25 +556,39 @@ function currentItem() {
 // funneled through this exact same component for "how far am I", because
 // they already share this one call site. See DESIGN_LANGUAGE.md before
 // adding a fifth item type that bypasses this.
+// Fizz itself now stands beside the prompt (see showItem), so the track marks
+// "you are here" with a bigger coral node instead. Node states: done (solid
+// teal), current (coral ring) and not-yet (a soft filled sand dot), all on the
+// same sand road the Star Path's trails use. `justAdvanced` pops the node that
+// was just finished and the new current one, once.
 function pathTrack(total, index, { justAdvanced = false } = {}) {
   const count = Math.max(total, 1);
   const posFor = (i) => {
     const t = count > 1 ? i / (count - 1) : 0.5;
-    return { x: 6 + t * 88, y: 66 - Math.sin(t * Math.PI) * 40 };
+    return { x: 5 + t * 90, y: 74 - Math.sin(t * Math.PI) * 48 };
   };
   const nodes = [];
   for (let i = 0; i < count; i++) {
     const { x, y } = posFor(i);
-    nodes.push(el("div", { class: "path-node" + (i < index ? " path-node--done" : ""), style: `left:${x}%; top:${y}%` }));
+    let cls = "path-node";
+    if (i < index) cls += " path-node--done" + (justAdvanced && i === index - 1 ? " path-node--just" : "");
+    else if (i === index) cls += " path-node--current" + (justAdvanced ? " path-node--just" : "");
+    nodes.push(el("div", { class: cls, style: `left:${x}%; top:${y}%` }));
   }
-  const fizzIndex = Math.min(index, count - 1);
-  const { x: fx, y: fy } = posFor(fizzIndex);
-  const fizzNode = el("div", { class: "path-fizz", style: `left:${fx}%; top:${fy}%` }, [fizz("md", justAdvanced ? "hop" : "")]);
+  const samples = [];
+  for (let s = 0; s <= 32; s++) {
+    const t = s / 32;
+    samples.push(`${(5 + t * 90).toFixed(2)},${(74 - Math.sin(t * Math.PI) * 48).toFixed(2)}`);
+  }
+  const road = el("span", {
+    class: "path-road",
+    html: `<svg viewBox="0 0 100 100" preserveAspectRatio="none"><polyline class="trail-road" points="${samples.join(" ")}" vector-effect="non-scaling-stroke"/><polyline class="trail-dots" points="${samples.join(" ")}" vector-effect="non-scaling-stroke"/></svg>`,
+  });
 
-  // No text under the track: the nodes and Fizz's position are the whole
-  // progress signal. (A "N to go" chip used to sit here; it was the one digit
-  // in a session and was removed -- see DESIGN_LANGUAGE.md "The path track".)
-  return el("div", { class: "path-wrap" }, [el("div", { class: "path-track", "aria-hidden": "true" }, [...nodes, fizzNode])]);
+  // No text under the track: the nodes are the whole progress signal. (A "N
+  // to go" chip used to sit here; it was the one digit in a session and was
+  // removed -- see DESIGN_LANGUAGE.md "The path track".)
+  return el("div", { class: "path-wrap" }, [el("div", { class: "path-track", "aria-hidden": "true" }, [road, ...nodes])]);
 }
 
 // The topbar every in-session screen shares: who's playing, and a Home
@@ -510,7 +607,7 @@ function sessionTopbar() {
 // being sent waits for it to land (see submitAndAdvance).
 function quitSession() {
   if (state.phase !== "playing") return;
-  if (state.responding) {
+  if (state.responding || state.settling) {
     state.quitRequested = true;
     return;
   }
@@ -544,13 +641,56 @@ function showItem() {
     stage = renderCompare(item, startedAtMs);
   }
 
+  // Every renderer returns the prompt first. Fizz stands beside it, and the
+  // prompt sits in a slot the answer bubble can take over (showAck).
+  const [promptEl, ...rest] = stage;
+  const promptRow = el("div", { class: "prompt-row" }, [
+    el("div", { class: "prompt-fizz" }, [fizz("lg")]),
+    el("div", { class: "prompt-slot" }, [promptEl]),
+  ]);
+
   render(
     el("div", { class: "screen" }, [
       sessionTopbar(),
-      el("div", { class: "stage" }, stage),
+      el("div", { class: "stage" }, [promptRow, ...rest]),
       pathTrack(state.assignment.item_specs.length, state.index),
     ]),
   );
+}
+
+// One tap answer (compare, partition): mark what was picked, send it, and if
+// it doesn't reach the server, un-mark it and say so gently so the child can
+// tap again. The mark is the same whatever the answer is.
+function answerTap(target, payload) {
+  if (state.busy || state.phase !== "playing") return;
+  target.classList.add("is-chosen");
+  submitAndAdvance(payload).catch((err) => {
+    console.error("sending an answer failed:", err);
+    target.classList.remove("is-chosen");
+    showSendHiccup();
+  });
+}
+
+// A small, friendly note inside the item card when an answer didn't send.
+// The item stays exactly as it was, still answerable.
+function showSendHiccup() {
+  if (state.phase !== "playing") return;
+  const stage = app.querySelector(".stage");
+  if (!stage) return;
+  stage.querySelector(".send-note")?.remove();
+  stage.classList.add("stage--hiccup");
+  stage.appendChild(el("div", { class: "send-note", role: "status" }, "Oops, that didn't send. Try again!"));
+}
+
+// Fraction prompts ("1/8") are stacked the way a grade-3 page writes them;
+// whole numbers and decimals stay inline.
+function valueGlyph(text) {
+  const m = /^(\d+)\/(\d+)$/.exec(String(text));
+  if (!m) return el("span", { class: "prompt-value" }, String(text));
+  return el("span", { class: "prompt-frac", role: "img", "aria-label": `${m[1]}/${m[2]}` }, [
+    el("span", { class: "prompt-frac-num" }, m[1]),
+    el("span", { class: "prompt-frac-den" }, m[2]),
+  ]);
 }
 
 function renderNumberline(item, startedAtMs) {
@@ -582,13 +722,13 @@ function renderNumberline(item, startedAtMs) {
   }
   const loLabel = document.createElementNS(svg.namespaceURI, "text");
   loLabel.setAttribute("x", margin);
-  loLabel.setAttribute("y", trackY + 30);
+  loLabel.setAttribute("y", trackY + 44);
   loLabel.setAttribute("class", "line-tick-label");
   loLabel.textContent = String(lo);
   svg.appendChild(loLabel);
   const hiLabel = document.createElementNS(svg.namespaceURI, "text");
-  hiLabel.setAttribute("x", width - margin - 14);
-  hiLabel.setAttribute("y", trackY + 30);
+  hiLabel.setAttribute("x", width - margin); // centred under the end tick (text-anchor: middle in CSS)
+  hiLabel.setAttribute("y", trackY + 44);
   hiLabel.setAttribute("class", "line-tick-label");
   hiLabel.textContent = String(hi);
   svg.appendChild(hiLabel);
@@ -598,6 +738,7 @@ function renderNumberline(item, startedAtMs) {
   // is sent until "Lock it in". The observation's timing still spans from the
   // item appearing to the lock-in tap.
   let marker = null;
+  let markerRing = null;
   let value = null;
   let dragging = false;
   let locked = false;
@@ -609,6 +750,13 @@ function renderNumberline(item, startedAtMs) {
     value = Math.max(0, Math.min(1, (localX - margin) / (width - 2 * margin)));
 
     if (!marker) {
+      // The ring is hidden until the answer is sent, then pulses once from
+      // the marker (see .stage--ack .line-marker-ring): "this is your spot".
+      markerRing = document.createElementNS(svg.namespaceURI, "circle");
+      markerRing.setAttribute("r", 11);
+      markerRing.setAttribute("cy", trackY);
+      markerRing.setAttribute("class", "line-marker-ring");
+      svg.appendChild(markerRing);
       marker = document.createElementNS(svg.namespaceURI, "circle");
       marker.setAttribute("r", 11);
       marker.setAttribute("cy", trackY);
@@ -616,6 +764,7 @@ function renderNumberline(item, startedAtMs) {
       svg.appendChild(marker);
     }
     marker.setAttribute("cx", margin + value * (width - 2 * margin));
+    markerRing.setAttribute("cx", margin + value * (width - 2 * margin));
     lockBtn.disabled = false;
   }
 
@@ -638,15 +787,17 @@ function renderNumberline(item, startedAtMs) {
 
   const lockBtn = el("button", { type: "button", class: "btn-primary line-lock", disabled: "" }, "Lock it in");
   lockBtn.addEventListener("click", () => {
-    if (locked || value == null) return;
+    if (locked || value == null || state.busy || state.phase !== "playing") return;
     locked = true;
     lockBtn.disabled = true;
     svg.classList.add("is-locked");
-    submitAndAdvance({ item_id: item.item_id, value, startedAtMs, endedAtMs: Date.now() }).catch(() => {
+    submitAndAdvance({ item_id: item.item_id, value, startedAtMs, endedAtMs: Date.now() }).catch((err) => {
       // The answer didn't reach the server: unlock so the child can try again.
+      console.error("sending an answer failed:", err);
       locked = false;
       lockBtn.disabled = false;
       svg.classList.remove("is-locked");
+      showSendHiccup();
     });
   });
 
@@ -654,7 +805,7 @@ function renderNumberline(item, startedAtMs) {
   lineArea.appendChild(svg);
 
   return [
-    el("div", { class: "prompt" }, item.prompt),
+    el("div", { class: "prompt" }, ["Where does ", valueGlyph(item.prompt), " go?"]),
     el("div", { class: "subprompt" }, "Tap the line. Move it if you want, then lock it in."),
     lineArea,
     lockBtn,
@@ -678,7 +829,7 @@ function renderCompare(item, startedAtMs) {
     }
     return el(
       "div",
-      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
+      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: (e) => answerTap(e.currentTarget, { item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
       [el("div", { class: "bar-outer" }, cells), el("div", { class: "bar-label" }, `${f.numerator}/${f.denominator}`)],
     );
   }
@@ -699,59 +850,66 @@ function renderCompare(item, startedAtMs) {
 // the child still never sees a correct/incorrect label anywhere (see
 // submitAndAdvance's answer-independent ACK_LINES).
 function renderBalanceScale(item, startedAtMs) {
-  const width = 560;
-  const height = 230;
+  // The viewBox is cropped tightly around the scale (the old one was mostly
+  // empty width), so the same stage space draws it about twice as big, and
+  // the pan labels are a stacked fraction on a weight block, in SVG units so
+  // they grow with the drawing.
+  const width = 420;
+  const height = 250;
   const pivotX = width / 2;
-  const pivotY = 82;
-  const standBottomY = 186;
-  const beamHalf = 108;
-  const stringLen = 58;
-  const panW = 70;
-  const panH = 30;
+  const pivotY = 64;
+  const standBottomY = 236;
+  const beamHalf = 140;
+  const dishY = 152; // where each pan's dish rim hangs, below the beam end
+  const dishHalf = 62;
 
   const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
   svg.setAttribute("viewBox", `0 0 ${width} ${height}`);
-  svg.setAttribute("class", "balance-svg");
+  svg.setAttribute("class", "balance-svg is-undecided");
+  svg.setAttribute("role", "img");
+  svg.setAttribute("aria-label", `A balance scale with ${item.left.numerator}/${item.left.denominator} on one side and ${item.right.numerator}/${item.right.denominator} on the other`);
 
-  function shape(tag, attrs) {
+  function shape(tag, attrs, text) {
     const node = document.createElementNS(svg.namespaceURI, tag);
     for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, String(v));
+    if (text != null) node.textContent = text;
     return node;
   }
 
-  svg.appendChild(
-    shape("polygon", {
-      points: `${pivotX - 34},${standBottomY} ${pivotX + 34},${standBottomY} ${pivotX},${pivotY}`,
-      class: "balance-fulcrum",
-    }),
-  );
-  svg.appendChild(shape("line", { x1: pivotX - 48, x2: pivotX + 48, y1: standBottomY, y2: standBottomY, class: "balance-base" }));
+  svg.appendChild(shape("polygon", { points: `${pivotX - 40},${standBottomY} ${pivotX + 40},${standBottomY} ${pivotX},${pivotY}`, class: "balance-fulcrum" }));
+  svg.appendChild(shape("line", { x1: pivotX - 64, x2: pivotX + 64, y1: standBottomY, y2: standBottomY, class: "balance-base" }));
 
-  const pivotGroup = shape("g", { transform: `translate(${pivotX},${pivotY})` });
-  const beamGroup = shape("g", { class: "balance-beam", transform: "rotate(0 0 0)" });
-  beamGroup.appendChild(shape("line", { x1: -beamHalf, x2: beamHalf, y1: 0, y2: 0, class: "balance-beam-line" }));
-  beamGroup.appendChild(shape("circle", { cx: 0, cy: 0, r: 6, class: "balance-pivot-cap" }));
+  // Rotation is a CSS transform (so the pre-choice wobble can be a CSS
+  // animation) about the pivot, in viewBox coordinates. Each pan counter-
+  // rotates about its own hanging point, so pans stay upright as the beam tips.
+  const beamGroup = shape("g", { class: "balance-beam", style: `transform-origin: ${pivotX}px ${pivotY}px` });
+  beamGroup.appendChild(shape("line", { x1: pivotX - beamHalf, x2: pivotX + beamHalf, y1: pivotY, y2: pivotY, class: "balance-beam-line" }));
 
-  // Pans are display-only now (no click handler, no oversized hit-rect --
-  // the tappable surface moved to the two choice buttons below). The visual
-  // shape/label rendering is otherwise unchanged from the original build.
+  const pans = [];
   function panAssembly(side, weight) {
-    const sign = side === "left" ? -1 : 1;
-    const x = sign * beamHalf;
-    const group = shape("g", { class: "balance-pan-wrap", "data-side": side });
-    group.appendChild(shape("line", { x1: x, x2: x, y1: 0, y2: stringLen, class: "balance-string" }));
-    const panPath = `M ${x - panW / 2} ${stringLen} L ${x + panW / 2} ${stringLen} L ${x + panW / 2 - 9} ${stringLen + panH} L ${x - panW / 2 + 9} ${stringLen + panH} Z`;
-    group.appendChild(shape("path", { d: panPath, class: "balance-pan" }));
-    const label = shape("text", { x, y: stringLen + panH / 2 + 5, class: "balance-pan-label", "text-anchor": "middle" });
-    label.textContent = `${weight.numerator}/${weight.denominator}`;
-    group.appendChild(label);
+    const x = pivotX + (side === "left" ? -1 : 1) * beamHalf;
+    const group = shape("g", { class: "balance-pan-wrap", "data-side": side, style: `transform-origin: ${x}px ${pivotY}px` });
+    group.appendChild(shape("circle", { cx: x, cy: pivotY, r: 5, class: "balance-hook" }));
+    group.appendChild(shape("line", { x1: x, y1: pivotY, x2: x - dishHalf + 6, y2: dishY, class: "balance-string" }));
+    group.appendChild(shape("line", { x1: x, y1: pivotY, x2: x + dishHalf - 6, y2: dishY, class: "balance-string" }));
+    // The weight: a rounded block with the fraction stacked on it.
+    group.appendChild(shape("rect", { x: x - 42, y: dishY - 62, width: 84, height: 64, rx: 12, class: "balance-weight" }));
+    group.appendChild(shape("text", { x, y: dishY - 36, "text-anchor": "middle", class: "balance-pan-label" }, String(weight.numerator)));
+    const barHalf = 8 + 7 * Math.max(String(weight.numerator).length, String(weight.denominator).length);
+    group.appendChild(shape("line", { x1: x - barHalf, x2: x + barHalf, y1: dishY - 29, y2: dishY - 29, class: "balance-frac-bar" }));
+    group.appendChild(shape("text", { x, y: dishY - 5, "text-anchor": "middle", class: "balance-pan-label" }, String(weight.denominator)));
+    group.appendChild(shape("path", { d: `M ${x - dishHalf} ${dishY} Q ${x} ${dishY + 30} ${x + dishHalf} ${dishY} Z`, class: "balance-pan" }));
+    pans.push(group);
     return group;
   }
-
   beamGroup.appendChild(panAssembly("left", item.left));
   beamGroup.appendChild(panAssembly("right", item.right));
-  pivotGroup.appendChild(beamGroup);
-  svg.appendChild(pivotGroup);
+  beamGroup.appendChild(shape("circle", { cx: pivotX, cy: pivotY, r: 13, class: "balance-pivot-cap" }));
+  svg.appendChild(beamGroup);
+  // "Not decided yet": a question mark on the pivot, shown until the child
+  // chooses (and the one neutral cue left under reduced motion, where the
+  // wobble doesn't play).
+  svg.appendChild(shape("text", { x: pivotX, y: pivotY + 6, "text-anchor": "middle", class: "balance-pivot-mark" }, "?"));
 
   // Cross-multiplication, same exact-equality test classify.ts uses server-
   // side -- this copy is purely for the visual settle animation (which way,
@@ -759,23 +917,37 @@ function renderBalanceScale(item, startedAtMs) {
   // server's verdict; classifyTip(), not this, is what the belief model
   // actually sees.
   const trulyBalances = item.left.numerator * item.right.denominator === item.right.numerator * item.left.denominator;
-  const tiltAngle = trulyBalances ? 0 : decimalOfClient(item.left) > decimalOfClient(item.right) ? -12 : 12;
-  function decimalOfClient(w) {
-    return w.numerator / w.denominator;
+  const tiltAngle = trulyBalances ? 0 : item.left.numerator / item.left.denominator > item.right.numerator / item.right.denominator ? -12 : 12;
+
+  function setTilt(angle) {
+    beamGroup.style.transform = angle == null ? "" : `rotate(${angle}deg)`;
+    for (const p of pans) p.style.transform = angle == null ? "" : `rotate(${-angle}deg)`;
   }
 
   // Guards the same double-tap window submitAndAdvance's state.busy guards
-  // elsewhere, but locally: the tilt-then-settle animation below delays the
-  // actual submitAndAdvance call by 260ms, a window state.busy (only set
-  // inside submitAndAdvance) doesn't cover on its own.
+  // elsewhere, but locally: the tip-then-send delay below holds the actual
+  // submitAndAdvance call for 260ms, a window state.busy doesn't cover.
+  // state.settling covers the same window for a Home tap (quitSession waits).
   let settled = false;
-  function handleChoice(choice) {
-    if (settled) return;
+  function handleChoice(choice, button) {
+    if (settled || state.busy || state.phase !== "playing") return;
     settled = true;
+    state.settling = true;
     const endedAtMs = Date.now(); // captured at the moment of the tap, not after the decorative settle delay
-    beamGroup.setAttribute("transform", `rotate(${tiltAngle} 0 0)`);
+    button.classList.add("is-chosen");
+    svg.classList.remove("is-undecided");
+    setTilt(tiltAngle);
     setTimeout(() => {
-      submitAndAdvance({ item_id: item.item_id, choice, startedAtMs, endedAtMs });
+      state.settling = false;
+      submitAndAdvance({ item_id: item.item_id, choice, startedAtMs, endedAtMs }).catch((err) => {
+        // Didn't reach the server: back to undecided so the child can choose again.
+        console.error("sending an answer failed:", err);
+        settled = false;
+        button.classList.remove("is-chosen");
+        setTilt(null);
+        svg.classList.add("is-undecided");
+        showSendHiccup();
+      });
     }, 260);
   }
 
@@ -786,8 +958,8 @@ function renderBalanceScale(item, startedAtMs) {
   // a fixed pair for this game's two buttons, distinct from renderCompare/
   // renderPartition's blue/magenta so the palette varies across game types.
   const choices = el("div", { class: "choice-row balance-choice-row" }, [
-    el("div", { class: "balance-choice", "data-hue": "4", onclick: () => handleChoice("balances") }, "Balances"),
-    el("div", { class: "balance-choice", "data-hue": "3", onclick: () => handleChoice("doesnt_balance") }, "Doesn't Balance"),
+    el("div", { class: "balance-choice", "data-hue": "4", onclick: (e) => handleChoice("balances", e.currentTarget) }, "Balances"),
+    el("div", { class: "balance-choice", "data-hue": "3", onclick: (e) => handleChoice("doesnt_balance", e.currentTarget) }, "Doesn't Balance"),
   ]);
 
   return [
@@ -835,7 +1007,7 @@ function renderPartition(item, startedAtMs) {
     );
     return el(
       "div",
-      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: () => submitAndAdvance({ item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
+      { class: "choice-card", "data-hue": side === "a" ? "0" : "2", onclick: (e) => answerTap(e.currentTarget, { item_id: item.item_id, choice: side, startedAtMs, endedAtMs: Date.now() }) },
       [el("div", { class: "partition-shape" }, slices)],
     );
   }
@@ -907,17 +1079,32 @@ async function submitAndAdvance(payload) {
     quitSession();
     return;
   }
-  render(
-    el("div", { class: "screen" }, [
-      sessionTopbar(),
-      el("div", { class: "stage" }, [el("div", { class: "feedback-note" }, [el("span", { class: "icon-wrap" }, [icon("check")]), nextAck()])]),
-      pathTrack(state.assignment.item_specs.length, state.index, { justAdvanced: true }),
-    ]),
-  );
+  showAck();
   setTimeout(() => {
     state.busy = false;
     showItem();
-  }, 420);
+  }, ACK_MS);
+}
+
+// How long the answer beat stays up before the next item. Long enough to read
+// a two-word line, short enough not to hold up the next tap.
+const ACK_MS = 600;
+
+// The answer beat plays ON the item card, not instead of it: the item stays
+// put and quiets down (the picked card lifts, the number-line marker pulses,
+// the balance scale finishes tipping), Fizz hops beside the prompt, and its
+// speech bubble takes the prompt's place with one ACK_LINES line. The path
+// track pops the node just finished. Identical for every answer.
+function showAck() {
+  const stage = app.querySelector(".stage");
+  if (!stage) return;
+  // (A leftover retry note goes; its reserved padding stays until the next
+  // item so nothing jumps mid-beat.)
+  stage.querySelector(".send-note")?.remove();
+  stage.classList.add("stage--ack");
+  app.querySelector(".prompt-fizz")?.replaceChildren(fizz("lg", "hop"));
+  app.querySelector(".prompt-slot")?.appendChild(el("div", { class: "speech-bubble ack-bubble", role: "status" }, [el("span", { class: "speech-name" }, nextAck())]));
+  app.querySelector(".path-wrap")?.replaceWith(pathTrack(state.assignment.item_specs.length, state.index, { justAdvanced: true }));
 }
 
 // Turns the server's newlyMastered list into one plain-language beat per
@@ -976,17 +1163,28 @@ async function postBundle(bundle, failures) {
     return;
   }
   state.phase = "idle";
-  if (!bundle.engagement.completed) {
-    showConstellation(state.student, state.studentHue);
-    return;
-  }
-  const mastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered.filter((m) => m?.concept_id) : [];
+  // Firsts before reblooms, so the full card's one bloom line names a
+  // first-time star whenever there is one. A missing `kind` means "first".
+  const allMastered = Array.isArray(result?.newlyMastered) ? result.newlyMastered.filter((m) => m?.concept_id) : [];
+  const isRebloom = (m) => m.kind === "rebloom";
+  const mastered = [...allMastered.filter((m) => !isRebloom(m)), ...allMastered.filter(isRebloom)];
+  const allCracked = Array.isArray(result?.patternsCracked) ? result.patternsCracked.filter((p) => p?.concept_id) : [];
   // A concept that both bloomed and cracked a pattern gets the bigger beat
   // only (one line per concept, never two).
   const masteredIds = new Set(mastered.map((m) => m.concept_id));
-  const cracked = Array.isArray(result?.patternsCracked) ? result.patternsCracked.filter((p) => p?.concept_id && !masteredIds.has(p.concept_id)) : [];
+  const cracked = allCracked.filter((p) => !masteredIds.has(p.concept_id));
+  // Checked before the abandoned/completed split: answers given before Home
+  // still count, so a star they grew still gets its moment.
+  if (mastered.length > 0 && allCracked.length === 0 && mastered.every(isRebloom)) {
+    showRebloom(mastered);
+    return;
+  }
   if (mastered.length > 0 || cracked.length > 0) {
     showCelebration(mastered, cracked);
+    return;
+  }
+  if (!bundle.engagement.completed) {
+    showConstellation(state.student, state.studentHue);
     return;
   }
   showEndCard();
@@ -1074,6 +1272,32 @@ function showCelebration(mastered, cracked) {
         ]),
         el("h1", { class: "celebrate-title" }, mastered.length > 0 ? "Your star is shining!" : "Wow, look at you!"),
         el("div", { class: "celebrate-lines" }, lines),
+        el("button", { type: "button", class: "btn-primary celebrate-go", onclick: openMap }, [icon("star"), "See your star map"]),
+      ]),
+    ]),
+  );
+}
+
+// The lighter beat for a star that had gone quiet (fading) and is bright
+// again: every newlyMastered entry is `kind: "rebloom"` and no pattern was
+// cracked. Same screen and button as showCelebration so it's recognisably the
+// same moment, turned down: a smaller Fizz cheer, one teal ring pulse instead
+// of two, no sparkle burst, one line. Never "again x2" or any count.
+function showRebloom(mastered) {
+  const first = mastered[0];
+  const name = CHILD_LABEL[first.concept_id];
+  const openMap = () => {
+    state.justBloomed = { bloomed: mastered.map((m) => m.concept_id), cracked: [], focus: first.concept_id, focusKind: "rebloomed" };
+    showConstellation(state.student, state.studentHue);
+  };
+  render(
+    el("div", { class: "screen screen--celebrate" }, [
+      el("div", { class: "celebrate celebrate--light", role: "status", "aria-live": "polite" }, [
+        el("div", { class: "celebrate-fizz" }, [fizz("lg", "cheer")]),
+        el("h1", { class: "celebrate-title" }, "Your star is bright again!"),
+        el("div", { class: "celebrate-lines" }, [
+          el("p", { class: "celebrate-line celebrate-line--bloom" }, name ? `You remembered — ${name}!` : "You remembered!"),
+        ]),
         el("button", { type: "button", class: "btn-primary celebrate-go", onclick: openMap }, [icon("star"), "See your star map"]),
       ]),
     ]),

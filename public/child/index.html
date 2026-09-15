@@ -219,6 +219,7 @@
   .session-home .icon { width: 18px; height: 18px; }
 
   .stage {
+    position: relative; /* anchors .send-note */
     background: var(--panel); border: 1px solid var(--rule-lite); border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
     padding: clamp(14px, 2.8vh, 44px) clamp(18px, 5vw, 64px);
     flex: 1; min-height: 0; display: flex; flex-direction: column;
@@ -234,11 +235,81 @@
   .prompt { font-family: var(--display); font-size: clamp(26px, 3vw + 1.2rem, 68px); font-weight: 700; letter-spacing: -0.01em; text-align: center; text-wrap: balance; line-height: var(--lh-tight); }
   .subprompt { font-size: clamp(var(--text-md), 1.6vw, var(--text-xl)); color: var(--soft); line-height: var(--lh-snug); margin-top: -6px; }
 
+  /* Fizz stands beside every prompt (showItem wraps the renderer's prompt in
+     .prompt-row). The prompt sits in .prompt-slot so the answer bubble can
+     take its place during the feedback beat. */
+  .prompt-row { flex: 0 0 auto; max-width: 100%; display: flex; align-items: center; justify-content: center; gap: clamp(var(--sp-2), 1.6vw, var(--sp-5)); }
+  .prompt-fizz { flex-shrink: 0; display: flex; }
+  /* Big enough to read as a character, not an icon: Fizz's body is only
+     ~70% of this box (the SVG leaves room for the antenna and hop), so at
+     10vh it looked ~40px at common laptop heights. The steep vh term grows
+     it fast on laptop heights (~112px box at a 740px viewport, the cap by
+     ~830px) and gives the room back on short windows (~70px at 600px), where
+     the balance scale's flexible drawing needs it. Phones cap it lower so
+     the prompt keeps its width. */
+  .prompt-fizz .fizz--lg { --pf: clamp(56px, 30vh - 110px, 140px); width: var(--pf); height: var(--pf); }
+  @media (max-width: 640px) {
+    .prompt-fizz .fizz--lg { width: clamp(56px, 10vh, 84px); height: clamp(56px, 10vh, 84px); }
+  }
+  .prompt-slot { position: relative; min-width: 0; }
+  .prompt-slot .prompt { transition: opacity var(--dur-fast) var(--ease-out); }
+
+  /* -------- the answer beat (showAck) --------
+     Plays on top of the item card: everything that wasn't picked quiets
+     down, the picked card lifts, the number-line marker pulses once, and
+     Fizz's speech bubble replaces the prompt. Same for every answer. */
+  /* overflow: visible for the beat only, so Fizz's hop isn't clipped by the
+     card's top edge when the prompt row sits at the top (balance scale). */
+  .stage--ack { pointer-events: none; overflow: visible; }
+  .stage--ack .prompt-slot .prompt { opacity: 0; }
+  .stage--ack .subprompt,
+  .stage--ack .line-lock { opacity: 0.35; transition: opacity var(--dur-base) var(--ease-out); }
+  /* The choice that wasn't picked only quiets to half: at 35% it looked
+     crossed out ("that one was wrong"), which is a verdict. */
+  .stage--ack .choice-row > :not(.is-chosen) { opacity: 0.55; transition: opacity var(--dur-base) var(--ease-out); }
+  /* .prompt-slot prefix: outranks the base .speech-bubble rule further down. */
+  .prompt-slot .ack-bubble {
+    position: absolute; left: 0; top: 0; bottom: 0; margin-block: auto; height: fit-content; z-index: 2;
+    min-height: 0; max-width: none; white-space: nowrap; padding: var(--sp-2) var(--sp-5);
+    transform-origin: 0 50%; animation: pop-in var(--dur-slow) var(--ease-bounce);
+  }
+  .prompt-slot .ack-bubble .speech-name { font-size: clamp(var(--text-2xl), 2.4vw + 0.8rem, 44px); }
+  .choice-card.is-chosen, .balance-choice.is-chosen { transform: translateY(-5px); box-shadow: var(--shadow-lg); border-width: 3px; }
+  .choice-card[data-hue="0"].is-chosen { border-color: var(--hue-0); }
+  .choice-card[data-hue="2"].is-chosen { border-color: var(--hue-2); }
+  .balance-choice[data-hue="4"].is-chosen { border-color: var(--hue-4); }
+  .balance-choice[data-hue="3"].is-chosen { border-color: var(--hue-3); }
+  /* The marker's ring reuses the Star Path's `next` ripple keyframe, once. */
+  .line-marker-ring { fill: none; stroke: var(--play); stroke-width: 3; opacity: 0; pointer-events: none; transform-box: fill-box; transform-origin: center; }
+  .stage--ack .line-marker-ring { animation: star-next-ripple 700ms var(--ease-out); }
+  /* An answer that didn't reach the server: a small note at the foot of the
+     card, the item still answerable. The card grows its bottom padding while
+     the note shows, so the note never sits on top of an answer button (the
+     flexible balance scale absorbs the difference). */
+  .stage.stage--hiccup { padding-bottom: calc(clamp(14px, 2.8vh, 44px) + 34px); }
+  .send-note {
+    position: absolute; left: 0; right: 0; bottom: var(--sp-3); width: fit-content; margin-inline: auto;
+    padding: var(--sp-1) var(--sp-4); border-radius: var(--r-pill);
+    background: var(--play-bg); color: var(--play-ink); font-weight: var(--fw-semibold); font-size: var(--text-md);
+    animation: fade-up var(--dur-base) var(--ease-out);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .prompt-slot .ack-bubble, .send-note { animation: none; }
+    .stage--ack .line-marker-ring { animation: none; }
+    .choice-card.is-chosen, .balance-choice.is-chosen { transform: none; }
+  }
+
   .line-area { width: 100%; touch-action: none; }
   .line-area svg { width: 100%; height: clamp(100px, 20vh, 230px); display: block; }
   .line-track { stroke: var(--ink); stroke-width: 3; cursor: pointer; }
   .line-tick { stroke: var(--rule); stroke-width: 2; }
-  .line-tick-label { font-family: var(--mono); font-size: var(--text-xs); fill: var(--soft); }
+  /* End labels (0 and 1) are part of the question. Sized in viewBox units so
+     they scale with the line, and bigger on phones, where the 560-unit line
+     is drawn at ~0.55x (the old --text-xs rendered ~7px there). */
+  .line-tick-label { font-family: var(--display); font-size: 24px; font-weight: 700; fill: var(--ink); text-anchor: middle; }
+  @media (max-width: 640px) {
+    .line-tick-label { font-size: 38px; }
+  }
   .line-marker { fill: var(--play); stroke: var(--panel); stroke-width: 3; transition: cx var(--dur-fast) var(--ease-out); }
   .line-area svg { cursor: pointer; }
   /* While dragging, the marker follows the finger with no easing lag. */
@@ -268,13 +339,15 @@
   .choice-card[data-hue="2"] { background: color-mix(in srgb, var(--hue-2) 8%, var(--panel)); border-color: color-mix(in srgb, var(--hue-2) 30%, var(--rule)); }
   .choice-card[data-hue="2"]:hover { border-color: var(--hue-2); }
   .choice-card:active { transform: translateY(0) scale(0.97); box-shadow: var(--shadow-sm); }
-  .bar-outer { width: 100%; height: clamp(28px, 5vh, 56px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
+  .bar-outer { width: 100%; height: clamp(32px, 8vh, 84px); border: 1.5px solid var(--ink); border-radius: var(--r-sm); overflow: hidden; display: flex; }
   /* Fraction bars: every bar is one whole of the same length, cut into
      `denominator` equal cells with `numerator` of them shaded (renderCompare). */
   .bar-cell { flex: 1; height: 100%; background: var(--rule-lite); border-right: 1.5px solid var(--ink); }
   .bar-cell:last-child { border-right: none; }
   .bar-cell.fill { background: var(--status-mastered); }
-  .bar-label { font-family: var(--mono); font-size: clamp(var(--text-sm), 1.8vw, var(--text-xl)); color: var(--soft); }
+  /* The fraction under a bar is what the child compares: display face in ink,
+     not a small grey caption (compare is a two-row item with height to spare). */
+  .bar-label { font-family: var(--display); font-weight: 700; font-size: clamp(var(--text-lg), 1.2vw + 0.9rem, 34px); line-height: 1; color: var(--ink); }
 
   /* Teal = shaded parts, and only F.NOTATE pictures shade any (renderPartition).
      Every other slice is the same pale cell as a fraction bar. */
@@ -284,17 +357,18 @@
   .partition-slice.fill { background: var(--status-mastered); }
   /* Stacked fraction inside the prompt ("Which picture shows 2/3?"): two
      short lines at ~0.6em so the prompt keeps roughly one line's height. */
-  .prompt-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: 0.6em; line-height: 1; margin-inline: 0.15em; }
+  /* Floor of 20px so the digits stay readable when the prompt is at its
+     smallest (phones, short windows). */
+  .prompt-frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; font-size: max(0.6em, 20px); line-height: 1; margin-inline: 0.15em; }
   .prompt-frac-num { padding-inline: 0.2em; border-bottom: 0.1em solid currentColor; padding-bottom: 0.06em; }
   .prompt-frac-den { padding-top: 0.06em; }
 
   /* -------------------- Fizz + the path track --------------------
      The one progress mechanic every item type above funnels through --
-     see renderFizz()/pathTrack() in child.js and DESIGN_LANGUAGE.md. Nodes
-     reuse the star map's own "dashed = not attempted yet" convention
-     (.const-star--seed below) rather than inventing a second not-yet
-     language, and "done" reuses --status-mastered, the app's one reward
-     color -- both choices are about staying one visual language, not two. */
+     see fizz()/pathTrack() in child.js and DESIGN_LANGUAGE.md. The track
+     reuses the star map's sand trail road, "done" reuses --status-mastered
+     and "current" reuses --play -- one visual language, not two. In a
+     session Fizz stands beside the prompt (.prompt-fizz), not on the track. */
   /* Fizz never quite stands still -- a slow, small idle bob (fizz-idle)
      plays continuously on every Fizz on the page, the same "the character
      is alive, not a static icon" touch the Behance research kept surfacing.
@@ -339,17 +413,32 @@
     .fizz, .fizz-hop, .fizz-cheer { animation: none; }
   }
 
+  /* The track is the same sand road as the Star Path's trails (.trail-road/
+     .trail-dots), with filled nodes on it. Nodes are centred with negative
+     margins, not transform, so the shared pop-in keyframe can animate them. */
   .path-wrap { width: 100%; flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 6px; }
-  .path-track { position: relative; width: 100%; height: clamp(64px, 11vh, 108px); }
+  .path-track { position: relative; width: 100%; height: clamp(44px, 8vh, 80px); }
+  .path-road { position: absolute; inset: 0; display: block; }
+  .path-road svg { display: block; width: 100%; height: 100%; overflow: visible; }
+  .path-road .trail-road { stroke-width: 10px; }
   .path-node {
-    position: absolute; width: 20px; height: 20px; border-radius: 50%; transform: translate(-50%, -50%);
-    border: 2px dashed var(--rule); background: transparent;
+    --n: clamp(16px, 2.6vh, 22px);
+    position: absolute; width: var(--n); height: var(--n); margin: calc(var(--n) / -2) 0 0 calc(var(--n) / -2);
+    border-radius: 50%; box-sizing: border-box;
+    background: color-mix(in srgb, var(--hue-3) 16%, var(--panel)); border: 3px solid var(--panel);
+    box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--hue-3) 34%, var(--rule)), var(--shadow-sm);
   }
-  .path-node--done { border-style: solid; border-color: var(--status-mastered); background: var(--status-mastered-bg); }
-  .path-fizz { position: absolute; transform: translate(-50%, -86%); z-index: 2; }
-
-  .feedback-note { display: flex; align-items: center; gap: 10px; font-size: clamp(var(--text-lg), 2vw, var(--text-2xl)); color: var(--play-ink); font-weight: var(--fw-semibold); min-height: 20px; animation: fade-up var(--dur-fast) var(--ease-out); }
-  .feedback-note .icon-wrap { width: 30px; height: 30px; border-radius: 50%; background: var(--play-bg); color: var(--play); display: flex; align-items: center; justify-content: center; animation: pop-in var(--dur-slow) var(--ease-bounce); }
+  .path-node--done { background: var(--status-mastered); box-shadow: 0 0 0 1.5px var(--status-mastered), 0 3px 8px color-mix(in srgb, var(--status-mastered) 30%, transparent); }
+  .path-node--current {
+    --n: clamp(24px, 3.8vh, 32px);
+    background: var(--play-bg); border: 4px solid var(--play);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--play) 16%, transparent), var(--shadow-sm);
+  }
+  .path-node--just { animation: pop-in var(--dur-slow) var(--ease-bounce) backwards; }
+  .path-node--current.path-node--just { animation-delay: 120ms; }
+  @media (prefers-reduced-motion: reduce) {
+    .path-node--just { animation: none; }
+  }
 
   .end-card { text-align: center; padding: var(--sp-6) 10px; display: flex; flex-direction: column; align-items: center; gap: 10px; animation: fade-up var(--dur-base) var(--ease-out); }
   .end-card .icon-wrap { width: 52px; height: 52px; border-radius: 50%; background: var(--status-mastered-bg); color: var(--status-mastered); display: flex; align-items: center; justify-content: center; margin-bottom: 4px; animation: pop-in var(--dur-slow) var(--ease-bounce); }
@@ -407,12 +496,21 @@
   .celebrate-go { display: inline-flex; align-items: center; gap: var(--sp-2); min-height: 56px; font-family: var(--display); font-size: var(--text-xl); font-weight: 700; box-shadow: 0 6px 0 var(--play-ink), var(--shadow-md); }
   .celebrate-go .icon { width: 22px; height: 22px; }
   .celebrate-go:active { transform: translateY(4px); box-shadow: 0 2px 0 var(--play-ink), var(--shadow-sm); }
+  /* The lighter rebloom beat (showRebloom): a star that had faded is bright
+     again. Same screen, turned down -- a smaller Fizz circle with the plain
+     pop-in (not the overshoot mastery pop), ONE ring pulse, no sparkles
+     (showRebloom renders none), a smaller heading. */
+  .celebrate--light .celebrate-fizz {
+    width: clamp(88px, 22vh, 176px); height: clamp(88px, 22vh, 176px);
+    animation: pop-in var(--dur-slow) var(--ease-bounce), celebrate-ring 1.4s var(--ease-out) var(--dur-slow) 1;
+  }
+  .celebrate--light .celebrate-title { font-size: clamp(var(--text-xl), 3.6vh, 36px); }
   @media (prefers-reduced-motion: reduce) {
-    .celebrate, .celebrate-fizz, .celebrate-sparkle { animation: none; }
+    .celebrate, .celebrate-fizz, .celebrate-sparkle, .celebrate--light .celebrate-fizz { animation: none; }
   }
   @media (max-height: 480px) {
     .celebrate { padding: var(--sp-2) 10px; gap: var(--sp-1); }
-    .celebrate-fizz { width: clamp(64px, 24vh, 112px); height: clamp(64px, 24vh, 112px); }
+    .celebrate-fizz, .celebrate--light .celebrate-fizz { width: clamp(64px, 24vh, 112px); height: clamp(64px, 24vh, 112px); }
     .celebrate-go { min-height: 48px; margin-top: var(--sp-1); }
   }
 
@@ -690,6 +788,31 @@
     70%, 100% { opacity: 0; transform: scale(1.45); }
   }
 
+  /* PRACTICE -- the `next` star when nextKind is "practice": Play leads with
+     a concept the child has been finding hard. Softer than the coral grow
+     star, and deliberately a different colour family: --status-emerging blue
+     (the "you're growing this one" glow tier such a concept already shows),
+     never teal (reward only) or lavender (fading). Slightly smaller than
+     grow, a thicker blue ring, and a slow breathing halo with NO outward
+     ripple -- "right here with you", not "go!". Still the map's only loop. */
+  .const-star--practice {
+    --k: 1.24;
+    border: 3px solid var(--status-emerging); color: var(--status-emerging);
+    background: radial-gradient(circle at 50% 36%, var(--panel) 0%, var(--status-emerging-bg) 72%);
+    box-shadow: 0 0 0 5px color-mix(in srgb, var(--status-emerging) 14%, transparent), 0 6px 18px color-mix(in srgb, var(--status-emerging) 22%, transparent);
+  }
+  .const-star--practice .icon { width: 52%; height: 52%; }
+  .const-star--practice .icon svg { fill: currentColor; fill-opacity: 0.6; }
+  .const-star--practice .star-sparkle { display: none; }
+  .const-star--practice::after {
+    content: ""; position: absolute; inset: -20%; border-radius: 50%; z-index: -1; pointer-events: none;
+    background: radial-gradient(closest-side, transparent 62%, color-mix(in srgb, var(--status-emerging) 44%, transparent) 72%, transparent 100%);
+    animation: star-next-glow 3.6s ease-in-out infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .const-star--practice::after { animation: none; opacity: 0.85; }
+  }
+
   .map-play {
     margin-top: 0; min-height: 60px; min-width: clamp(180px, 30vw, 260px);
     display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-2);
@@ -754,19 +877,41 @@
      judgement, "does it balance?", not "which pan is bigger?"); the real
      tap targets are .balance-choice below. */
   .balance-area { width: 100%; touch-action: none; }
-  /* This item type stacks a prompt, a subprompt, this beam, and a row of
+  /* This item type stacks a prompt, a subprompt, this scale, and a row of
      choice buttons -- the tallest combination of any item type the stage
-     renders -- so its own height budget is deliberately tighter than the
-     numberline/choice svgs above rather than sharing their clamp. */
-  .balance-area svg { width: 100%; height: clamp(120px, 24vh, 300px); display: block; }
-  .balance-base { stroke: var(--ink); stroke-width: 3; }
-  .balance-fulcrum { fill: var(--panel); stroke: var(--ink); stroke-width: 2; }
-  .balance-beam { transition: transform var(--dur-slow) var(--ease-bounce); }
-  .balance-beam-line { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
-  .balance-pivot-cap { fill: var(--ink); }
-  .balance-string { stroke: var(--soft); stroke-width: 1.5; }
-  .balance-pan { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
-  .balance-pan-label { font-family: var(--mono); font-size: var(--text-sm); fill: var(--ink); }
+     renders. Instead of a fixed vh height, the scale takes whatever height
+     the stage has left (flex: 1 1 0) between a floor and a ceiling, so it is
+     as big as the window allows (~2x the old fixed size at 1280x800) without
+     ever pushing the buttons out of the card. The viewBox is cropped around
+     the scale itself (renderBalanceScale), so the height is nearly all scale. */
+  .balance-area { flex: 1 1 0; min-height: 110px; max-height: 360px; display: flex; }
+  .balance-area svg { width: 100%; height: 100%; display: block; overflow: visible; }
+  .balance-base { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
+  .balance-fulcrum { fill: color-mix(in srgb, var(--hue-3) 12%, var(--panel)); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  /* Beam and pans rotate with CSS transforms (origins set inline in view-box
+     units); each pan counter-rotates so it hangs upright. */
+  .balance-beam, .balance-pan-wrap { transform-box: view-box; transition: transform var(--dur-celebrate) var(--ease-bounce); }
+  .balance-beam-line { stroke: var(--ink); stroke-width: 7; stroke-linecap: round; }
+  .balance-pivot-cap { fill: var(--panel); stroke: var(--ink); stroke-width: 3; }
+  .balance-pivot-mark { font-family: var(--display); font-size: 20px; font-weight: 800; fill: var(--soft); transition: opacity var(--dur-fast) var(--ease-out); }
+  .balance-svg:not(.is-undecided) .balance-pivot-mark { opacity: 0; }
+  .balance-hook { fill: var(--ink); }
+  .balance-string { stroke: var(--soft); stroke-width: 2; }
+  .balance-weight { fill: var(--panel); stroke: var(--ink); stroke-width: 2.5; }
+  .balance-pan { fill: color-mix(in srgb, var(--hue-3) 12%, var(--panel)); stroke: var(--ink); stroke-width: 2.5; stroke-linejoin: round; }
+  .balance-pan-label { font-family: var(--display); font-size: 26px; font-weight: 700; fill: var(--ink); }
+  .balance-frac-bar { stroke: var(--ink); stroke-width: 2.5; stroke-linecap: round; }
+  /* Undecided: the beam rocks gently before the choice, so a level beam
+     never reads as a hint for "Balances". Stops the moment the child chooses
+     (the tip to the true relationship takes over). Reduced motion: no rocking,
+     the "?" on the pivot carries "not decided yet" alone. */
+  .balance-svg.is-undecided .balance-beam { animation: balance-rock 2.6s ease-in-out infinite; }
+  .balance-svg.is-undecided .balance-pan-wrap { animation: balance-rock-upright 2.6s ease-in-out infinite; }
+  @keyframes balance-rock { 0%, 100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+  @keyframes balance-rock-upright { 0%, 100% { transform: rotate(5deg); } 50% { transform: rotate(-5deg); } }
+  @media (prefers-reduced-motion: reduce) {
+    .balance-svg.is-undecided .balance-beam, .balance-svg.is-undecided .balance-pan-wrap { animation: none; }
+  }
 
   /* The actual tap targets for this game -- two big forced-choice buttons
      below the (now display-only) beam. Sized comfortably beyond kid-ux's
@@ -818,9 +963,16 @@
     .screen { gap: var(--sp-2); }
     .stage { gap: 8px; padding-block: 8px; }
     .path-wrap { gap: 3px; }
-    .path-track { height: 44px; }
+    .path-track { height: 34px; }
     .subprompt { display: none; }
-    .line-area svg, .balance-area svg { height: clamp(70px, 18vh, 150px); }
+    .line-area svg { height: clamp(70px, 18vh, 150px); }
+    .balance-area { min-height: 72px; }
+    .prompt-fizz .fizz--lg { width: 40px; height: 40px; }
+    .prompt { font-size: clamp(22px, 6.4vh, 30px); }
+    .prompt-slot .ack-bubble { padding: 4px var(--sp-4); }
+    .stage.stage--hiccup { padding-bottom: 38px; }
+    .send-note { bottom: 6px; font-size: var(--text-sm); }
+    .prompt-slot .ack-bubble .speech-name { font-size: var(--text-2xl); }
     .partition-shape { height: clamp(44px, 11vh, 100px); }
     .choice-card { min-height: 70px; }
     .balance-choice { min-height: 44px; }
