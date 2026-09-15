@@ -32,19 +32,42 @@ registry.register(balancescaleManifest);
 registry.register(fractionbarsManifest);
 
 export const itemBank = new ItemBankRegistry();
+// content_key = what the child actually sees, so the engine can skip a
+// second item with identical content in the same session (e.g. two
+// concepts authoring the same "place 0.125" line, or the same "which shape
+// shows halves?" partition). The engine never parses these strings.
 itemBank.register(numberlineManifest.game_id, (conceptIds) =>
   numberlineItems
     .filter((i) => conceptIds.includes(i.concept_id))
-    .map((i) => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty })),
+    .map((i): ItemBankEntry => ({
+      item_id: i.item_id,
+      concept_id: i.concept_id,
+      difficulty: i.difficulty,
+      content_key: `place:${i.prompt}@${i.scale.join("-")}:${i.target}`,
+    })),
 );
 itemBank.register(fractionbarsManifest.game_id, (conceptIds) => [
-  ...fractionbarsItems.filter((i) => conceptIds.includes(i.concept_id)),
-  ...partitionItems.filter((i) => conceptIds.includes(i.concept_id)),
-].map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty })));
+  ...fractionbarsItems
+    .filter((i) => conceptIds.includes(i.concept_id))
+    .map((i): ItemBankEntry => ({
+      item_id: i.item_id,
+      concept_id: i.concept_id,
+      difficulty: i.difficulty,
+      content_key: `compare:${[`${i.a.numerator}/${i.a.denominator}`, `${i.b.numerator}/${i.b.denominator}`].sort().join("|")}`,
+    })),
+  ...partitionItems
+    .filter((i) => conceptIds.includes(i.concept_id))
+    .map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty, content_key: `partition:${i.parts}` })),
+]);
 itemBank.register(balancescaleManifest.game_id, (conceptIds) =>
   balancescaleItems
     .filter((i) => conceptIds.includes(i.concept_id))
-    .map((i): ItemBankEntry => ({ item_id: i.item_id, concept_id: i.concept_id, difficulty: i.difficulty })),
+    .map((i): ItemBankEntry => ({
+      item_id: i.item_id,
+      concept_id: i.concept_id,
+      difficulty: i.difficulty,
+      content_key: `balance:${[`${i.left.numerator}/${i.left.denominator}`, `${i.right.numerator}/${i.right.denominator}`].sort().join("|")}`,
+    })),
 );
 
 export const metaOf: ConceptMetaLookup = (conceptId) => {

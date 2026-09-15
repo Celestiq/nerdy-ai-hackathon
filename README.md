@@ -34,7 +34,10 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
 - **Selection engine** (`src/engine`) — candidates → scoring → hard
   constraints (wheel-spin block, prerequisite gate, coverage, variety) →
   game match → item assembly → Assignment, with a full decision log and an
-  explicit cold-start policy.
+  explicit cold-start policy. Each game's small fixed anchor item set is
+  served to every child as common cohort items, except an anchor whose
+  concept is STUCK for that child, which is skipped and logged as
+  "anchor skipped: stuck".
 - **Game SDK** (`src/sdk`) — observation builder (signature is a required
   param, not optional), a conformance test suite, and a null game.
 - **Two games** (`src/games`) — `numberline.place.v2` (magnitude

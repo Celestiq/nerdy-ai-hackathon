@@ -12,6 +12,8 @@ import type { z } from "zod";
 
 type DecisionLogEntry = z.infer<typeof DecisionLogEntrySchema>;
 
+const ANCHOR_REASON = "anchor (fixed cohort item)";
+
 export interface SelectionInput {
   studentId: string;
   graph: ConceptGraph;
@@ -86,7 +88,7 @@ export function selectNext(input: SelectionInput): SelectionOutput {
   }
 
   const chosenConcepts = allowed.map((a) => a.concept_id);
-  const assembled = assembleAssignment(graph, registry, itemBank, chosenConcepts, anchors, seed, relaxed);
+  const assembled = assembleAssignment(graph, registry, itemBank, chosenConcepts, anchors, seed, relaxed, new Set(escalations));
 
   if (!assembled) {
     for (const a of allowed) {
@@ -113,6 +115,24 @@ export function selectNext(input: SelectionInput): SelectionOutput {
       score: a.score,
       reason: included ? selectedReason : "matched game did not cover this concept",
     });
+  }
+
+  // Anchor items are fixed cohort items served regardless of routing (see
+  // assemble.ts), so every anchor concept actually served gets a true
+  // decision_log line -- one entry per concept, so the tutor trace never
+  // lists a served concept only under "not chosen".
+  for (const conceptId of assembled.anchorConcepts) {
+    const existing = decisionLog.find((d) => d.concept_id === conceptId);
+    if (!existing) {
+      decisionLog.push({ concept_id: conceptId, included: true, score: 0, reason: ANCHOR_REASON });
+    } else if (!existing.included) {
+      existing.included = true;
+      existing.reason = `${ANCHOR_REASON}; not chosen adaptively -- ${existing.reason}`;
+    }
+  }
+  for (const skipped of assembled.skippedAnchors) {
+    const score = scored.find((s) => s.concept_id === skipped.concept_id)?.score ?? 0;
+    decisionLog.push({ concept_id: skipped.concept_id, included: false, score, reason: "anchor skipped: stuck" });
   }
 
   const assignment: Assignment = {

@@ -9,6 +9,11 @@ export interface AssembleResult {
   concepts: string[];
   item_specs: ItemSpec[];
   time_budget_s: number;
+  /** Concepts of the anchor items actually served (fixed cohort items; not
+   * part of `concepts`, which is only what the engine chose). */
+  anchorConcepts: string[];
+  /** Anchor items withheld because their concept is STUCK for this child. */
+  skippedAnchors: ItemBankEntry[];
 }
 
 /**
@@ -59,6 +64,7 @@ export function assembleAssignment(
   anchors: Map<string, ItemBankEntry[]>,
   seed: string,
   relaxedConceptId?: string,
+  stuckConcepts: ReadonlySet<string> = new Set(),
 ): AssembleResult | undefined {
   if (chosenConcepts.length === 0) return undefined;
 
@@ -96,7 +102,7 @@ export function assembleAssignment(
   // Keep the top (first-covered) concept plus whichever OTHER chosen
   // concepts this same manifest actually covers -- capability match AND a
   // non-empty item pool, same standard as the loop above (order preserved).
-  let concepts = chosenConcepts.filter((c, i) => {
+  const concepts = chosenConcepts.filter((c, i) => {
     if (i === topIndex) return true;
     const node = graph.node(c);
     if (!node || !matchesCapability(node, manifest)) return false;
@@ -105,12 +111,31 @@ export function assembleAssignment(
   // Anchors are deliberately NOT filtered to the adaptively-chosen concepts:
   // the whole point is a fixed common item set regardless of routing. See
   // architecture.html #engine "The anchor set, and why adaptivity breaks
-  // cohort reporting".
-  const anchorItems = anchors.get(manifest.game_id) ?? [];
-  concepts = [...new Set([...concepts, ...anchorItems.map((a) => a.concept_id)])];
+  // cohort reporting". Two refinements (Cycle 18 B1):
+  //  - anchors are fixed ITEMS, not concepts: their concepts are no longer
+  //    unioned into `concepts`, so the adaptive tail is drawn only from what
+  //    the engine chose. Unioning them let an unchosen anchor concept (e.g.
+  //    F.MAG.UNIT, logged "excluded: variety") take half the session.
+  //  - an anchor whose concept is STUCK/escalated for this child is skipped:
+  //    re-serving it contradicts the "needs a human" escalation. The caller
+  //    passes the set it already computed (engine.ts stuckEscalations) --
+  //    no belief lookup happens here.
+  const allAnchors = anchors.get(manifest.game_id) ?? [];
+  const skippedAnchors = allAnchors.filter((a) => stuckConcepts.has(a.concept_id));
+  const anchorItems = allAnchors.filter((a) => !stuckConcepts.has(a.concept_id));
 
   const pool = itemBank.itemsForConcepts(manifest.game_id, concepts);
-  const anchorIds = new Set(anchorItems.map((a) => a.item_id));
+  const anchorIds = new Set(allAnchors.map((a) => a.item_id));
+  // Within-session dedupe by content key (same prompt/target), anchors
+  // first so a fixed cohort item always wins over a same-content tail item
+  // authored under another concept. Entries without a content_key fall back
+  // to item_id, i.e. are only deduped against themselves. Anchor entries
+  // are configured by item_id alone (server/state.ts), so their content key
+  // is resolved from the game's own item bank entry for that item_id.
+  const anchorBank = new Map(
+    itemBank.itemsForConcepts(manifest.game_id, [...new Set(anchorItems.map((a) => a.concept_id))]).map((e) => [e.item_id, e]),
+  );
+  const seenContent = new Set(anchorItems.map((a) => contentKeyOf(anchorBank.get(a.item_id) ?? a)));
   const nonAnchorPool = pool.filter((i) => !anchorIds.has(i.item_id));
 
   const maxItems = manifest.items_per_session.max;
@@ -129,7 +154,14 @@ export function assembleAssignment(
   } else {
     orderedTail = rotate(nonAnchorPool, seed);
   }
-  const tail = orderedTail.slice(0, remaining);
+  const tail: ItemBankEntry[] = [];
+  for (const item of orderedTail) {
+    if (tail.length >= remaining) break;
+    const key = contentKeyOf(item);
+    if (seenContent.has(key)) continue;
+    seenContent.add(key);
+    tail.push(item);
+  }
 
   const item_specs: ItemSpec[] = [
     ...anchorItems.map((a) => ({ item_id: a.item_id, concept_id: a.concept_id, difficulty: a.difficulty, is_anchor: true })),
@@ -141,7 +173,13 @@ export function assembleAssignment(
     concepts,
     item_specs,
     time_budget_s: manifest.duration_s.max,
+    anchorConcepts: [...new Set(anchorItems.map((a) => a.concept_id))],
+    skippedAnchors,
   };
+}
+
+function contentKeyOf(item: ItemBankEntry): string {
+  return item.content_key ?? `id:${item.item_id}`;
 }
 
 /**
