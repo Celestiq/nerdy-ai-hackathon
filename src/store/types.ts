@@ -27,3 +27,17 @@ export interface BeliefInternal {
 }
 
 export const WHEEL_SPIN_LIMIT = 3;
+
+/**
+ * Mastery evidence floor. p_mastery >= threshold alone is not enough to call
+ * a concept MASTERED (or DECAYED) or to reset attempts_without_mastery:
+ *  - at least MIN_MASTERY_OBS observations on the concept in total, and
+ *  - of the most recent MASTERY_RECENT_WINDOW observations (replay order),
+ *    at least MASTERY_RECENT_MIN_CORRECT are correct, and
+ *  - if the concept was already STUCK going into a session, that recent
+ *    window must consist entirely of observations made after it got stuck,
+ *    so one lucky answer can't clear an escalation.
+ */
+export const MIN_MASTERY_OBS = 4;
+export const MASTERY_RECENT_WINDOW = 3;
+export const MASTERY_RECENT_MIN_CORRECT = 2;

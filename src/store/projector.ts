@@ -1,6 +1,6 @@
 import type { EvidenceBundle, Observation } from "../contracts/schemas.js";
 import type { BeliefInternal, BeliefStatus, SignatureRecord } from "./types.js";
-import { WHEEL_SPIN_LIMIT } from "./types.js";
+import { MASTERY_RECENT_MIN_CORRECT, MASTERY_RECENT_WINDOW, MIN_MASTERY_OBS, WHEEL_SPIN_LIMIT } from "./types.js";
 
 /**
  * The projector never imports the graph module. It receives concept
@@ -130,21 +130,36 @@ function projectConcept(
   const sessionOrder = [...bySession.entries()].sort(
     (a, b) => new Date(a[1][0].at).getTime() - new Date(b[1][0].at).getTime(),
   );
+  // The evidence floor is evaluated over the same chronological replay order
+  // (bundle.started_at, then in-bundle order) as everything else here --
+  // `replayed` accumulates observations in exactly that order.
   let runAlpha = 1;
   let runBeta = 1;
   let attempts_without_mastery = 0;
+  const replayed: TimedObservation[] = [];
+  let obsSinceStuck = 0;
   for (const [, sessionObs] of sessionOrder) {
+    const wasStuck = attempts_without_mastery >= WHEEL_SPIN_LIMIT;
     for (const o of sessionObs) {
       const w = difficultyWeight(o.difficulty);
       if (o.verdict === "correct") runAlpha += w;
       else runBeta += w;
+      replayed.push(o);
+      obsSinceStuck += 1;
     }
     const runningMastery = runAlpha / (runAlpha + runBeta);
-    if (runningMastery >= meta.mastery_threshold) attempts_without_mastery = 0;
-    else attempts_without_mastery += 1;
+    const freshSupport = !wasStuck || obsSinceStuck >= MASTERY_RECENT_WINDOW;
+    if (runningMastery >= meta.mastery_threshold && meetsMasteryFloor(replayed) && freshSupport) {
+      attempts_without_mastery = 0;
+    } else {
+      attempts_without_mastery += 1;
+    }
+    // Entering STUCK restarts the fresh-evidence count: only
+    // observations from sessions after this one can clear the escalation.
+    if (attempts_without_mastery >= WHEEL_SPIN_LIMIT && !wasStuck) obsSinceStuck = 0;
   }
 
-  const status = deriveStatus(n, p_mastery, p_decayed, attempts_without_mastery, meta);
+  const status = deriveStatus(n, p_mastery, p_decayed, attempts_without_mastery, meetsMasteryFloor(replayed), meta);
 
   return {
     student_id: studentId,
@@ -160,16 +175,29 @@ function projectConcept(
   };
 }
 
+/**
+ * Evidence floor for MASTERED (see MIN_MASTERY_OBS in ./types.ts): enough
+ * observations overall, and the most recent window mostly correct.
+ * `chronological` must already be in replay order.
+ */
+function meetsMasteryFloor(chronological: readonly Observation[]): boolean {
+  if (chronological.length < MIN_MASTERY_OBS) return false;
+  const recent = chronological.slice(-MASTERY_RECENT_WINDOW);
+  const correct = recent.filter((o) => o.verdict === "correct").length;
+  return correct >= MASTERY_RECENT_MIN_CORRECT;
+}
+
 function deriveStatus(
   n: number,
   p_mastery: number,
   p_decayed: number,
   attempts_without_mastery: number,
+  floorMet: boolean,
   meta: ConceptMeta,
 ): BeliefStatus {
   if (n === 0) return "UNTESTED";
   if (attempts_without_mastery >= WHEEL_SPIN_LIMIT) return "STUCK";
-  if (p_mastery >= meta.mastery_threshold) {
+  if (p_mastery >= meta.mastery_threshold && floorMet) {
     return p_decayed >= meta.mastery_threshold ? "MASTERED" : "DECAYED";
   }
   return "EMERGING";
