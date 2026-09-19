@@ -10,6 +10,36 @@ A concept graph, a learner store, a selection engine and a tutor-analytics
 layer do all the interpreting, talking to each other and to games only
 through four fixed contracts (Manifest, Evidence, Belief, Assignment).
 
+## How it works, at a glance
+
+Each clip below shows a real mechanism, not a screenshot of the app. Each
+one runs for a few seconds, then loops.
+
+**How a weak concept gets found.** Two children make the same mistake. The
+store marks that concept "stuck." The graph then walks its `explains`
+edges backward and finds one shared root cause — a concept neither child
+was tested on directly. `blame()` in `src/graph/query.ts` does the tracing;
+`src/store/projector.ts` computes the status.
+
+![How a weak concept gets found](media/readme/weak-concept.gif)
+
+**How the next five minutes get picked.** The engine scores every
+candidate concept on five weighted signals. The score ranks them. Hard
+rules run after the score, and they can overrule it. Here a wheel-spin
+rule blocks the top-ranked concept, so the engine serves the next one
+instead and logs why. See `src/engine/scoring.ts` and
+`src/engine/constraints.ts`.
+
+![How the next five minutes get picked](media/readme/selection-engine.gif)
+
+**How a new game plugs in.** Every game registers the same way: a
+manifest and an item bank. Nothing else changes. The engine and the store
+never import a game directly —
+`grep -rn "games/" src/engine src/store src/analytics src/graph` returns
+zero results today.
+
+![How a new game plugs in](media/readme/new-game.gif)
+
 ## What's implemented
 
 This is a compressed, single-pass build, scoped down from a larger
