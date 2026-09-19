@@ -1,8 +1,8 @@
 # nerdy-ai
 
-Adaptive concept assessment for K–5 math. Built end-to-end from the spec in
-`docs/architecture.html` and `docs/roadmap.html` — read those first; this
-README is just how to run what they describe.
+Adaptive concept assessment for K–5 math, built end-to-end from an internal
+architecture and roadmap spec (not included in this repo). This README
+covers what's implemented and how to run it.
 
 The core idea: **games are interchangeable, judgement is centralised.** A
 game runs five minutes of play and reports observations, never a verdict.
@@ -19,7 +19,8 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
   closed signature-code vocabulary, concept-id validation, and reference
   fixtures (valid + invalid) for each contract.
 - **Concept graph** (`src/graph`) — one strand authored to real depth
-  (magnitude → fractions → decimals, 20 nodes), both `requires` and
+  (magnitude → fractions → decimals; 83 nodes, 127 `requires` and 7
+  `explains` edges across 8 strands), both `requires` and
   `explains` edges, structural validation (acyclic, provenance-required),
   and the four-call query surface: `frontier`, `blame`, `path`, `coverage`.
 - **Learner store** (`src/store`) — append-only evidence log with no update
@@ -40,18 +41,19 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
   "anchor skipped: stuck".
 - **Game SDK** (`src/sdk`) — observation builder (signature is a required
   param, not optional), a conformance test suite, and a null game.
-- **Two games** (`src/games`) — `numberline.place.v2` (magnitude
-  placement, signature-by-construction via authored response regions) and
-  `fractionbars.compare.v1` (a second mechanic/representation, registered
-  through the manifest + item-bank registries alone — zero engine or store
-  changes, proving the extensibility claim from roadmap.html C13).
+- **Three games** (`src/games`) — `numberline.place.v2` (magnitude
+  placement, signature-by-construction via authored response regions),
+  `fractionbars.compare.v1` and `balancescale.compare.v1` (further
+  mechanics/representations, each registered through the manifest +
+  item-bank registries alone — zero engine or store changes, proving the
+  extensibility claim from roadmap.html C13).
 - **Analytics** (`src/analytics`) — stuck list, misconception clustering
   with blamed root cause, retention alerts, concept coverage (unmeasured
   kept strictly distinct from weak), and a templated opening move.
-- **Simulation harness** (`src/simulation`) — six synthetic learner
-  profiles (competent, misconception-holder, wheel-spinner, rapid-guesser,
-  abandoner, decayer), a deterministic cohort runner, and a routing-failure
-  self-check.
+- **Simulation harness** (`src/simulation`) — seven synthetic learner
+  profiles (competent, misconception-holder, wheel-spinner, struggles-on,
+  rapid-guesser, abandoner, decayer), a deterministic cohort runner, and a
+  routing-failure self-check.
 - **Server + two frontends** (`server`, `public`) — an Express API wiring
   everything together, a child play surface (no score, no leaderboard,
   no comparison) and a tutor dashboard (five prioritised blocks, unmeasured
@@ -79,7 +81,7 @@ npm run dev        # http://localhost:5173
 Other scripts:
 
 ```bash
-npm test            # 82 tests: contracts, graph, store, registry, engine, analytics, sdk, simulation
+npm test            # 195 tests, 19 files: contracts, graph, store, registry, engine, analytics, sdk, simulation
 npm run typecheck
 npm run simulate -- 40 my-seed   # headless cohort run against the real engine, prints a trace + routing self-check
 ```

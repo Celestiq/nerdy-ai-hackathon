@@ -1,266 +1,382 @@
-# Demo video script/storyboard — nerdy-ai (K-5 Math Game)
+# Demo video — the teacher cut (`DemoTeacher`)
 
-Owner: `demo-packager`. Status as of **2026-09-09**: **script only, not recorded.** We are 9 days
-out from the 2026-09-18 11:59 PM CDT deadline — per `SWARM.md`, this is *not* yet the final-48h
-window where demo work becomes dominant, so this document is planning/storyboarding, done in
-parallel with other backlog work, not a recording session.
+Owner: `demo-packager`. Written **2026-09-18** against HEAD `65b171d` and a live server on
+:5173. Every string, number and screen asserted below was read off the running app today — see
+§10 for the log.
 
-Target runtime: **2:15–2:45** (hard cap 3:00). Every beat below was verified live against the app
-today (fresh `rm -rf .data && npm run seed` + `npm run dev`, HEAD `8167b37`) — see "Verified live"
-callouts. Re-verify anything with a "confirm near recording day" flag before the actual take,
-since belief state depends on real wall-clock time (recency decay).
+**Runtime: 58 seconds.** Hard cap 3:00. The cut comes in under a minute on purpose: twelve
+beats average 4.8 seconds each, so nothing sits still long enough to lose a viewer who is
+watching a queue of these.
 
-**Update, 2026-09-09 freshness pass (HEAD `529fd0f`, app code at `689a527`):** the celebratory
-mastery-visual dependency flagged below as "in progress" has since landed, been committed, and
-been independently re-verified twice — once by `judge-rubric` reading the diff directly (see
-`BACKLOG.md`'s Cycle 5 "Latest judge gaps"), and again just now for this pass via a fresh
-`rm -rf .data && npm run seed`, a real `/api/evidence` POST that pushed `stu_priya`'s `G.PART`
-over the mastery threshold, and a `git`-confirmed read of `finishSession()`/the matching CSS. The
-star/pop/pulse visual described in §1 below is real, shipped, and safe to record as-is — no
-remaining dependency. Section 1 is kept below only as a description of what the celebratory visual
-actually looks like, not as a blocker.
+## Three cuts, one repo
 
-## 1. The celebratory mastery visual — shipped, not a dependency
+| Composition | Runtime | Aimed at | Script |
+|---|---|---|---|
+| **`DemoTeacher`** | 58s | **The teacher.** What she gets, what it costs her, what she does with it. | **This file.** |
+| `DemoBuild` | 90s | Judges and engineers. What the product is, then how each part works. Light mode. | `archive/DEMO_SCRIPT_BUILD.md` (gitignored) |
+| `Demo` | 55s | The original short architecture cut, superseded. | `archive/DEMO_SCRIPT_ENGINEERING.md` (gitignored) |
 
-The child-facing mastery moment (`public/child/child.js`'s `finishSession()` + matching CSS in
-`public/child/index.html`) gives the mastery case its own glyph and motion, distinct from a
-routine session end: a hand-authored star SVG (no icon-library dependency, same stroke style as
-the app's other icons) in place of the routine checkmark, at a larger 64px size, with a
-`pop-in-mastery` keyframe (an overshoot scale + rotate, punchier than the plain fade/scale used
-everywhere else) and a `mastery-pulse-ring` box-shadow pulse in the app's existing
-`--status-mastered` teal (no new hue introduced). The routine, nothing-new-happened session end is
-untouched — same plain checkmark, same plain `pop-in` fade. This shipped in `689a527` and is
-confirmed live for single-concept, multi-concept, and routine (non-mastery) end screens alike
-(`BACKLOG.md`, Cycle 5). Script the close (Beats 5-6 below) around this as the real screen a judge
-will see, not a hoped-for one.
+**`DemoTeacher` is the product submission; `DemoBuild` is the technical one.** All three render
+from the same Remotion project and share a palette, motion vocabulary and concept graph; none is
+a re-timing of another. `DemoBuild` is light-mode, drops the serif display face entirely, and shows
+no captured product screen at all — it is about the machine underneath, and the two jobs dilute
+each other if mixed.
 
-## 2. Narrative arc (the "why hard / why this solves it" case)
+Two other locations live beside this file, both gitignored (not part of the submission):
 
-**Problem:** Most K-5 math apps (Prodigy, DreamBox, Zearn, Khan Kids) grade *answers* — right or
-wrong, then move on or repeat. They don't diagnose *why* two different kids keep getting the same
-type of question wrong, and they can't add a genuinely new mechanic without touching the grading
-engine itself.
+- `video/` — the Remotion project (user decision 2026-09-17): it is tooling for the submission,
+  not part of the app, and a reviewer cloning the repo should not trip over a second
+  `package.json`. Rendered cuts: `video/out/demo-teacher.mp4`, `video/out/demo-build.mp4` and
+  `video/out/demo.mp4`.
+- `archive/` — the other two cuts' director's-cut scripts (`DEMO_SCRIPT_BUILD.md`,
+  `DEMO_SCRIPT_ENGINEERING.md`) and a rough voiceover-generation draft (`VO_BUILD_DRAFT.md`),
+  kept for reference, not tracked.
 
-**Claim:** this architecture separates "playing a game" from "judging what it means." Games only
-report raw observations (never a verdict); a shared concept graph, belief model, and selection
-engine do all the interpreting. That split is what makes three things possible that a judge won't
-have seen in the incumbents:
+This file — the director's cut for `DemoTeacher`, the product submission: the spine, the beats,
+the copy, and the runbook.
 
-1. **Root-cause diagnosis across students** — the system traces two different kids' mistakes back
-   to the *same* underlying misconception, from graph structure alone, without being told.
-2. **A second game with zero engine change** — proof the "games are interchangeable" claim is
-   real, not aspirational.
-3. **Escalation instead of infinite loops** — a kid who's stuck three times running gets flagged
-   for a human, not served the same losing question forever.
-
-**Wow moment (the one to lead the video's emotional weight):** the tutor dashboard's "Shared
-misconceptions" panel showing Maya and Jonah — two different kids, never told anything about each
-other — both flagged with the same misconception, traced back to a concept neither of them was
-even being tested on in that moment. That's `blame()` walking the concept graph's `explains`
-edges live, and it's the single most concrete, most-repeatedly-validated proof point in this
-codebase (confirmed independently across 4 straight `judge-rubric` cycles).
-
-**Close:** a kid finishing a session and the exact moment a concept flips to mastered — the payoff
-of the whole belief-model machinery, shown with zero leaderboard, zero score, zero comparison (the
-architecture's own hard constraint), landing on the new celebratory beat.
-
-## 3. Cast (use the real seeded cohort — do not invent placeholder names)
-
-All from `directory` in `server/state.ts`, seeded via `npm run seed` (`scripts/seed.ts`):
-
-| Student | Role in the video |
-|---|---|
-| Maya R. (`stu_maya`) | Shared-misconception pair (with Jonah) — `WHOLE_NUMBER_BIAS` on `F.MAG.CMP` |
-| Jonah K. (`stu_jonah`) | Shared-misconception pair (with Maya) — same signature, same root cause |
-| Devon P. (`stu_devon`) | Stuck/escalation example — `G.PART`, 3 attempts without mastery |
-| Priya S. (`stu_priya`) | Extensibility proof — gets `fractionbars.compare.v1` (area-model bars), not the number line |
-| Amara O. (`stu_amara`) | Backup for the fractionbars beat if Priya's routing shifts before recording (also currently routes to `fractionbars.compare.v1`) |
-| Leo M. (`stu_leo`) | Not used on camera unless needed as a backup mastery-beat candidate |
-
-**Verified live today:** a fresh seed's `/api/assignment/<id>` shows `stu_priya` and `stu_amara`
-routed to `fractionbars.compare.v1`; the other four route to `numberline.place.v2`. This routing
-is deterministic given the seed script's fixed profiles and seed string, but re-confirm within a
-day of recording — belief-driven scoring can shift which game/concepts get served as time passes
-(recency decay is real-clock-based).
-
-## 4. Beat-by-beat storyboard
-
-Approximate timings are for the edit, not literal take length — expect to record longer and cut
-down.
+**The screens in the cut are real and already captured.** `video/scripts/capture.mjs` drives
+headless Chrome against a freshly seeded local server and writes 2x PNGs into
+`video/public/shots/`. Nothing is a mockup. The celebration in beat 11 is a genuine mastery
+transition: a real session played through to the screen the server actually produced.
 
 ---
 
-**Beat 0 — Cold open, fresh-clone proof (0:00–0:15)**
-*Screen: terminal.*
-Sped-up/cut terminal capture: `npm install && npm run seed && npm run dev` from a clean clone,
-landing on both `http://localhost:5173/child/` and `http://localhost:5173/tutor/` loading with no
-manual setup, no config, no seeded-state assumptions.
-> VO: "This is a K-5 math practice app where the games don't grade anything — a shared engine
-> does. Three commands, clean clone, no setup."
+## 1. Who this is for, and what it has to do
 
----
+The audience is **a teacher**, not a judge and not an engineer. She is not asking whether the
+architecture is elegant. She is asking three questions, in this order:
 
-**Beat 1 — The diagnosis, part 1: the dashboard already knows what to do (0:15–0:35)**
-*Screen: tutor dashboard, Overview tab (default landing tab).*
-Show the "Needs a human" card briefly, then the "Suggested opening — 5 min" card, which reads
-(verified live today, verbatim):
-> "Put Maya R., Jonah K.'s work on F.MAG.CMP side by side and ask the class to explain the
-> difference — the shared pattern is whole number bias, tracing back to F.MAG.UNIT."
-> VO: "This teacher hasn't done anything yet. The system already knows two kids share the same
-> misconception and told her exactly what to do about it."
+1. What does this cost me? *(Five minutes of class. Once, at the start.)*
+2. What do I get back that I do not already have? *(A cause, a shared pattern, and forgetting
+   I cannot see.)*
+3. What do I actually do with it? *(One named opening move for tomorrow morning.)*
 
----
+So the cut is built around **the morning loop** — play, read, teach, repeat — and that loop is
+drawn as a diagram twice: once in beat 4 as a promise, once in beat 12 as a habit. Every other
+beat is a link in it.
 
-**Beat 2 — The diagnosis, part 2: prove it's not a canned string (0:35–1:00)**
-*Screen: tutor dashboard, click into "Patterns" tab → "Shared misconceptions" panel.*
-Show the cluster row: chips "Maya R." + "Jonah K.", concept `F.MAG.CMP`, signature "whole number
-bias", arrow → root node `F.MAG.UNIT` (this is `blame()` rendered directly — same UI element
-verified across 4 judge-rubric cycles).
-> VO: "Maya and Jonah were never compared to each other by us. The system traced both of their
-> mistakes back through the concept graph's own prerequisite structure and found they share one
-> root cause — a concept neither of them was even being tested on in that session."
-(Optional, cut if tight on time: a 2-second flash of the concept-map strand view showing the
-`F.MAG.UNIT → F.MAG.CMP` edge, to visually ground "traced back through the graph" instead of just
-asserting it.)
+Engineering is not cut; it is **re-aimed**. The contract guard, the graph walk, the provenance
+string, the decision log and the empty grep are all still on screen, but each one is shown as
+the reason a teacher can believe the finding above it. The proof serves the claim; it is not
+the claim.
 
----
+## 2. The spine
 
-**Beat 3 — Extensibility: a second game, same engine, zero engine changes (1:00–1:30)**
-*Screen: child view.*
-Pick "Priya S." at the player-select screen → she's served `fractionbars.compare.v1` (area-model
-fraction bars, a two-choice comparison), visually distinct from the number-line drag interaction.
-Quick-cut to picking "Maya R." (or Devon) → served `numberline.place.v2` (SVG number-line
-placement).
-> VO: "Same engine, same belief model, two completely different games — a number line, and a
-> fraction-bar comparison. The second one was added by registering a manifest. Nothing in the
-> engine or the learner store had to change."
+Everything in the video hangs off **one wrong answer**: a child puts **1/8 to the right of
+1/3**, because 8 is bigger than 3.
 
----
+It opens the video, twice over — two children make it independently. It is the misconception
+diagnosed in the middle. It is, verbatim, the provenance string on the graph edge that makes
+that diagnosis (`"architecture.html #graph -- worked example: 1/8 placed right of 1/3"`). And
+it is the concept named in the opening move the teacher is handed at the end.
 
-**Beat 4 — Progression: escalation, not an infinite loop (1:30–1:50)**
-*Screen: tutor dashboard, Overview tab, "Needs a human" card.*
-Show Devon P.'s row: chip reading `G.PART · 3 sessions` (verified live wording today).
-> VO: "When a kid misses the same concept three times running, the system stops serving it and
-> flags it for a person — it doesn't just loop the same losing question forever."
+**The rule for everything else: if a shot does not advance that thread, it is cut.** No feature
+tour, no menu of tabs, no "and you can also…". Twelve beats, one idea each.
 
----
+**The suspense structure.** The first three beats pose a question and withhold the answer: two
+children, one mistake, and an instrument that cannot say why. The answer is then released in
+four separate pieces — the game reports (5), the graph converges (6), the pattern is named (7),
+the move is written (8) — so a viewer who has the question is given a reason to stay for each
+piece. Beats 9 and 10 are the two objections a teacher would raise next, answered before she
+can finish raising them: *what about the child it isn't working for* and *what happens when you
+change the game*. Only then does the cut show the child, and close the loop it opened.
 
-**Beat 5 — The reward: mastery, live (1:50–2:30)**
-*Screen: child view, a live-played session that crosses the mastery threshold on (ideally) two
-concepts in the same submission* — see §5 below for exactly how to set this up reliably before
-recording. End on the session-end screen:
-- The celebratory star/pulse icon — shipped and confirmed live (see §1); this is the real screen,
-  not a fallback.
-- Each mastered concept as its own clean line — "You've got it — Partition a whole into equal
-  parts!" / "You've got it — A unit fraction 1/n is one of n equal parts of a whole!" (this exact
-  two-concept rendering is the grammar fix shipped in `8167b37`; before that commit this text was
-  a broken run-on — do not record against anything older than `8167b37`).
-- No score, no streak count, no rank, visible anywhere on this screen.
-> VO: "And when a concept actually clicks, that's the whole payoff — not a streak, not a score, no
-> leaderboard. Just: you've got it."
+**What the video has to prove, in order:** (1) the problem is real and it is hers, (2) the cost
+is five minutes, (3) the game is not the judge, (4) the diagnosis works and is checkable, (5)
+the finding is one she cannot get today, (6) it ends in an instruction, (7) it knows when to
+stop, (8) it does not depend on which game, (9) none of it reaches the child.
 
----
+## 3. Beat sheet
 
-**Beat 6 — Close (2:30–2:40)**
-Hold on the mastery screen for a beat, then cut to black / title card.
-> VO (or on-screen text): "Games are interchangeable. Judgment is centralized. That's the bet."
+Twelve beats, 58 seconds. No beat runs longer than seven seconds and most run four or five.
 
----
+| # | Beat | In–out | Runs | The one idea |
+|---|---|---|---|---|
+| 1 | The same wrong answer | 0:00–0:04 | 4.0s | Two children. One mistake. |
+| 2 | What the grade book can say | 0:04–0:07.8 | 3.8s | It marks. It cannot explain. |
+| 3 | The pivot | 0:07.8–0:10.5 | 2.7s | Five minutes. |
+| 4 | The morning loop | 0:10.5–0:16.5 | 6.0s | Play → read → teach → repeat. |
+| 5 | The game reports | 0:16.5–0:22.2 | 5.7s | A game may not send a judgement. |
+| 6 | One cause | 0:22.2–0:29 | 6.8s | Both children trace to one idea. |
+| 7 | Two facts | 0:29–0:34.5 | 5.5s | A shared pattern, and forgetting. |
+| 8 | The opening move | 0:34.5–0:39.5 | 5.0s | A sentence for tomorrow, by name. |
+| 9 | It knows when to stop | 0:39.5–0:43 | 3.5s | It hands Devon back to her. |
+| 10 | Three games, one judgement | 0:43–0:47 | 4.0s | The engine never sees a game. |
+| 11 | What Priya sees | 0:47–0:53.5 | 6.5s | No score. No rank. One star. |
+| 12 | The loop closes | 0:53.5–0:58 | 4.5s | Five minutes. One clear move. |
 
-## 5. Recording-day setup — making Beat 5 reliable, not a gamble
+Beats 4, 6 and 11 carry the cut and get the most seconds on purpose — the offer, the reveal,
+and the child. Everything else is the scaffolding that makes them land.
 
-**Do not attempt this today — this is a note for whoever executes the final recording pass.**
+**The motion rule.** Everything that arrives springs in and overshoots (`pop()` in
+`video/src/theme.ts`); nothing cross-fades. The whole cut lives on one perspective stage, so
+screens, cards and worksheets are tilted, spun and pushed like physical slabs rather than
+dissolved like slides. Each beat banks the camera in a different direction, so two consecutive
+beats never move the same way.
 
-The two-concept mastery text fix was validated by `judge-rubric` using a *real* `/api/evidence`
-POST (not a unit test) with 8 correct `G.PART` observations + 8 correct `F.MAG.UNIT` observations,
-difficulty-weighted, in a single bundle against a fresh student — crossing the 0.85 threshold on
-both concepts in that one submission. That's the proven-safe pairing; reuse it. A natural
-child-play session only serves 1–4 items per concept per assignment (confirmed live today via
-`/api/assignment/<id>` — e.g. Devon's assignment had exactly 1 anchor item each for `F.MAG.UNIT`
-and `D.MAG`), so hitting threshold from a cold start inside one on-camera session isn't realistic
-within a 2–3 min video.
+**The type rule.** Every display line arrives **word by word**, each word on its own spring
+about two frames behind the last (`Punch` in `video/src/components/text.tsx`). The stagger is
+what does the work: it pulls the eye along the sentence in reading order instead of handing
+over the whole line at once. Three other treatments exist and are each used for exactly one
+job — `Marker` sweeps a highlighter behind the one clause that is an instruction (beat 8),
+`Strike` crosses out the one thing a game may not send (beat 5), and `TypeOn` types strings
+that are literally repo content (beats 8 and 10).
 
-Recommended procedure, timed close to the actual recording session (not days ahead — belief
-confidence and decay are wall-clock-based):
+## 4. Beat by beat
 
-1. Pick one of the 6 seeded students whose belief state (`GET /api/belief/<student_id>`) shows the
-   two target concepts as `EMERGING` or `UNTESTED`, **not** `STUCK` (a `STUCK` concept is
-   wheel-spin-blocked and won't be served again, so it can't be the on-camera crossing).
-2. Off camera, submit real evidence (the same `buildObservation()` + `POST /api/evidence` pattern
-   `scripts/seed.ts` already uses for its own hand-authored `F.MAG.CMP`/`WHOLE_NUMBER_BIAS`
-   sessions) bringing both target concepts' confidence close to — but not over — the mastery
-   threshold.
-3. Immediately before recording, `GET /api/belief/<student_id>` to confirm both concepts are still
-   `EMERGING`, not yet `MASTERED`, and `GET /api/assignment/<student_id>` to confirm the next
-   assignment actually includes anchor items for both.
-4. Record the session live in the child UI, answering those served items correctly. The
-   `/evidence` submission at session end should push both concepts over threshold in the same
-   response, producing the two-line mastery beat plus the celebratory star/pulse animation (see
-   §1 — shipped, not pending).
-5. If it doesn't cross both in one take, that's fine — a single-concept mastery beat is still a
-   legitimate, honest recording of the same feature. Don't force a two-concept take at the cost of
-   an obviously staged-looking session.
+**1 — The same wrong answer · 0:00–0:04.** Maya's worksheet flies in on a raked plane: a number
+line, 1/3 in its place, and 1/8 slammed down well to the right of it. Under it, in her own
+words: **"Eight is more than three."** At frame 46 Jonah's worksheet lands beside it and the
+whole stage recoils — same line, same tile, same sentence. Two red crosses stamp.
+**"Two children. The same mistake."** The first frame of the video is a child's work, not a
+brand, and the hook is the sameness rather than the error.
 
-## 6. What NOT to show
+**2 — What the grade book can say · 0:04–0:07.8.** Ms. Chen arrives with the only instrument
+she has today. The grade book is **a deliberate prop, not a product screen** — it is what a
+teacher already owns, and the beat exists to show the exact shape of its limit. Six rows stamp
+in, three crosses and three ticks. **"It marks both answers wrong."** Then every mark clears
+off the page and a single huge **?** turns into the space they left.
+**"It does not say why."**
 
-- **`D.NOTATE`/`D.MAG` anchor-prerequisite paradox** — confirmed still open (zero authored
-  `D.NOTATE` items, `D.MAG` served as an anchor to several students). It's a real gap but, per
-  `judge-rubric`, "a code-reading-level gap, not something a 3-minute demo video is likely to
-  surface" — don't navigate the concept map into a place where it'd show up (e.g. don't drill into
-  `D.NOTATE`'s node or dwell on `D.MAG`'s anchor badge).
-- **The full "Needs a human" / stuck list, unfiltered** — confirmed live today that `N.MAG` shows
-  up as stuck for 5 of 6 seeded students with identical `attempts_without_mastery: 3`, which reads
-  as a seed-tuning artifact (flagged in `BACKLOG.md` as low-priority/cosmetic) rather than a
-  diverse cohort. Show one clean example (Devon/`G.PART`), not the whole paginated list.
-- **The "Lost since earlier" (retention) panel** — confirmed live today it's empty
-  (`report.retention: []`) on a fresh seed. An empty panel reads as broken if lingered on; skip it
-  or cut past it quickly if the tab is shown at all.
-- **Deep concept-map scrolling** — most strands/nodes are `unmeasured_n: 6` (fully untested) on a
-  fresh seed (e.g. `N.PLACE`, `F.EQV`, `F.ADD.LIKE`, `F.MIXED`). Only the magnitude→fractions
-  strand that's actually been exercised looks populated. Stay there if showing the concept map at
-  all; don't scroll into the untested strands.
-- **Raw JSON/curl output** — everything in this script is demonstrable through the actual child/
-  tutor UI. Don't fall back to showing API responses on screen; that's a "trust me" moment, not a
-  "look, live" moment, and undercuts the "the UI is the proof" framing.
-- **Any rapid-double-tap or dead-end state** — the child client has a rapid-tap guard and an
-  honest three-way "all done / taking a break / nothing lined up" distinction specifically because
-  these used to be confusing dead ends. Don't manufacture one on camera by clicking ahead of the
-  UI or picking a student mid-escalation expecting a specific screen — verify the exact screen a
-  chosen student will hit via a fresh `GET /api/assignment/<id>` before recording, not by memory.
-- **The plain-checkmark mastery screen** — the celebratory star/pulse visual is merged (`689a527`)
-  and is the version that should always render on a mastery transition now. Still do a fresh
-  `rm -rf .data && npm run seed` immediately before recording (habit worth keeping regardless),
-  but there's no longer a version-uncertainty risk here — just don't record against a checkout
-  older than `689a527`.
+**3 — The pivot · 0:07.8–0:10.5.** The shortest beat, and the only one with nothing in it but a
+person, a number and a promise. A stopwatch ring draws to **5:00** beside Ms. Chen.
+**"She changes how class starts." / "Five minutes."** The five minutes are claimed here and
+spent in the next beat.
 
-## 7. Verified-live log (2026-09-09, HEAD `8167b37`; freshness pass same day, HEAD `529fd0f`/app
-code `689a527`)
+**4 — The morning loop · 0:10.5–0:16.5.** The diagram the video is really selling. The camera
+starts pushed into the first card and pulls back as each of the three lands, so the loop is not
+visible *as* a loop until the last second of the beat:
 
-For traceability — every claim above was checked against the running app, not assumed from the
-README or `BACKLOG.md`:
+```
+  1 PLAY  ── 5 minutes ──▶  2 READ ── 1 minute ──▶  3 TEACH ── today
+  one short game            one named cause          one opening question
+        ▲                                                    │
+        └──────────────── EVERY MORNING ─────────────────────┘
+```
 
-- Fresh `rm -rf .data && npm run seed` → `npm run dev`: both `/child/` and `/tutor/` return `200`.
-- `GET /api/tutor/report/coh_demo`: `clusters` contains exactly one entry — `signature:
-  "WHOLE_NUMBER_BIAS"`, `concept_id: "F.MAG.CMP"`, `student_ids: ["stu_maya","stu_jonah"]`,
-  `root_cause: "F.MAG.UNIT"`. `opening_move.text` names Maya R., Jonah K., F.MAG.CMP, whole number
-  bias, and F.MAG.UNIT verbatim.
-- `GET /api/assignment/stu_priya` and `.../stu_amara`: `game_id: "fractionbars.compare.v1"`. The
-  other four seeded students: `game_id: "numberline.place.v2"`.
-- `GET /api/assignment/stu_devon`: `escalations: ["G.PART","N.MAG"]`; tutor "Needs a human" panel
-  renders `G.PART · 3 sessions` for Devon P. (chip text confirmed by reading `tutor.js` directly:
-  `` `${s.concept_id} · ${s.attempts_without_mastery} sessions` ``).
-- `GET /api/tutor/report/coh_demo`: `retention: []` on a fresh seed (empty — confirmed above as a
-  "don't linger here" panel).
-- `git status`: `public/child/child.js` and `public/child/index.html` both showed uncommitted
-  modifications at the time of the original pass, adding a `star` icon, `.icon-wrap--mastery`, and
-  `pop-in-mastery`/`mastery-pulse-ring` keyframes.
-- **Freshness-pass update (same day, HEAD `529fd0f`):** that work is now committed as `689a527`
-  and confirmed clean (`git status` reports nothing to commit, `git log` shows `689a527` in
-  history). Re-verified end-to-end for this pass: fresh `rm -rf .data && npm run seed` →
-  `npm run dev`, both `/child/` and `/tutor/` return `200`; a real `POST /api/evidence` (8 correct
-  observations pushing `stu_priya`'s `G.PART` over threshold) returned
-  `newlyMastered: [{"concept_id":"G.PART", ...}]`; and `public/child/child.js:382-385` /
-  `public/child/index.html:90-104` confirm `finishSession()` branches on `newlyMastered.length > 0`
-  to render `icon-wrap--mastery` + `icon("star")` with the `pop-in-mastery`/`mastery-pulse-ring`
-  CSS, while the non-mastery path is untouched. The celebratory visual described in §1 is real,
-  shipped, and ready to record against.
+**"Three steps. One loop."** This is the longest early beat because it is the offer: five
+minutes of class, one instruction back.
+
+**5 — The game reports · 0:16.5–0:22.2.** Maya's real number-line screen arrives, then turns
+over on its Y axis. On the back is the Observation the game actually sends — five things it may
+say, each in plain words with its real field name beside it (`item_id`, `concept_id`, `verdict`,
+`signature`, `latency_ms`). A sixth row, **what it means**, is struck out, and beside it, in
+mono, the exact message from `ObservationSchema`'s guard in `src/contracts/schemas.ts`:
+`evidence must never carry a score, mastery estimate, or percentage`. A game that tried to send
+a judgement would be **rejected by the contract**, not merely discouraged by a convention.
+**"The game does not grade the answer." / "It reports what it sees."**
+
+**6 — One cause · 0:22.2–0:29.** The payoff of beat 1. The real 83-node graph lies as a plane in
+3D; the camera banks from a steep rake to nearly flat while pushing into the fraction cluster.
+Maya and Jonah drop onto the two *different* concepts they each got wrong, as the same roster
+chips the dashboard draws. Both `WHOLE_NUMBER_BIAS` edges fire **backwards** and converge on
+`F.MAG.UNIT`, which rings teal. A flat card names it in the graph's own words — **"A unit
+fraction 1/n is one of n equal parts of a whole"** — with the provenance string under it, which
+quotes the wrong answer the video opened on. **"One cause." / "No test asked about it."**
+
+**7 — Two facts · 0:29–0:34.5.** The real Patterns tab banks in and two findings lift off it
+toward camera. **Shared misconception:** two named children, one signature, one blamed root
+cause. **Lost since earlier:** three concepts Maya mastered before, decayed to ~0.69 — the
+system noticing forgetting that no mark on any page records. The second one is the beat; the
+first is impressive, the second is the one a teacher has genuinely never been handed.
+**"Neither fact fits in a grade book."**
+
+**8 — The opening move · 0:34.5–0:39.5.** The end of the loop's second step, and the point of
+the product for the person watching. The sentence types on exactly as
+`buildOpeningMove()` emits it, names and concept ids and em-dash included. Twenty-nine words is
+more than anyone reads in five seconds, which is why the one actionable clause is then
+highlighted: the viewer registers that something real and specific arrived, and reads the part
+that tells her what to physically do. **"She knows what to teach first."**
+
+**9 — It knows when to stop · 0:39.5–0:43.** The one beat that argues against the product's own
+automation. Devon has failed the same concept in three sessions, so the engine refuses to serve
+it a fourth time, and says so in its own decision log: `BLOCKED · G.PART · score 0.4653 ·
+wheel-spin block: attempts_without_mastery=3 >= 3`. The blocked row is thrown out of frame,
+because that is exactly what the constraint does to it. **"It stops asking him. It asks you
+instead."**
+
+**10 — Three games, one judgement · 0:43–0:47.** Four seconds of engineering, told the way it
+matters to her: the games her class plays can be swapped or added to, and not one of the
+findings she just saw depends on which one ran. Three real game screens fan out as a 3D
+carousel; the rig recedes and a terminal slab lands in front of it:
+`grep -rn "games/" src/engine src/store src/analytics src/graph` → **`0 results`**.
+**"Three games. One judgement."**
+
+**11 — What Priya sees · 0:47–0:53.5.** Everything in the last thirty seconds happened on the
+teacher's side. None of it reaches the child. Four real screens, each arriving on a different
+axis: the star map banks in from the right (**"Priya sees none of it."**), the balance scale
+whips up from below (**"She plays."**), then the celebration pushes straight at camera on a
+rising teal glow and is allowed to sit still and be looked at — no caption over it. Finally the
+map returns with the star bloomed. **"No score. No rank. No leaderboard." / "One star. One idea
+she understands."**
+
+**12 — The loop closes · 0:53.5–0:58.** The same three steps, now small, lit and turning, with
+Fizz at one end and Ms. Chen at the other. **"Five minutes of play." / "One clear move."**
+Wordmark, out. No feature list, no URL, no thanks for watching.
+
+## 5. The copy
+
+**All on-screen copy and the voiceover are written in Simplified Technical English.** One idea
+per sentence, active voice, present tense, ordinary words, nothing that needs a second reading.
+The audience is reading at four seconds a beat while also looking at a diagram; anything that
+needs parsing twice is a line that fails.
+
+The one exemption is **anything quoted verbatim from the repo or the running API** — the
+contract guard message, the provenance string, the opening move, the decision-log rows, the
+concept ids, the grep. Those are set in mono and are never rewritten, simplified or trimmed,
+because mono means *this is real* and that promise is worth more than the reading ease of six
+words. Everything set in a display or sans face is STE; everything set in mono is verbatim.
+
+Ordinary words for everything a parent would need explained ("one star, one idea she
+understands"), exact words for everything an engineer would check
+(`attempts_without_mastery=3 >= 3`). Numbers appear only when a number is the point.
+
+Every claim is on screen, so the cut reads silently; never narrate what is already legible.
+
+## 6. Voiceover
+
+Optional. The cut is submittable without it. If it is recorded it goes over beats **1–4 and
+11–12 only** — beats 5–10 are too dense to narrate at this pace and the type already carries
+them. Record in one pass, unhurried, and let each on-screen line land before speaking over the
+next:
+
+> Two children. The same wrong answer. One-eighth, put to the right of one-third — because
+> eight is more than three. *(beat)* Her grade book marks them both wrong. It does not say why.
+>
+> So she changes how class starts. Five minutes of play. The class plays one short game, she
+> reads one cause, and she teaches one thing. Every morning.
+>
+> *(silent through beats 5–10)*
+>
+> None of it reaches the child. She sees a sky, and one star for every idea she is growing.
+>
+> *(silent through the celebration)*
+>
+> No score. No streak. Nothing that compares her to anybody.
+>
+> Five minutes of play. One clear move.
+
+Drop the take at `video/public/vo-teacher.wav` and uncomment the `<Audio>` in
+`video/src/DemoTeacher.tsx`. Then move the beat boundaries in `TEACHER_BEATS`
+(`video/src/theme.ts`) to fit the read — never the read to fit them.
+
+## 7. Cast
+
+Four people are drawn, in the same flat vocabulary as Fizz (`video/src/components/Cast.tsx`,
+itself redrawn from `public/child/child.js`). Each child carries the **exact hue
+`public/shared/styles.css` assigns their roster avatar**, keyed by their position in
+`server/state.ts`'s `directory` — so Maya is the same blue on a sketch as she is on the
+dashboard in the same frame.
+
+| Who | On camera as | Verified state today |
+|---|---|---|
+| **Maya R.** (`stu_maya`, hue 0, blue) | Beats 1, 6, 7 | `F.MAG.CMP: STUCK` (3), `WHOLE_NUMBER_BIAS`. Three decayed concepts at p ≈ 0.69. |
+| **Jonah K.** (`stu_jonah`, hue 3, amber) | Beats 1, 6, 7 | `F.MAG.CMP: STUCK` (4), `F.MAG.NONUNIT: STUCK` (3), same signature, same root cause. |
+| **Devon P.** (`stu_devon`, hue 1, teal) | Beat 9 | `G.PART` blocked, `attempts_without_mastery: 3`. Routes to `numberline.place.v2` (D.NOTATE). |
+| **Priya S.** (`stu_priya`, hue 2, pink) | Beat 11 | Routes to `balancescale.compare.v1` on `F.EQV`, 8 items. The real mastery transition. |
+| **Ms. Chen** | Beats 2, 3, 4, 8, 12 | **Invented.** See below. |
+
+**Ms. Chen is the one fictional element in the cut.** The app has no teacher directory, only a
+cohort, so she is the audience's stand-in rather than a record in the system. She therefore
+carries the tutor ground's brand green rather than a student hue, and glasses, so she never
+reads as a seventh child. Nothing is ever claimed about her that the product would store.
+
+**Beat 11 is Priya and not Maya, and that is a fact about the capture rather than a choice
+about the story.** `capture.mjs` plays a real session through to a real mastery transition, and
+the only seeded child it can honestly do that for is Priya: her assignment is eight non-anchor
+`F.EQV` items on the balance scale, a tap game the script can answer by reading each item's own
+rendered fractions. Maya's assignment is number-line placement, which is a drag, and her belief
+history would not cross the mastery gate in one clean session anyway. So all four screens in
+beat 11 are one child's, start to finish, rather than two children's cut together to look like
+one. **Do not relabel that beat as Maya to tidy the arc.**
+
+**Routing changes between seeds and will change again.** Re-derive this whole table on recording
+day; never record from its memory.
+
+## 8. Recording-day runbook
+
+Everything the cut needs is already captured. This is what to re-run on the day, in order,
+because belief state is wall-clock sensitive (recency half-life 30 days, grace 10) and the seed
+timeline holds for about four days.
+
+1. **Green build.** `npm test` (expect 195 passing, 19 files), `npm run typecheck` clean. A
+   judge runs these.
+2. **Fresh state.** `rm -rf .data && npm run seed`, then `npm run dev`. Confirm `GET
+   /api/health` lists all three games and that `/child/` and `/tutor/` both return 200.
+3. **Re-capture.** `cd video && node scripts/capture.mjs`. It drives headless Chrome at
+   1280×800 @2x, walks the tutor tabs, opens three kids' maps and games, then plays Priya's
+   balance-scale session through — answering correctly by reading each item's own rendered
+   fractions — and captures the celebration and bloomed map that follow. It prints a warning
+   instead of a celebration frame if the mastery transition did not fire; reseed and re-run.
+4. **Re-verify every quoted string**, because each is on screen verbatim:
+   - `GET /api/tutor/report/coh_demo` → `opening_move.text` (beat 8) and the two
+     `clusters[].root_cause_provenance` strings (beat 6).
+   - `GET /api/assignment/stu_devon` → the two `decisionLog` rows (beat 9, `S09Stop.tsx`).
+   - `ObservationSchema`'s `.refine()` message in `src/contracts/schemas.ts` (beat 5).
+   - `grep -rn "games/" src/engine src/store src/analytics src/graph` → must still be empty, or
+     beat 10 is a lie and has to come out.
+5. **Check the cut typechecks.** `cd video && npx tsc --noEmit && npx eslint src`.
+6. **Render.** `cd video && npx remotion render DemoTeacher out/demo-teacher.mp4`. 1740 frames,
+   1920×1080, 30fps.
+7. **Watch it once at full size before submitting.** Specifically: that no caption is covered by
+   a card in beats 6, 7 and 9, and that the last word of every line lands before its beat cuts.
+   Both classes of fault have happened and neither shows in a still.
+
+To work one beat at a time, every beat is registered as its own composition (`T01-SameAnswer`
+… `T12-Close`) in `video/src/Root.tsx`, so the Studio can open it without scrubbing the minute.
+
+## 9. What not to show
+
+- **`D.NOTATE` / `D.MAG` anchor-prerequisite paradox** — still open. Don't drill into
+  `D.NOTATE`'s node or dwell on a `D.MAG` anchor badge. Beat 9 shows `D.NOTATE` only as a
+  decision-log row, which is safe.
+- **"Blocked: 3 sessions in a row"** — the tutor renders this string, but
+  `attempts_without_mastery` counts non-consecutive sessions, so it is not true as written.
+  Beat 9 shows the raw `decision_log` row instead, which is. Don't put the tutor string on
+  screen at a readable size.
+- **"Her highest-scoring concept is the blocked one."** This *was* true of Maya and is no
+  longer: on today's state `F.MAG.NONUNIT` (0.4618) outscores the blocked `F.MAG.CMP` (0.4493).
+  The claim is not made anywhere in this cut. Don't reintroduce it.
+- **The full stuck list**, unfiltered. Frame one example, never the whole panel.
+- **Deep concept-map scrolling** — only the magnitude→fractions strand is exercised on a fresh
+  seed; the rest render as fully untested. The Remotion graph in beat 6 is the safe way to show
+  graph structure.
+- **Raw JSON or curl output as proof.** The decision log in beat 9 and the grep in beat 10 are
+  the exceptions, and both are typeset in Remotion, not screenshotted from a terminal.
+- **Any dead end.** The map can glow a star that Play won't serve (a known `p_mastery`-vs-status
+  split). Verify the exact screen a chosen kid lands on via a fresh `GET /api/assignment/<id>`
+  before rolling, not from memory.
+- **A tutor link on the child surface.** There isn't one, by decision. Don't imply one exists.
+- **Ms. Chen doing anything the product stores.** She may read, decide and teach. She may not
+  appear to log in, be listed, or be addressed by the app.
+
+## 10. Verified live — 2026-09-18, HEAD `65b171d`
+
+Server on :5173 against the existing `.data`. Read off the running app, not the README.
+
+- `GET /api/health` → `games: ["numberline.place.v2", "balancescale.compare.v1",
+  "fractionbars.compare.v1"]`, `graphVersion: "2026.09.10"`, `db: "disabled"`.
+- `GET /api/tutor/report/coh_demo` → **two** clusters, both `WHOLE_NUMBER_BIAS`, both
+  `["stu_maya", "stu_jonah"]`, both `root_cause: "F.MAG.UNIT"`. Beat 6 animates the first.
+- `opening_move.text`, quoted verbatim in beat 8:
+  `"Put Maya R., Jonah K.'s work on F.MAG.CMP side by side and ask the class to explain the
+  difference -- the shared pattern is whole number bias, tracing back to F.MAG.UNIT."`
+- `retention` → 10 rows, non-empty. Maya's three (beat 7): `N.ORD` p_decayed 0.6933, `N.PLACE`
+  0.6815, `N.PLACE.HTH` 0.6941 — shown rounded to 0.69 / 0.68 / 0.69.
+- Stuck list: 4 rows, 3 kids — maya/`F.MAG.CMP` (3), devon/`G.PART` (3), jonah/`F.MAG.CMP` (4),
+  jonah/`F.MAG.NONUNIT` (3).
+- `GET /api/assignment/stu_devon` decision log, quoted verbatim in beat 9: `G.PART` blocked at
+  score `0.4653` with `"wheel-spin block: attempts_without_mastery=3 >= 3"`; `D.NOTATE` served
+  at `0.6` with `"selected: top of frontier/uncertainty/retrieval/blame score"`.
+- `GET /api/assignment/stu_priya` → `balancescale.compare.v1`, `F.EQV`, 8 items — the beat 11
+  session.
+- Graph (`src/graph/data/strand-magnitude-fractions.json`): **83 nodes, 127 `requires`, 7
+  `explains`**, every `explains` edge carrying a `provenance` string. `F.MAG.UNIT`'s label, on
+  screen in beat 6, is `"A unit fraction 1/n is one of n equal parts of a whole"`.
+- `ObservationSchema` guard message, on screen in beat 5:
+  `"evidence must never carry a score, mastery estimate, or percentage"`
+  (`src/contracts/schemas.ts`).
+- `grep -rn "games/" src/engine src/store src/analytics src/graph` → **0 results**.
+- `npm test` → **195 passed, 19 files**. `npm run typecheck` → clean.
+- `cd video && npx tsc --noEmit && npx eslint src` → clean.

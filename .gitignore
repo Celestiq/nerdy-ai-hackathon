@@ -14,3 +14,12 @@ CLAUDE.md
 IDEAS.md
 JUDGE_RUBRIC.md
 SWARM.md
+
+# demo video project (Remotion) -- tooling for the submission video, not
+# part of the app. Kept out of the repo entirely so it can't interfere
+# with a fresh clone, a build, or a reviewer reading src/.
+video/
+
+# superseded drafts and working notes kept for reference, not submission
+# material (e.g. an earlier demo cut's script, a rough VO-generation draft).
+archive/
