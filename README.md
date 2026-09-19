@@ -12,8 +12,8 @@ through four fixed contracts (Manifest, Evidence, Belief, Assignment).
 
 ## What's implemented
 
-This is a compressed, single-pass build of the roadmap's milestones
-M1–M5, scoped down from its 4–6 person / multi-phase team plan:
+This is a compressed, single-pass build, scoped down from a larger
+4–6 person / multi-phase team plan:
 
 - **Contracts** (`src/contracts`) — zod schemas for all four contracts, a
   closed signature-code vocabulary, concept-id validation, and reference
@@ -45,8 +45,8 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
   placement, signature-by-construction via authored response regions),
   `fractionbars.compare.v1` and `balancescale.compare.v1` (further
   mechanics/representations, each registered through the manifest +
-  item-bank registries alone — zero engine or store changes, proving the
-  extensibility claim from roadmap.html C13).
+  item-bank registries alone — zero engine or store changes, proving each
+  game is truly interchangeable).
 - **Analytics** (`src/analytics`) — stuck list, misconception clustering
   with blamed root cause, retention alerts, concept coverage (unmeasured
   kept strictly distinct from weak), and a templated opening move.
@@ -61,11 +61,10 @@ M1–M5, scoped down from its 4–6 person / multi-phase team plan:
 
 ### What's deliberately out of scope
 
-- No separate identity/privacy microservice (roadmap C2) — students are
-  opaque IDs from a small in-memory directory, not a real auth system.
-- No live LLM item generation (roadmap C12) — the item bank is
-  hand-authored, per the architecture doc's own guidance that authoring
-  depth, not item count, is the real cost.
+- No separate identity/privacy microservice — students are opaque IDs
+  from a small in-memory directory, not a real auth system.
+- No live LLM item generation — the item bank is hand-authored;
+  authoring depth, not item count, is the real cost.
 
 ## Running it
 
@@ -123,29 +122,28 @@ Design notes (see `server/db.ts` for the full reasoning):
   a second concurrent replica wouldn't see the first one's writes until its
   own restart. Revisit if this ever needs more than one replica.
 
-## Proving the architecture's own claims
+## Proof points
 
-- **The diagnostic claim (G4 in roadmap.html):** run `npm run seed`, then
-  open the tutor view — Maya and Jonah both show up under "Shared
-  misconceptions" with `WHOLE_NUMBER_BIAS` on `F.MAG.CMP`, traced back to
-  `F.MAG.UNIT`, exactly the worked example in architecture.html #graph.
+- **Root-cause diagnosis:** run `npm run seed`, then open the tutor
+  view — Maya and Jonah both show up under "Shared misconceptions" with
+  `WHOLE_NUMBER_BIAS` on `F.MAG.CMP`, traced back to `F.MAG.UNIT`.
   Nobody told the system that root cause; `blame()` found it from the
   graph's `explains` edges.
-- **The extensibility claim (G6 / C13):** `fractionbars.compare.v1`
+- **Extensibility:** `fractionbars.compare.v1`
   (`src/games/fractionbars`) is a second mechanic, a second
   representation (`AREA_MODEL`), registered via `server/state.ts` calling
   `registry.register()` and `itemBank.register()`. `src/engine` and
   `src/store` never import it.
-- **The wheel-spin claim:** `tests/engine.test.ts` and
+- **Wheel-spin escalation:** `tests/engine.test.ts` and
   `tests/simulation.test.ts` drive a `wheelSpinner` profile through many
   sessions and assert escalation happens within the attempt limit, and
   that the stuck concept keeps escalating to the tutor every round it
   stays stuck. It's normally never served again once blocked -- except as
   a last-resort fallback when it's the only candidate left at all (see
-  "the starvation-fallback claim" below), in which case re-serving it is
-  logged explicitly, not silent.
-- **The starvation-fallback claim:** the selection engine used to return
-  no assignment at all -- a dead end for the child surface -- whenever
+  "starvation fallback" below), in which case re-serving it is logged
+  explicitly, not silent.
+- **Starvation fallback:** the selection engine used to return no
+  assignment at all -- a dead end for the child surface -- whenever
   every candidate concept was wheel-spin-blocked simultaneously (see
   `src/engine/constraints.ts`'s `applyHardConstraints`). It now relaxes
   the wheel-spin block for exactly one candidate (highest score, ties
